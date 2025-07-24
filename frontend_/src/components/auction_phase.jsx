@@ -129,9 +129,10 @@ const AuctionPhase = ({
       // Retain discard pile and phase
       discardPile,
       phase: "auction",
+      action: "hostReset"
     };
 
-    console.warn("🛠️ Host manually reset auction round");
+    console.warn("🛠️ Host manually reset auction round this is newState", newState);
     broadcastState(newState);
   };
 

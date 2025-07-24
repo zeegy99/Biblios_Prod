@@ -141,6 +141,19 @@ useEffect(() => {
   return () => socket.off("sync_game_state", handler);
 }, []);
 
+//For when host resets
+
+useEffect(() => {
+  const handler = (gameState) => {
+    if (gameState.action === "hostReset") {
+      console.log("This is the new gamestate after host reset the game", gameState)
+    }
+  };
+  socket.on("sync_game_state", handler);
+  return () => socket.off("sync_game_state", handler);
+}, []);
+
+
 //When someone draws a special card
 useEffect(() => {
   const handleSync = (gameState) => {
