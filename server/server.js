@@ -1,11 +1,34 @@
+const express = require("express");
+const http = require("http");
+const cors = require("cors");
+const path = require("path");
+
 const { Server } = require("socket.io");
 
-const io = new Server(3001, {
+const app = express();
+app.use(cors());
+
+const frontendPath = path.join(__dirname, "../frontend_/dist");
+app.use(express.static(frontendPath));
+
+app.get("/", (req, res) => {
+  res.send("Server is running");
+});
+
+const server = http.createServer(app);
+
+const io = new Server(server, {
   cors: {
     origin: "*", // Or use "http://localhost:5173" for Vite
     methods: ["GET", "POST"]
   }
 });
+
+const PORT = process.env.PORT || 3001;
+server.listen(PORT, () => {
+  console.log(`Server listening on port ${PORT}`);
+});
+
 
 
 
