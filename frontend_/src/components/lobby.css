@@ -1,8 +1,30 @@
-.naming-button {
+.button-bar {
   position: fixed;
   top: 16px;
-  right: 130px;
+  right: 16px;
+  display: flex;
+  gap: 12px;
   z-index: 1000;
+  padding-right: 100px;
+}
+
+
+.menu-button {
+  padding: 8px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  border-radius: 24px;
+  height: 40px;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  transition: background 0.2s ease;
+background: #ffe600;
+  color: #111;
+}
+
+
+.naming-button {
 
   display: inline-block;
   outline: 0;
@@ -22,6 +44,35 @@
 .naming-button:hover {
   box-shadow: 0 8px 22px 0 rgb(37 44 97 / 15%), 0 4px 6px 0 rgb(93 100 148 / 20%);
 }
+
+
+
+
+.normal-button {
+  margin-top: 12px;
+  display: block;
+  width: 100%;
+  height: 40px;
+  padding: 0 14px;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: center;
+  color: #111;
+  background: #ffe600;
+  border: none;
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s;
+}
+
+
+.normal-button:hover {
+  background: #f7d800;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+}
+
+
+
 
 .dropdown-box {
   position: absolute;
@@ -58,28 +109,4 @@
 .nickname-input:focus {
   border-color: #3c4fe0;
   box-shadow: 0 0 6px rgba(60, 79, 224, 0.4);
-}
-
-
-
-.normal-button {
-  margin-top: 12px;
-  display: block;
-  width: 100%;
-  height: 40px;
-  padding: 0 14px;
-  font-size: 15px;
-  font-weight: 600;
-  text-align: center;
-  color: #111;
-  background: #ffe600;
-  border: none;
-  border-radius: 12px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-  transition: all 0.2s;
-}
-
-.normal-button:hover {
-  background: #f7d800;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
 }

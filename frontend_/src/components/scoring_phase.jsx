@@ -87,7 +87,7 @@ const ScoringPhase = ({ players, dice, setFinalResults, goToResults, isHost }) =
       {log.map((line, i) => (
         <p key={i}>{line}</p>
       ))}
-      {!isDone && isHost && (
+      {!isDone && (
         <button onClick={handleScoreNextDie} style={{ marginTop: "20px" }}>
           ➡️ Score Next ({dice[currentDieIndex]?.resource_type || "Done"})
         </button>

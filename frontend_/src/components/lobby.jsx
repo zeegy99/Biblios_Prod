@@ -2,16 +2,29 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import socket from "../socket";
 import "./lobby.css";
+import RulesPage from "./rulespage"; // ✅ adjust path if needed
+
 
 const Lobby = ({ playerName, setPlayerName }) => {
   const [players, setPlayers] = useState([]);
   const navigate = useNavigate();
   const room = localStorage.getItem("roomCode") || "biblios";
   const [showBox, setShowBox] = useState(false);
+  const [rulesPage, setRulesPage] = useState(false);
   const [tempName, setTempName] = useState(playerName);
 
+  //For future potentially
+  const [playerId] = useState(() => {
+  let stored = localStorage.getItem("playerId");
+  if (!stored) {
+    stored = Math.random().toString(36).substring(2, 10); // simple unique ID
+    localStorage.setItem("playerId", stored);
+  }
+  return stored;
+});
+
   useEffect(() => {
-  socket.emit("join_game", { room, playerName });
+  socket.emit("join_game", { room, playerName}); //socket.emit("join_game", { room, playerName, playerId });
 
   socket.on("player_list", (updatedPlayers) => {
     // console.log("📡 Received player list:", updatedPlayers);
@@ -32,7 +45,6 @@ const Lobby = ({ playerName, setPlayerName }) => {
 });
 
 
-  // ✅ THIS is what you were missing
   socket.on("game_state", (data) => {
     console.log("✅ game_state received in lobby. Navigating to game...");
     localStorage.setItem("playerName", playerName);
@@ -47,13 +59,20 @@ const Lobby = ({ playerName, setPlayerName }) => {
 }, [playerName]);
 
   const handleStartGame = () => {
-    console.log("🚀 Start Game button clicked");
+    console.log("Start Game button clicked");
     socket.emit("start_game", { room: room });
   };
 
+
   const toggleDropDown = () => {
     setShowBox((prev) => !prev);
-    console.log(showBox)
+  }
+
+  const toggleRulesPage = () => {
+    setRulesPage((prev) => {
+    console.log("Previous value of rulesPage:", prev);
+    return !prev;
+  });
   }
 
   const updateName = () => {
@@ -88,9 +107,26 @@ const Lobby = ({ playerName, setPlayerName }) => {
         <p>Waiting for host to start the game...</p>
       )}
 
-      <button className={'naming-button'} onClick={toggleDropDown}>
+      <div class="button-bar">
+
+        <button className={'menu-button'}>
+        Button
+      </button>
+
+        <button className={'menu-button'} onClick={toggleRulesPage}>
+        Rules
+      </button>
+
+         <button className={'naming-button'} onClick={toggleDropDown}>
         {playerName}
       </button>
+
+      
+
+
+      </div>
+
+     
 
       {showBox && (
         <div className={'dropdown-box'}>
@@ -110,6 +146,8 @@ const Lobby = ({ playerName, setPlayerName }) => {
         </div>
         
       )}
+
+      {rulesPage && <RulesPage onClose={() => setRulesPage(false)} />}
 
       <br></br>
 

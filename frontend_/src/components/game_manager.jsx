@@ -11,7 +11,9 @@ import socket from "../socket";
 import { useNavigate } from "react-router-dom";
 import { useParams } from "react-router-dom";
 import { useLocation } from "react-router-dom";
+import "./lobby.css";
 import PlayerHand from "./player_hand";
+
 
 const GameRunner = ({ playerName }) => {
   // console.log("🧠 GameRunner mounted with playerName:", playerName);
@@ -53,6 +55,8 @@ const GameRunner = ({ playerName }) => {
 
   const navigate = useNavigate();
 
+  //For UI
+  
   const handleRestart = () => {
   localStorage.removeItem("last_game_state");
   localStorage.removeItem("start_game_payload");
@@ -341,24 +345,132 @@ useEffect(() => {
       </div>
 
       <p style={{ textAlign: "center" }}>Current Phase: {phase}</p>
-      {dice && (
-  <div style={{ textAlign: "center", marginBottom: "20px" }}>
-    <h3>🎲 Dice Values</h3>
-    <ul style={{ display: "flex", justifyContent: "center", listStyle: "none", padding: 0, gap: "12px" }}>
-      {dice.map((die, idx) => (
-        <li key={idx} style={{
-          padding: "8px 12px",
-          border: "1px solid #ccc",
-          borderRadius: "8px",
-          backgroundColor: "#f9f9f9",
-          minWidth: "80px"
-        }}>
-          <strong>{die.resource_type}</strong>: {die.value}
-        </li>
-      ))}
-    </ul>
+     {dice && (
+  <div style={{ position: "relative", marginBottom: "20px" }}>
+    <h3 style={{ textAlign: "center" }}>🎲 Dice Values</h3>
+
+    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "20px" }}>
+      <ul
+        style={{
+          display: "flex",
+          listStyle: "none",
+          padding: 0,
+          gap: "12px",
+          margin: 0,
+        }}
+      >
+        {dice.map((die, idx) => (
+          <li
+            key={idx}
+            style={{
+              padding: "8px 12px",
+              border: "1px solid #ccc",
+              borderRadius: "8px",
+              backgroundColor: "#f9f9f9",
+              minWidth: "80px",
+              textAlign: "center",
+            }}
+          >
+            <strong>{die.resource_type}</strong>: {die.value}
+          </li>
+        ))}
+      </ul>
+
+      {(phase === "donation" || phase === "shared_selection") &&(
+  <div style={{ position: "relative", display: "inline-block", textAlign: "center" }} className="deck-container">
+    <div style={{ fontSize: "14px", marginBottom: "4px", fontWeight: "bold" }}>
+      Remaining Deck
+    </div>
+    <img
+      src="/hearthstonecards.webp"
+      alt="Deck"
+      style={{
+        width: "70px",
+        height: "auto",
+        borderRadius: "6px",
+        boxShadow: "0 0 6px rgba(0,0,0,0.3)",
+        cursor: "pointer",
+      }}
+    />
+    <div
+      style={{
+        position: "absolute",
+        top: "-30px",
+        left: "50%",
+        transform: "translateX(-50%)",
+        backgroundColor: "#333",
+        color: "#fff",
+        padding: "4px 8px",
+        borderRadius: "4px",
+        fontSize: "12px",
+        whiteSpace: "nowrap",
+        pointerEvents: "none",
+        opacity: 0,
+        transition: "opacity 0s",
+      }}
+      className="deck-tooltip"
+    >
+      Cards remaining: {deck.length}
+    </div>
   </div>
 )}
+
+    </div>
+
+    {/* ✅ Add inline CSS for hover effect */}
+    <style>
+      {`
+        .deck-container:hover .deck-tooltip {
+          opacity: 1 !important;
+        }
+      `}
+    </style>
+
+    <div style={{ position: "relative", display: "inline-block", marginLeft: "20px", textAlign: "center" }}>
+      <div style={{ fontSize: "14px", marginBottom: "4px" }}>Discard</div>
+      <img
+        src="/hearthstonecards.webp"
+        alt="Discard"
+        style={{
+          width: "70px",
+          height: "auto",
+          borderRadius: "6px",
+          boxShadow: "0 0 6px rgba(0,0,0,0.3)",
+          filter: "grayscale(100%) brightness(80%)", // visually distinguish it
+          transform: "rotate(-10deg)",
+          cursor: "default",
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          top: "-30px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          backgroundColor: "#333",
+          color: "#fff",
+          padding: "4px 8px",
+          borderRadius: "4px",
+          fontSize: "12px",
+          whiteSpace: "nowrap",
+          pointerEvents: "none",
+          opacity: 1,
+        }}
+      >
+        {discardPile.length} cards
+      </div>
+    </div>
+  </div> 
+)}
+
+
+
+
+
+    
+        
+
+
 
       {phase === "donation" &&(
         // playerName === players[currentPlayerIndex]?.name &&
@@ -445,6 +557,8 @@ useEffect(() => {
   />
 )}
 
+
+
       {phase === "auction" && (
         <AuctionPhase
           players={players}
@@ -490,13 +604,13 @@ useEffect(() => {
 
       {phase === "scoring" && dice && (
         <ScoringPhase
-  players={players}
-  dice={dice}
-  isHost={players[0]?.name === playerName}
-  setFinalResults={(scoredPlayers) => {
-    setPlayers(scoredPlayers);
-    setFinalResults(scoredPlayers);
-    setFinalPhaseDone(true);
+          players={players}
+          dice={dice}
+          isHost={players[0]?.name === playerName}
+          setFinalResults={(scoredPlayers) => {
+            setPlayers(scoredPlayers);
+            setFinalResults(scoredPlayers);
+            setFinalPhaseDone(true);
     
     // ✅ broadcast to all players
     broadcastState({

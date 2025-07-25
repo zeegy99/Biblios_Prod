@@ -37,7 +37,7 @@ const playersInRoom = {};
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
-  socket.on("join_game", ({ room, playerName }) => {
+  socket.on("join_game", ({ room, playerName}) => {
     console.log(playerName, "has entered the room")
     socket.join(room);
 
@@ -46,6 +46,7 @@ io.on("connection", (socket) => {
     }
 
     const alreadyJoined = playersInRoom[room].some(p => p.id === socket.id);
+    console.log("This is the socketID", socket.id)
     if (!alreadyJoined) {
       playersInRoom[room].push({ id: socket.id, name: playerName });
       console.log(`${playerName} joined room ${room}`);

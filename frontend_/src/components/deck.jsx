@@ -1,7 +1,7 @@
 // src/utils/deck.js
 
 export function buildDeck() {
-  const card_q = { 1: 5, 2: 4, 3: 2, 4: 1 }; //{ 1: 5, 2: 4, 3: 2, 4: 1 }
+  const card_q = { 1: 5, 2: 4, 3: 2, 4: 2 }; //{ 1: 5, 2: 4, 3: 2, 4: 1 }
   const resourceTypes =["Religion", "Science", "Military", "Art", "Herbs"]; //["Religion", "Science", "Military", "Art", "Herbs"]
   const tieBreakers = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"];
   const deck = [];
@@ -21,7 +21,7 @@ export function buildDeck() {
   }
 
   // Add Gold cards: 5 of each value (1–3) = 15 total
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 6; i++) {
     for (let k = 1; k <= 3; k++) {
       deck.push({
         value: k,
