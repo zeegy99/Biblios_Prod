@@ -345,11 +345,11 @@ useEffect(() => {
       <h1 className="game-title">Biblios Game</h1>
         <div className="players-online">
         <h4>Players Online:</h4>
-        <ul>
+        {/* <ul>
           {playersOnline.map((p, i) => (
             <li key={i}>{p.name}</li>
           ))}
-        </ul>
+        </ul> */}
     </div>
 
     <p style={{ textAlign: "center" }}>Current Phase: {phase}</p>
