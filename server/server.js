@@ -65,10 +65,10 @@ io.on("connection", (socket) => {
   }
 });
 
-  socket.on("start_game", ({ room }) => {
+  socket.on("start_game", ({ room, deckSettings }) => {
   console.log(`Starting game in room: ${room}`);
   const players = playersInRoom[room] || [];
-  io.to(room).emit("start_game", { players });
+  io.to(room).emit("start_game", { players, deckSettings });
 });
 
   socket.on("cursor_position", ({ room, playerName, x, y }) => 
