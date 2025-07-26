@@ -110,3 +110,31 @@ background: #ffe600;
   border-color: #3c4fe0;
   box-shadow: 0 0 6px rgba(60, 79, 224, 0.4);
 }
+
+.card-modifier {
+  background-color: white;
+}
+
+.card-selection-box {
+  border: 2px solid #888;
+  padding: 16px;
+  border-radius: 12px;
+  margin: 20px auto;
+  max-width: 400px;
+  background-color: #f9f9f9;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
+}
+
+.card-selection-box label {
+  display: block;
+  margin-top: 8px;
+  font-weight: 500;
+}
+
+.card-selection-box input {
+  width: 100%;
+  padding: 6px;
+  margin-bottom: 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}

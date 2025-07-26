@@ -24,7 +24,11 @@ const GameRunner = ({ playerName }) => {
   const [sharedSelectionIndex, setSharedSelectionIndex] = useState(0);
   const [dice, setDice] = useState(null);
   const [phase, setPhase] = useState("donation");
-  const [deck, setDeck] = useState(buildDeck());
+
+  //Test
+  const [deck, setDeck] = useState([]); // Start empty; build later with receivedSettings
+
+
   const [discardPile, setDiscardPile] = useState([]);
   const [sharedPool, setSharedPool] = useState([]);
   const [players, setPlayers] = useState([]);
@@ -56,6 +60,10 @@ const GameRunner = ({ playerName }) => {
   const [remoteCursor, setRemoteCursor] = useState(null);
 
   const navigate = useNavigate();
+
+  //Deck
+  const [deckSettings, setDeckSettings] = useState(null);
+
 
   //For UI
   
@@ -260,7 +268,9 @@ useEffect(() => {
     const cachedStart = localStorage.getItem("start_game_payload");
     if (cachedStart) {
       console.log("📦 Using cached start_game payload");
-      const { players: rawPlayers } = JSON.parse(cachedStart);
+      const { players: rawPlayers, deckSettings: receivedSettings } = JSON.parse(cachedStart);
+      setDeckSettings(receivedSettings);  // 👈 Save for deck building
+
 
       const initializedPlayers = rawPlayers.map((p) => ({
         name: p.name,
@@ -274,7 +284,8 @@ useEffect(() => {
 
       setTimeout(() => {
 
-        const newDeck = buildDeck();
+        const newDeck = buildDeck(receivedSettings);
+        setDeck(newDeck);
 
         const rolledDice = rollDice();
         setDice(rolledDice); 
@@ -388,7 +399,7 @@ useEffect(() => {
         ))}
       </ul>
 
-      {(phase === "donation" || phase === "shared_selection") && (
+      {(phase === "donation" || phase === "shared_selection" || phase === "auction") && (
   <div className="top-right-card-container">
     
     {/* Discard Pile on the Left */}

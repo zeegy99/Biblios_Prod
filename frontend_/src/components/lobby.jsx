@@ -13,6 +13,48 @@ const Lobby = ({ playerName, setPlayerName }) => {
   const [rulesPage, setRulesPage] = useState(false);
   const [tempName, setTempName] = useState(playerName);
 
+  //Lettig players adjust cards 
+  // Dynamically scaling deck card values based on player count
+const [gold1, setGold1] = useState(0);
+const [gold2, setGold2] = useState(0);
+const [gold3, setGold3] = useState(0);
+const [res1, setRes1] = useState(0);
+const [res2, setRes2] = useState(0);
+const [res3, setRes3] = useState(0);
+const [res4, setRes4] = useState(0);
+const [hasManuallyAdjusted, setHasManuallyAdjusted] = useState(false);
+
+useEffect(() => {
+  if (hasManuallyAdjusted) return;
+
+  const baseGold = { 1: 2, 2: 2, 3: 2 };
+  const baseRes = { 1: 3, 2: 2, 3: 1, 4: 1 };
+  const scalingFactor = players.length || 1;
+
+  setGold1(baseGold[1] * scalingFactor);
+  setGold2(baseGold[2] * scalingFactor);
+  setGold3(baseGold[3] * scalingFactor);
+
+  setRes1(baseRes[1] * scalingFactor);
+  setRes2(baseRes[2] * scalingFactor);
+  setRes3(baseRes[3] * scalingFactor);
+  setRes4(baseRes[4] * scalingFactor);
+}, [players.length, hasManuallyAdjusted]);
+
+
+
+  const applyCardSettings = () => {
+  const deckSettings = {
+    gold: { 1: gold1, 2: gold2, 3: gold3 },
+    resource: { 1: res1, 2: res2, 3: res3, 4: res4 },
+  };
+
+  console.log("🃏 New Deck Settings:", deckSettings);
+  socket.emit("update_deck_settings", { room, deckSettings });
+};
+
+
+
   //For future potentially
   const [playerId] = useState(() => {
   let stored = localStorage.getItem("playerId");
@@ -58,9 +100,16 @@ const Lobby = ({ playerName, setPlayerName }) => {
   };
 }, [playerName]);
 
-  const handleStartGame = () => {
+  const handleStartGame = () => 
+  {
     console.log("Start Game button clicked");
-    socket.emit("start_game", { room: room });
+
+    const deckSettings = 
+    {
+      gold: { 1: gold1, 2: gold2, 3: gold3 },
+      resource: { 1: res1, 2: res2, 3: res3, 4: res4 },
+    };
+    socket.emit("start_game", { room: room, deckSettings });
   };
 
 
@@ -102,12 +151,57 @@ const Lobby = ({ playerName, setPlayerName }) => {
       {players.length < 2 ? (
         <p>Waiting for more players...</p>
       ) : isHost ? (
-        <button onClick={handleStartGame}>Start Game</button>
+        <>
+          <button onClick={handleStartGame}>Start Game</button>
+
+          <br></br>
+          <div className="card-selection-box">
+  <p className="nickname">Adjust the deck composition</p>
+
+  <label>Gold cards (value 1):</label>
+  <input
+  type="number"
+  min="0"
+  value={gold1}
+  onChange={(e) => {
+    setGold1(Number(e.target.value));
+    setHasManuallyAdjusted(true);
+  }}
+/>
+
+
+  <label>Gold cards (value 2):</label>
+  <input type="number" min="0" value={gold2} onChange={(e) => setGold2(Number(e.target.value))} />
+
+  <label>Gold cards (value 3):</label>
+  <input type="number" min="0" value={gold3} onChange={(e) => setGold3(Number(e.target.value))} />
+
+  <label>Resource cards (value 1):</label>
+  <input type="number" min="0" value={res1} onChange={(e) => setRes1(Number(e.target.value))} />
+
+  <label>Resource cards (value 2):</label>
+  <input type="number" min="0" value={res2} onChange={(e) => setRes2(Number(e.target.value))} />
+
+  <label>Resource cards (value 3):</label>
+  <input type="number" min="0" value={res3} onChange={(e) => setRes3(Number(e.target.value))} />
+
+  <label>Resource cards (value 4):</label>
+  <input type="number" min="0" value={res4} onChange={(e) => setRes4(Number(e.target.value))} />
+
+  <br />
+  <button className="normal-button" onClick={applyCardSettings}>
+    Apply Settings
+  </button>
+</div>
+
+        
+        </>
+        
       ) : (
         <p>Waiting for host to start the game...</p>
       )}
 
-      <div class="button-bar">
+      <div className="button-bar">
 
         <button className={'menu-button'}>
         Button
