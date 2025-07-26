@@ -12,9 +12,9 @@ const Play = ({ playerName, playerList }) => {
       <div className="game-main">
         <GameRunner playerName={playerName} />
       </div>
-      <div className="game-chat">
+      {/* <div className="game-chat">
         <ChatBox room={room} playerName={playerName} />
-      </div>
+      </div> */}
     </div>
   );
 };
