@@ -427,12 +427,10 @@ const AuctionPhase = ({
       setAuctionTurnOffset((prev) => (prev + 1) % players.length);
       const newAuctionStarterIndex = (auctionTurnOffset + 1) % players.length;
       const newAuctionStarter = players[newAuctionStarterIndex]?.name;
-      console.log("🎯 Next auction round will start with I am in gold payment:", newAuctionStarter);
       setActivePlayerIndex(0);
 
-      console.log("🔄 I am right before broadcaststate in confirmGoldPayment, Incremented auctionTurnOffset to:", (auctionTurnOffset + 1) % players.length);
-
-      console.log("📤 About to broadcast auctionTurnOffset =", (auctionTurnOffset + 1) % players.length);
+      
+      console.log("Broadcasting Message A")
       broadcastState({
         players: updatedPlayers,
         awaitingGoldPayment: false,
@@ -444,8 +442,8 @@ const AuctionPhase = ({
         activePlayerIndex: 0,
         discardPile: updatedDiscardPile,
         auctionTurnOffset: (auctionTurnOffset + 1) % players.length,
-      });
-      console.log("📤 Broadcasting updated discard pile after the broadcaststate in the confirmgoldpayment:", updatedDiscardPile);
+      }, "Message A");
+      
 
       if (updatedDiscardPile.length === 0) {
         console.log("🎯 No more cards — transitioning to scoring phase.");
@@ -453,7 +451,7 @@ const AuctionPhase = ({
         broadcastState({
           discardPile: [],
           phase: "scoring",
-        });
+        }, "Phase: Scoring");
       }
     };
 

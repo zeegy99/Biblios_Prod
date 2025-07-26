@@ -105,13 +105,17 @@ const GameRunner = ({ playerName }) => {
     specialCardToPlay,
   });
 
-  const broadcastState = (newPartialState = null) => {
+  const broadcastState = (newPartialState = null, message = null) => {
   const fullState = {
     ...buildGameState(),      // ⬅️ get the full current state
     ...newPartialState        // ⬅️ overwrite any fields provided
   };
   console.log("📤 Broadcasting FULL game state:", fullState, playerName);
   socket.emit("sync_game_state", { room: `${room}`, gameState: fullState });
+
+  if (message) {
+    console.log("🔊", message);
+  }
 
  
   console.log("After broadcasting full gamestate")
@@ -650,9 +654,6 @@ useEffect(() => {
         />
       )}
 
-      {/* {phase !== "donation" && phase !== "shared" && (
-        <button onClick={advancePhase}>Next Phase</button>
-      )} */}
 
       {phase !== "results" && (
         <>
@@ -674,35 +675,15 @@ useEffect(() => {
       <div style={{ marginTop: "30px", }}>
         <h3>Game State</h3>
 
-        {/* ✅ KEEP: Player sees only their own hand */}
         <h4>{playerName}'s Hand</h4>
         <ul>
           <PlayerHand
     hand={players.find(p => p.name === playerName)?.hand || []}
     isCurrentPlayer={true}
   />
-          {/* {players.find(p => p.name === playerName)?.hand.map((card, index) => (
-            <li key={index}>
-              {card.type} {card.value}
-            </li>
-          )) ?? <li>(No cards)</li>} */}
         </ul> 
 
         
-
-        {/* 🔻 CHANGED: Hide discard pile unless debugging */}
-        {false && (
-          <>
-            <h4>Discard Pile</h4>
-            <ul>
-              {discardPile.map((card, index) => (
-                <li key={index}>
-                  {card.type} {card.value}
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
         
       </div>
 
