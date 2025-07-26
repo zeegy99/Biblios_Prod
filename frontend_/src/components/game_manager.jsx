@@ -339,22 +339,19 @@ useEffect(() => {
     <div>
       
       <h1 className="game-title">Biblios Game</h1>
-
         <div className="players-online">
-  <h4>Players Online:</h4>
-  <ul>
-    {playersOnline.map((p, i) => (
-      <li key={i}>{p.name}</li>
-    ))}
-  </ul>
-</div>
+        <h4>Players Online:</h4>
+        <ul>
+          {playersOnline.map((p, i) => (
+            <li key={i}>{p.name}</li>
+          ))}
+        </ul>
+    </div>
 
-
-
-      <p style={{ textAlign: "center" }}>Current Phase: {phase}</p>
-     {dice && (
-  <div style={{ position: "relative", marginBottom: "20px" }}>
-    <h3 style={{ textAlign: "center" }}>🎲 Dice Values</h3>
+    <p style={{ textAlign: "center" }}>Current Phase: {phase}</p>
+    {dice && (
+      <div style={{ position: "relative", marginBottom: "20px" }}>
+      <h3 style={{ textAlign: "center" }}>🎲 Dice Values</h3>
 
     
 
@@ -369,7 +366,8 @@ useEffect(() => {
           margin: 0,
         }}
       >
-        {dice.map((die, idx) => (
+        {dice.map((die, idx) => 
+        (
           <li
             key={idx}
             style={{
@@ -381,62 +379,16 @@ useEffect(() => {
               textAlign: "center",
             }}
           >
-            <strong>{die.resource_type}</strong>: {die.value}
-          </li>
+          <strong>{die.resource_type}</strong>: {die.value}
+            </li>
         ))}
       </ul>
 
-      {(phase === "donation" || phase === "shared_selection") &&(
-  <div style={{ position: "relative", display: "inline-block", textAlign: "center" }} className="deck-container">
-    <div style={{ fontSize: "14px", marginBottom: "4px", fontWeight: "bold" }}>
-      Remaining Deck
-    </div>
-    <img
-      src="/hearthstonecards.webp"
-      alt="Deck"
-      style={{
-        width: "70px",
-        height: "auto",
-        borderRadius: "6px",
-        boxShadow: "0 0 6px rgba(0,0,0,0.3)",
-        cursor: "pointer",
-      }}
-    />
-    <div
-      style={{
-        position: "absolute",
-        top: "-30px",
-        left: "50%",
-        transform: "translateX(-50%)",
-        backgroundColor: "#333",
-        color: "#fff",
-        padding: "4px 8px",
-        borderRadius: "4px",
-        fontSize: "12px",
-        whiteSpace: "nowrap",
-        pointerEvents: "none",
-        opacity: 0,
-        transition: "opacity 0s",
-      }}
-      className="deck-tooltip"
-    >
-      Cards remaining: {deck.length}
-    </div>
-  </div>
-)}
-
-    </div>
-
-    {/* ✅ Add inline CSS for hover effect */}
-    <style>
-      {`
-        .deck-container:hover .deck-tooltip {
-          opacity: 1 !important;
-        }
-      `}
-    </style>
-
-    <div style={{ position: "relative", display: "inline-block", marginLeft: "20px", textAlign: "center" }}>
+      {(phase === "donation" || phase === "shared_selection") && (
+  <div className="top-right-card-container">
+    
+    {/* Discard Pile on the Left */}
+    <div className="discard-container">
       <div style={{ fontSize: "14px", marginBottom: "4px" }}>Discard</div>
       <img
         src="/hearthstonecards.webp"
@@ -446,7 +398,7 @@ useEffect(() => {
           height: "auto",
           borderRadius: "6px",
           boxShadow: "0 0 6px rgba(0,0,0,0.3)",
-          filter: "grayscale(100%) brightness(80%)", // visually distinguish it
+          filter: "grayscale(100%) brightness(80%)",
           transform: "rotate(-10deg)",
           cursor: "default",
         }}
@@ -470,6 +422,59 @@ useEffect(() => {
         {discardPile.length} cards
       </div>
     </div>
+
+    {/* Remaining Deck on the Right */}
+    <div className="deck-container">
+      <div style={{ fontSize: "14px", marginBottom: "4px", fontWeight: "bold" }}>
+        Remaining Deck
+      </div>
+      <img
+        src="/hearthstonecards.webp"
+        alt="Deck"
+        style={{
+          width: "70px",
+          height: "auto",
+          borderRadius: "6px",
+          boxShadow: "0 0 6px rgba(0,0,0,0.3)",
+          cursor: "pointer",
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          top: "-30px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          backgroundColor: "#333",
+          color: "#fff",
+          padding: "4px 8px",
+          borderRadius: "4px",
+          fontSize: "12px",
+          whiteSpace: "nowrap",
+          pointerEvents: "none",
+          opacity: 0,
+          transition: "opacity 0s",
+        }}
+        className="deck-tooltip"
+      >
+        Cards remaining: {deck.length}
+      </div>
+    </div>
+  </div>
+)}
+
+    </div>
+
+    {/* ✅ Add inline CSS for hover effect */}
+    <style>
+      {`
+        .deck-container:hover .deck-tooltip {
+          opacity: 1 !important;
+        }
+      `}
+    </style>
+
+    
 
     
   </div> 
@@ -666,7 +671,7 @@ useEffect(() => {
         </div>
       )}
 
-      <div style={{ marginTop: "30px" }}>
+      <div style={{ marginTop: "30px", }}>
         <h3>Game State</h3>
 
         {/* ✅ KEEP: Player sees only their own hand */}
@@ -676,12 +681,12 @@ useEffect(() => {
     hand={players.find(p => p.name === playerName)?.hand || []}
     isCurrentPlayer={true}
   />
-          {players.find(p => p.name === playerName)?.hand.map((card, index) => (
+          {/* {players.find(p => p.name === playerName)?.hand.map((card, index) => (
             <li key={index}>
               {card.type} {card.value}
             </li>
-          )) ?? <li>(No cards)</li>}
-        </ul>
+          )) ?? <li>(No cards)</li>} */}
+        </ul> 
 
         
 
