@@ -13,6 +13,7 @@ import { useParams } from "react-router-dom";
 import { useLocation } from "react-router-dom";
 import "./lobby.css";
 import PlayerHand from "./player_hand";
+import ChatBox from "./chatbox.jsx";
 
 
 const GameRunner = ({ playerName }) => {
@@ -333,6 +334,7 @@ useEffect(() => {
 
   return (
     <div>
+      
       <h1 style={{ textAlign: "center", marginTop: "50px" }}>Biblios Game</h1>
 
       <div>
@@ -348,6 +350,9 @@ useEffect(() => {
      {dice && (
   <div style={{ position: "relative", marginBottom: "20px" }}>
     <h3 style={{ textAlign: "center" }}>🎲 Dice Values</h3>
+
+    
+
 
     <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "20px" }}>
       <ul
@@ -460,6 +465,8 @@ useEffect(() => {
         {discardPile.length} cards
       </div>
     </div>
+
+    
   </div> 
 )}
 
@@ -697,6 +704,7 @@ useEffect(() => {
           ))}
         </ul>
       </div>
+
     </div>
   );
 };

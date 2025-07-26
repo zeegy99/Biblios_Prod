@@ -261,6 +261,16 @@ const AuctionPhase = ({
       updatedDiscardPile.splice(currentCardIndex, 1); 
       setDiscardPile(updatedDiscardPile);
 
+       if (updatedDiscardPile.length === 0) {
+          console.log("🎯 No more cards — transitioning to scoring phase.");
+          setPhase("scoring");
+          broadcastState({
+            discardPile: [],
+            phase: "scoring",
+          });
+          return; 
+        }
+
       if (updatedDiscardPile.length > 0) {
         const newOffset = (auctionTurnOffset + 1) % players.length;
         const newAuctionStarter = players[newOffset]?.name;

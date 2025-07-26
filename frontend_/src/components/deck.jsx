@@ -1,8 +1,8 @@
 // src/utils/deck.js
 
 export function buildDeck() {
-  const card_q = { 1: 5, 2: 4, 3: 2, 4: 2 }; //{ 1: 5, 2: 4, 3: 2, 4: 1 }
-  const resourceTypes =["Religion", "Science", "Military", "Art", "Herbs"]; //["Religion", "Science", "Military", "Art", "Herbs"]
+  const card_q = { 1: 5, 2: 0, 3: 0, 4: 0 }; //{ 1: 5, 2: 4, 3: 2, 4: 1 }
+  const resourceTypes =["Religion"]; //["Religion", "Science", "Military", "Art", "Herbs"]
   const tieBreakers = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"];
   const deck = [];
 
