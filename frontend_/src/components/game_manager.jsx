@@ -698,16 +698,7 @@ useEffect(() => {
             </ul>
           </>
         )}
-
-        {/* ✅ KEEP: Everyone sees the shared pool */}
-        <h4>Shared Pool</h4>
-        <ul>
-          {sharedPool.map((card, index) => (
-            <li key={index}>
-              {card.type} {card.value}
-            </li>
-          ))}
-        </ul>
+        
       </div>
 
     </div>
