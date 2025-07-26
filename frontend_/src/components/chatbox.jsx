@@ -1,55 +1,54 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import socket from "../socket";
+import "./game_layout.css"; // Make sure the path matches your file structure
 
 const ChatBox = ({ room, playerName }) => {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState([]);
+  const messagesEndRef = useRef(null);
 
   useEffect(() => {
-    console.log("💡 ChatBox mounted for", playerName);
-
-    // 👇 Clear old listener before adding new one
-    socket.off("chat_message");
-
-    const listener = ({ playerName, message }) => {
-      console.log("📥 Received message:", message);
+    const handleMessage = ({ playerName, message }) => {
       setMessages((prev) => [...prev, { playerName, message }]);
     };
 
-    socket.on("chat_message", listener);
-    console.log("📥 Listening for chat_message");
+    socket.on("chat_message", handleMessage);
 
     return () => {
-      console.log("🧼 ChatBox unmounted for", playerName);
-      socket.off("chat_message", listener);  // cleanup
+      socket.off("chat_message", handleMessage);
     };
-  }, [playerName]); // re-run if playerName changes
+  }, []);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   const sendMessage = () => {
-    if (input.trim() === "") return;
-
-    console.log("📤 Emitting chat_message:", input, room, playerName);
+    if (!input.trim()) return;
     socket.emit("chat_message", { room, playerName, message: input });
     setInput("");
   };
 
   return (
-    <div style={{ border: "1px solid gray", padding: "10px", maxWidth: 400 }}>
-      <h4>Chat</h4>
-      <div style={{ maxHeight: 150, overflowY: "auto" }}>
+    <div className="game-chat">
+      <div className="chat-header">Room Chat</div>
+      <div className="chat-messages">
         {messages.map((m, i) => (
           <p key={i}>
             <strong>{m.playerName}:</strong> {m.message}
           </p>
         ))}
+        <div ref={messagesEndRef} />
       </div>
-      <input
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-        placeholder="Type a message"
-      />
-      <button onClick={sendMessage}>Send</button>
+      <div className="chat-input">
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+          placeholder="Send a message"
+        />
+        <button onClick={sendMessage}>➤</button>
+      </div>
     </div>
   );
 };

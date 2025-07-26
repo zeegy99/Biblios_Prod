@@ -14,6 +14,7 @@ import { useLocation } from "react-router-dom";
 import "./lobby.css";
 import PlayerHand from "./player_hand";
 import ChatBox from "./chatbox.jsx";
+import "./game_layout.css";
 
 
 const GameRunner = ({ playerName }) => {
@@ -111,6 +112,8 @@ const GameRunner = ({ playerName }) => {
   };
   console.log("📤 Broadcasting FULL game state:", fullState, playerName);
   socket.emit("sync_game_state", { room: `${room}`, gameState: fullState });
+
+ 
   console.log("After broadcasting full gamestate")
 };
 
@@ -335,16 +338,18 @@ useEffect(() => {
   return (
     <div>
       
-      <h1 style={{ textAlign: "center", marginTop: "50px" }}>Biblios Game</h1>
+      <h1 className="game-title">Biblios Game</h1>
 
-      <div>
-        <h3>Players Online:</h3>
-        <ul style={{ display: "flex", gap: "1rem", listStyleType: "none", padding: 0 }}>
-          {playersOnline.map((p, i) => (
-            <li key={i}>{p.name}</li>
-          ))}
-        </ul>
-      </div>
+        <div className="players-online">
+  <h4>Players Online:</h4>
+  <ul>
+    {playersOnline.map((p, i) => (
+      <li key={i}>{p.name}</li>
+    ))}
+  </ul>
+</div>
+
+
 
       <p style={{ textAlign: "center" }}>Current Phase: {phase}</p>
      {dice && (
