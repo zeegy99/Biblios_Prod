@@ -7,6 +7,7 @@ import "./game_layout.css";
 
 const Play = ({ playerName, playerList }) => {
   const [chatVisible, setChatVisible] = useState(true);
+  const [messages, setMessages] = useState([]);
 
   const { room } = useParams();
   return (
@@ -17,7 +18,14 @@ const Play = ({ playerName, playerList }) => {
       {chatVisible ? (
   <div className="game-chat">
     
-    <ChatBox room={room} playerName={playerName} onHide={() => setChatVisible(false)} />
+    <ChatBox 
+      room={room} 
+      playerName={playerName} 
+      onHide={() => setChatVisible(false)} 
+      messages={messages}
+      setMessages={setMessages}
+      
+    />
   </div>
 ) : (
   <button

@@ -2,10 +2,10 @@ import React, { useState, useEffect, useRef } from "react";
 import socket from "../socket";
 import "./game_layout.css";
 
-const ChatBox = ({ room, playerName, onHide }) => {
+const ChatBox = ({ room, playerName, onHide, messages, setMessages }) => {
   const [input, setInput] = useState("");
-  const [messages, setMessages] = useState([]);
   const messagesEndRef = useRef(null);
+
 
   useEffect(() => {
     const handleMessage = ({ playerName, message }) => {
