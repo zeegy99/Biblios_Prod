@@ -314,9 +314,13 @@ useEffect(() =>
                   if (!isCurrentPlayer) return;
 
                   const updated = [...diceToModify];
+                 
+
                   updated[i].value = diceSelectionCard.type === "Plus"
                     ? Math.min(6, updated[i].value + 1)
                     : Math.max(1, updated[i].value - 1);
+
+                  
 
                   const nextChosen = new Set(diceChosen);
                   nextChosen.add(i);
@@ -326,7 +330,14 @@ useEffect(() =>
                   const needed = diceSelectionCard.value === 2 ? 2 : 1;
                   if (nextChosen.size === needed) {
 
-                    broadcastState({ dice: updated });
+                    const changeDetails = [...nextChosen].map(i => {
+                      const resource = diceToModify[i].resource_type;
+                
+                      const newVal = updated[i].value;
+                      return `${resource} → ${newVal}`;
+                    });
+
+                    broadcastState({ dice: updated }, `${player.name} modified the dice. He changed: ${changeDetails.join(", ")}`);
                     // setSpecialCardToPlay(null);
                     setDiceToModify(null);
                     setDiceSelectionCard(null);
