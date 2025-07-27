@@ -102,13 +102,14 @@ useEffect(() => {
 
   const handleStartGame = () => 
   {
-    console.log("Start Game button clicked");
+    
 
     const deckSettings = 
     {
       gold: { 1: gold1, 2: gold2, 3: gold3 },
       resource: { 1: res1, 2: res2, 3: res3, 4: res4 },
     };
+    console.log("Start Game button clicked with deckSettings", deckSettings);
     socket.emit("start_game", { room: room, deckSettings });
   };
 

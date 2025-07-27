@@ -16,7 +16,7 @@ app.get("/", (req, res) => {
 });
 
 const server = http.createServer(app);
-
+const deckSettingsInRoom = {};
 const io = new Server(server, {
   cors: {
     origin: "*", // Or use "http://localhost:5173" for Vite
@@ -66,7 +66,12 @@ io.on("connection", (socket) => {
 });
 
   socket.on("start_game", ({ room, deckSettings }) => {
-  console.log(`Starting game in room: ${room}`);
+  console.log(`🎮 Starting game in room: ${room}`);
+  console.log("📦 Received deckSettings:", deckSettings);
+
+  
+  deckSettingsInRoom[room] = deckSettings;
+
   const players = playersInRoom[room] || [];
   io.to(room).emit("start_game", { players, deckSettings });
 });
@@ -109,5 +114,11 @@ io.on("connection", (socket) => {
   {
     console.log(`💬 [${playerName}]: ${message}`);
     io.to(room).emit("chat_message", { playerName, message });
+  });
+
+  socket.on("update_deck_settings", ({ room, deckSettings }) => 
+  {
+  console.log(`🃏 Deck settings updated for room ${room}:`, deckSettings);
+  deckSettingsInRoom[room] = deckSettings;
   });
 });
