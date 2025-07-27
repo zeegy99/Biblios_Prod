@@ -23,23 +23,31 @@ const [res2, setRes2] = useState(0);
 const [res3, setRes3] = useState(0);
 const [res4, setRes4] = useState(0);
 const [hasManuallyAdjusted, setHasManuallyAdjusted] = useState(false);
+const [showCardSettings, setShowCardSettings] = useState(false);
+
 
 useEffect(() => {
   if (hasManuallyAdjusted) return;
 
-  const baseGold = { 1: 2, 2: 2, 3: 2 };
-  const baseRes = { 1: 3, 2: 2, 3: 1, 4: 1 };
-  const scalingFactor = players.length || 1;
+  const defaultGold = { 1: 5, 2: 5, 3: 5 };
+  const defaultResource = { 1: 5, 2: 4, 3: 2, 4: 2 };
 
-  setGold1(baseGold[1] * scalingFactor);
-  setGold2(baseGold[2] * scalingFactor);
-  setGold3(baseGold[3] * scalingFactor);
+  let scalingFactor = 1;
 
-  setRes1(baseRes[1] * scalingFactor);
-  setRes2(baseRes[2] * scalingFactor);
-  setRes3(baseRes[3] * scalingFactor);
-  setRes4(baseRes[4] * scalingFactor);
+  if (players.length >= 5) {
+    scalingFactor = 1 + (players.length - 4) * 0.25;  
+  }
+
+  setGold1(Math.round(defaultGold[1] * scalingFactor));
+  setGold2(Math.round(defaultGold[2] * scalingFactor));
+  setGold3(Math.round(defaultGold[3] * scalingFactor));
+
+  setRes1(Math.round(defaultResource[1] * scalingFactor));
+  setRes2(Math.round(defaultResource[2] * scalingFactor));
+  setRes3(Math.round(defaultResource[3] * scalingFactor));
+  setRes4(Math.round(defaultResource[4] * scalingFactor));
 }, [players.length, hasManuallyAdjusted]);
+
 
 
 
@@ -156,7 +164,18 @@ useEffect(() => {
           <button onClick={handleStartGame}>Start Game</button>
 
           <br></br>
-          <div className="card-selection-box">
+
+          <button
+            className="normal-button"
+            onClick={() => setShowCardSettings((prev) => !prev)}
+          >
+            {showCardSettings ? "Hide Deck Settings" : "Show Deck Settings"}
+          </button>
+
+            {showCardSettings && (
+
+              <div className="card-selection-box">
+
   <p className="nickname">Adjust the deck composition</p>
 
   <label>Gold cards (value 1):</label>
@@ -172,29 +191,78 @@ useEffect(() => {
 
 
   <label>Gold cards (value 2):</label>
-  <input type="number" min="0" value={gold2} onChange={(e) => setGold2(Number(e.target.value))} />
+  <input
+  type="number"
+  min="0"
+  value={gold2}
+  onChange={(e) => {
+    setGold2(Number(e.target.value));
+    setHasManuallyAdjusted(true);
+  }}
+/>
 
   <label>Gold cards (value 3):</label>
-  <input type="number" min="0" value={gold3} onChange={(e) => setGold3(Number(e.target.value))} />
+  <input
+  type="number"
+  min="0"
+  value={gold3}
+  onChange={(e) => {
+    setGold3(Number(e.target.value));
+    setHasManuallyAdjusted(true);
+  }}
+/>
 
   <label>Resource cards (value 1):</label>
-  <input type="number" min="0" value={res1} onChange={(e) => setRes1(Number(e.target.value))} />
+  <input
+  type="number"
+  min="0"
+  value={res1}
+  onChange={(e) => {
+    setRes1(Number(e.target.value));
+    setHasManuallyAdjusted(true);
+  }}
+/>
 
   <label>Resource cards (value 2):</label>
-  <input type="number" min="0" value={res2} onChange={(e) => setRes2(Number(e.target.value))} />
+  <input
+  type="number"
+  min="0"
+  value={res2}
+  onChange={(e) => {
+    setRes2(Number(e.target.value));
+    setHasManuallyAdjusted(true);
+  }}
+/>
 
   <label>Resource cards (value 3):</label>
-  <input type="number" min="0" value={res3} onChange={(e) => setRes3(Number(e.target.value))} />
+  <input
+  type="number"
+  min="0"
+  value={res3}
+  onChange={(e) => {
+    setRes3(Number(e.target.value));
+    setHasManuallyAdjusted(true);
+  }}
+/>
 
   <label>Resource cards (value 4):</label>
-  <input type="number" min="0" value={res4} onChange={(e) => setRes4(Number(e.target.value))} />
+  <input
+  type="number"
+  min="0"
+  value={res4}
+  onChange={(e) => {
+    setRes4(Number(e.target.value));
+    setHasManuallyAdjusted(true);
+  }}
+/>
 
   <br />
   <button className="normal-button" onClick={applyCardSettings}>
     Apply Settings
   </button>
 </div>
-
+            )}
+          
         
         </>
         
