@@ -1,8 +1,11 @@
 import React, { useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";import { getOrCreatePlayerId } from "../utils/playerId";
+
 
 const generateRoomCode = () =>
   Math.random().toString(36).substring(2, 7).toUpperCase();
+
+const playerId = getOrCreatePlayerId();
 
 
 const Home = ({ setPlayerName }) => {
@@ -57,7 +60,7 @@ const Home = ({ setPlayerName }) => {
 
       <button onClick={handleCreateRoom}>🎲 Create Random Room</button>
 
-      <button onClick={goToRules}> Go To Rules</button>
+      {/* <button onClick={goToRules}> Go To Rules</button> */}
 
     </div>
   );

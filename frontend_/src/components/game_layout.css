@@ -242,3 +242,19 @@
   color: red;
   font-weight: bold;
 }
+
+.players-two-rows {
+  display: flex;
+  flex-wrap: wrap;
+  max-height: 2.5em; /* limits to 2 rows visually */
+  row-gap: 6px;
+  column-gap: 10px;
+}
+
+.player-box {
+  min-width: 100px;
+  padding: 6px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  text-align: center;
+}

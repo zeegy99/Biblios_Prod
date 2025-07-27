@@ -2,7 +2,9 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import socket from "../socket";
 import "./lobby.css";
-import RulesPage from "./rulespage"; // ✅ adjust path if needed
+import RulesPage from "./rulespage"; 
+import { getOrCreatePlayerId } from "../utils/playerId";
+const playerId = getOrCreatePlayerId();
 
 
 const Lobby = ({ playerName, setPlayerName }) => {
@@ -61,20 +63,16 @@ useEffect(() => {
   socket.emit("update_deck_settings", { room, deckSettings });
 };
 
-
-
-  //For future potentially
-  const [playerId] = useState(() => {
-  let stored = localStorage.getItem("playerId");
-  if (!stored) {
-    stored = Math.random().toString(36).substring(2, 10); // simple unique ID
-    localStorage.setItem("playerId", stored);
-  }
-  return stored;
-});
+  
 
   useEffect(() => {
-  socket.emit("join_game", { room, playerName}); //socket.emit("join_game", { room, playerName, playerId });
+    const hasJoined = sessionStorage.getItem("hasJoined");
+
+     if (!hasJoined) {
+    socket.emit("join_game", { room, playerName, playerId });
+    sessionStorage.setItem("hasJoined", "true");
+  }
+
 
   socket.on("player_list", (updatedPlayers) => {
     // console.log("📡 Received player list:", updatedPlayers);

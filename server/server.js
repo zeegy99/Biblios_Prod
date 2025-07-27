@@ -19,7 +19,7 @@ const server = http.createServer(app);
 const deckSettingsInRoom = {};
 const io = new Server(server, {
   cors: {
-    origin: "*", // Or use "http://localhost:5173" for Vite
+    origin: "*", 
     methods: ["GET", "POST"]
   }
 });
@@ -37,18 +37,18 @@ const playersInRoom = {};
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
-  socket.on("join_game", ({ room, playerName}) => {
-    console.log(playerName, "has entered the room")
+  socket.on("join_game", ({ room, playerName, playerId}) => {
     socket.join(room);
 
     if (!playersInRoom[room]) {
       playersInRoom[room] = [];
     }
 
-    const alreadyJoined = playersInRoom[room].some(p => p.id === socket.id);
-    console.log("This is the socketID", socket.id)
+    const alreadyJoined = playersInRoom[room].some(p => p.playerId === playerId);
+
+    console.log("alreadyJoined", alreadyJoined)
     if (!alreadyJoined) {
-      playersInRoom[room].push({ id: socket.id, name: playerName });
+      playersInRoom[room].push({ id: socket.id, playerId, name: playerName });
       console.log(`${playerName} joined room ${room}`);
     } 
 
@@ -60,16 +60,12 @@ io.on("connection", (socket) => {
   const player = playersInRoom[room].find(p => p.id === socket.id);
   if (player) {
     player.name = newName;
-    console.log(`✏️ ${socket.id} changed name to "${newName}"`);
     io.to(room).emit("player_list", playersInRoom[room]);
   }
 });
 
   socket.on("start_game", ({ room, deckSettings }) => {
-  console.log(`🎮 Starting game in room: ${room}`);
-  console.log("📦 Received deckSettings:", deckSettings);
 
-  
   deckSettingsInRoom[room] = deckSettings;
 
   const players = playersInRoom[room] || [];
@@ -78,7 +74,7 @@ io.on("connection", (socket) => {
 
   socket.on("cursor_position", ({ room, playerName, x, y }) => 
     {
-      console.log(`🧭 cursor_position received from ${playerName} at (${x}, ${y})`);
+      console.log(`cursor_position received from ${playerName} at (${x}, ${y})`);
       socket.to(room).emit("cursor_position", { playerName, x, y });
     });
 
@@ -87,9 +83,6 @@ io.on("connection", (socket) => {
 
 
   socket.on("sync_game_state", ({ room, gameState }) => {
-    console.log("💥 Received sync_game_state with activeBidders:", gameState.activeBidders);
-    console.log("here is a test", gameState)
-    console.log(`🔁 Sync game state to room ${room} from sevrer.js has run`);
   io.to(room).emit("sync_game_state", gameState);
 
  
@@ -106,13 +99,12 @@ io.on("connection", (socket) => {
    //Chat system
   socket.on("chat_message", ({ room, playerName, message }) => 
   {
-    console.log(`💬 [${playerName}]: ${message}`);
     io.to(room).emit("chat_message", { playerName, message });
   });
 
   socket.on("update_deck_settings", ({ room, deckSettings }) => 
   {
-  console.log(`🃏 Deck settings updated for room ${room}:`, deckSettings);
+  console.log(`Deck settings updated for room ${room}:`, deckSettings);
   deckSettingsInRoom[room] = deckSettings;
   });
 });
