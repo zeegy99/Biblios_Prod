@@ -20,7 +20,7 @@ const Card = (props) => {
   const { value, type, tieBreaker, isSpecial } = card;
 
   const backgroundColor = isSpecial
-    ? "#ffd700"
+      ? "#b266ff"
     : typeColors[type] || "#fff";
 
   const isFlipped = startflipped || flipped;
@@ -37,28 +37,47 @@ const Card = (props) => {
       <div className={`card ${isFlipped ? "flipped" : ""} ${type?.toLowerCase()}`}>
         <div className="front">
           <div style={{ backgroundColor, padding: "10px", borderRadius: "8px" }}>
-            {type === "Religion" || type === "Science" || type ==="Military" || type ==="Herbs" || type ==="Art" ? (
-              <img
-                src={`/${type.toLowerCase()}_cards/${type.toLowerCase()}_${value}.png`}
-                alt={`${type} ${value}`}
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                  borderRadius: "8px"
-                }}
-                onError={(e) => {
-                  console.warn("Missing religion image:", e.target.src);
-                  e.target.style.display = "none";
-                }}
-              />
-            ) : (
-              <>
-                <h4>{type}</h4>
-                <p>Value: {value}</p>
-                {!isSpecial && <p>Tiebreaker: {tieBreaker}</p>}
-              </>
-            )}
+
+            {isSpecial && ["Plus", "Minus", "Both"].includes(type) ? (
+  <img
+   src={`/dice_cards/dice_${type === "Plus" ? value : type === "Minus" ? -value : "0"}.png`}
+    alt={`${type} Modifier`}
+    style={{
+      width: "100%",
+      height: "100%",
+      objectFit: "cover",
+      borderRadius: "8px"
+    }}
+    onError={(e) => {
+      console.warn(`Missing dice image for ${type}:`, e.target.src);
+      e.target.style.display = "none";
+    }}
+  />
+) : (
+  ["Religion", "Science", "Military", "Herbs", "Art", "Gold"].includes(type) ? (
+    <img
+      src={`/${type.toLowerCase()}_cards/${type.toLowerCase()}_${value}.png`}
+      alt={`${type} ${value}`}
+      style={{
+        width: "100%",
+        height: "100%",
+        objectFit: "cover",
+        borderRadius: "8px"
+      }}
+      onError={(e) => {
+        console.warn(`Missing image for ${type} ${value}:`, e.target.src);
+        e.target.style.display = "none";
+      }}
+    />
+  ) : (
+    <>
+      <h4>{type}</h4>
+      <p>Value: {value}</p>
+      {!isSpecial && <p>Tiebreaker: {tieBreaker}</p>}
+    </>
+  )
+)}
+
           </div>
         </div>
         <div className="back">
