@@ -254,8 +254,6 @@ const AuctionPhase = ({
     //If No one wins the card
     if (winnerIndex == null) 
     {
-      alert("No one bid — card discarded.");
-      console.log("⚠️ Everyone passed — no winner.");
 
       const updatedDiscardPile = [...discardPile];
       updatedDiscardPile.splice(currentCardIndex, 1); 
@@ -291,7 +289,7 @@ const AuctionPhase = ({
           activePlayerIndex: 0,
           currentBid: 0,
           auctionTurnOffset: newOffset,
-          });
+          }, "No one bid -- card discarded");
         }
         
     } 
@@ -593,7 +591,7 @@ const AuctionPhase = ({
         highestBidder: null,
         currentCardIndex: 0,
       }, `${playerName} has paid ${selectedPaymentCards.length} card(s) for the gold card (${goldCard.type} ${goldCard.value}). Discarded: [${formattedDiscarded}]`);
-      //aaaaaa
+     
 
       if (updatedDiscardPile.length === 0) 
       {

@@ -212,6 +212,9 @@ useEffect(() =>
     alert("You must assign all cards.");
     return;
   }
+  
+
+
 
   // Create all updates first
   const updatedPlayers = players.map((p) =>
@@ -265,7 +268,7 @@ useEffect(() =>
 
     {/* 🟡 Everyone sees the special card banner */}
     {specialCardToPlay && (
-      <div style={{ margin: "20px auto", padding: "15px", border: "2px solid gold", borderRadius: "10px", width: "fit-content", backgroundColor: "#fff8dc" }}>
+      <div >
         <h4 style={{ textAlign: "center" }}>💫 Special Card Drawn!</h4>
         <Card {...specialCardToPlay} />
       </div>
@@ -415,6 +418,7 @@ useEffect(() =>
               Shared cards:{" "}
               {shared.map((c, i) => `${c.type} ${c.value}`).join(", ")}
             </p>
+            
             <button onClick={confirmTurn}>Confirm Turn</button>
           </div>
         )}

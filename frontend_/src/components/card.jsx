@@ -2,11 +2,11 @@ import React, { useState } from "react";
 import "./card.css";
 
 const typeColors = {
-  Religion: "#a67c52",
+  Religion: "#8B0000",
   Science: "#5b9bd5",
-  Military: "#c0504d",
-  Art: "#70ad47",
-  Herbs: "#9e480e",
+  Military: "#DEB887",
+  Art: "#FF8C00",
+  Herbs: "#228B22",
   Gold: "#ffd700",
 };
 
