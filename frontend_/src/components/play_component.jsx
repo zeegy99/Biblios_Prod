@@ -1,10 +1,12 @@
-import React from "react";
+
+import React, { useState } from "react";
 import { useParams } from "react-router-dom";
 import GameRunner from "./game_manager";
 import ChatBox from "./chatbox";
 import "./game_layout.css";
 
 const Play = ({ playerName, playerList }) => {
+  const [chatVisible, setChatVisible] = useState(true);
 
   const { room } = useParams();
   return (
@@ -12,9 +14,27 @@ const Play = ({ playerName, playerList }) => {
       <div className="game-main">
         <GameRunner playerName={playerName} />
       </div>
-      {/* <div className="game-chat">
-        <ChatBox room={room} playerName={playerName} />
-      </div> */}
+      {chatVisible ? (
+  <div className="game-chat">
+    
+    <ChatBox room={room} playerName={playerName} onHide={() => setChatVisible(false)} />
+  </div>
+) : (
+  <button
+    onClick={() => setChatVisible(true)}
+    className="chat-toggle-button"
+    style={{
+      position: "fixed",
+      bottom: "10px",
+      right: "10px",
+      zIndex: 999,
+    }}
+  >
+    Show Chat
+  </button>
+)}
+
+
     </div>
   );
 };
