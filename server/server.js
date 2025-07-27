@@ -92,15 +92,8 @@ io.on("connection", (socket) => {
     console.log(`🔁 Sync game state to room ${room} from sevrer.js has run`);
   io.to(room).emit("sync_game_state", gameState);
 
-  //Chat system
+ 
 });
-
-
-
-
-
-
-
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
 
@@ -110,6 +103,7 @@ io.on("connection", (socket) => {
     }
   });
 
+   //Chat system
   socket.on("chat_message", ({ room, playerName, message }) => 
   {
     console.log(`💬 [${playerName}]: ${message}`);

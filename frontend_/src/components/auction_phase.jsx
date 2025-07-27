@@ -429,8 +429,7 @@ const AuctionPhase = ({
       const newAuctionStarter = players[newAuctionStarterIndex]?.name;
       setActivePlayerIndex(0);
 
-      
-      console.log("Broadcasting Message A")
+    
       broadcastState({
         players: updatedPlayers,
         awaitingGoldPayment: false,
@@ -442,7 +441,10 @@ const AuctionPhase = ({
         activePlayerIndex: 0,
         discardPile: updatedDiscardPile,
         auctionTurnOffset: (auctionTurnOffset + 1) % players.length,
-      }, "Message A");
+      }, `${playerName} has paid ${totalSelected} gold for card: (${goldPaymentWinner.card.type} ${goldPaymentWinner.card.value})`);
+
+
+
       
 
       if (updatedDiscardPile.length === 0) {
@@ -451,7 +453,7 @@ const AuctionPhase = ({
         broadcastState({
           discardPile: [],
           phase: "scoring",
-        }, "Phase: Scoring");
+        });
       }
     };
 
@@ -523,7 +525,6 @@ const AuctionPhase = ({
 
     const confirmCardPayment = () => 
     {
-      console.log("I AM IN CONFIRMCADPAYMENT and this is the new goldWinner.bid", goldWinner.bid)
       if (selectedPaymentCards.length !== goldWinner.bid) 
       {
         alert(`You must select exactly ${goldWinner.bid} cards.`);
@@ -573,6 +574,10 @@ const AuctionPhase = ({
       setAwaitingCardPayment(false);
       setSelectedPaymentCards([]);
       setCurrentBid(0);
+
+      const formattedDiscarded = selectedPaymentCards
+      .map((card) => `${card.type} ${card.value}`)
+      .join(", ");
       
 
       broadcastState
@@ -587,7 +592,8 @@ const AuctionPhase = ({
         activeBidders: players.map(() => true),
         highestBidder: null,
         currentCardIndex: 0,
-      });
+      }, `${playerName} has paid ${selectedPaymentCards.length} card(s) for the gold card (${goldCard.type} ${goldCard.value}). Discarded: [${formattedDiscarded}]`);
+      //aaaaaa
 
       if (updatedDiscardPile.length === 0) 
       {

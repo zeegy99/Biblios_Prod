@@ -238,3 +238,7 @@
   background-color: #555;
 }
 
+.host-name {
+  color: red;
+  font-weight: bold;
+}

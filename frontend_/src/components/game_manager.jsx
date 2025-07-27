@@ -122,7 +122,7 @@ const GameRunner = ({ playerName }) => {
   socket.emit("sync_game_state", { room: `${room}`, gameState: fullState });
 
   if (message) {
-    console.log("🔊", message);
+    socket.emit("chat_message", {room, playerName: "Game Announcement", message});
   }
 
  

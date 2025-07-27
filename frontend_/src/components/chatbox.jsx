@@ -54,7 +54,10 @@ const ChatBox = ({ room, playerName, onHide, messages, setMessages }) => {
       <div className="chat-messages">
         {messages.map((m, i) => (
           <p key={i}>
-            <strong>{m.playerName}:</strong> {m.message}
+            <strong className={m.playerName === "Game Announcement" ? "host-name" : ""}>
+              {m.playerName}:
+            </strong>{" "}
+            {m.message}
           </p>
         ))}
         <div ref={messagesEndRef} />
