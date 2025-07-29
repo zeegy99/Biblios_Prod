@@ -15,6 +15,8 @@ import "./lobby.css";
 import PlayerHand from "./player_hand";
 import ChatBox from "./chatbox.jsx";
 import "./game_layout.css";
+import "./lobby.css";
+import RulesPage from "./rulespage"; 
 
 
 const GameRunner = ({ playerName }) => {
@@ -60,6 +62,14 @@ const GameRunner = ({ playerName }) => {
   const [remoteCursor, setRemoteCursor] = useState(null);
 
   const navigate = useNavigate();
+   const [rulesPage, setRulesPage] = useState(false);
+
+  const toggleRulesPage = () => {
+    setRulesPage((prev) => {
+    console.log("Previous value of rulesPage:", prev);
+    return !prev;
+  });
+  }
 
   //Deck
   const [deckSettings, setDeckSettings] = useState(null);
@@ -361,6 +371,12 @@ useEffect(() => {
             <li key={i}>{p.name}</li>
           ))}
         </ul> */}
+
+        <button className={'menu-button'} onClick={toggleRulesPage}>
+        Rules
+      </button>
+
+      {rulesPage && <RulesPage onClose={() => setRulesPage(false)} />}
     </div>
 
     <p style={{ textAlign: "center" }}>Current Phase: {phase}</p>

@@ -4,6 +4,7 @@ import socket from "../socket";
 import "./lobby.css";
 import RulesPage from "./rulespage"; 
 import { getOrCreatePlayerId } from "../utils/playerId";
+
 const playerId = getOrCreatePlayerId();
 
 
