@@ -17,6 +17,7 @@ import ChatBox from "./chatbox.jsx";
 import "./game_layout.css";
 import "./lobby.css";
 import RulesPage from "./rulespage"; 
+import Timer from "../timer.jsx";
 
 
 const GameRunner = ({ playerName }) => {

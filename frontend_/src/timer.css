@@ -1,0 +1,55 @@
+.timer-bar-container {
+  width: 250px;         /* ✅ fixed size instead of full screen */
+  height: 16px;
+  background-color: #ddd;
+  border-radius: 8px;
+  overflow: hidden;
+  margin: 8px auto;      /* ✅ center the bar */
+  border: 1px solid #ccc;
+}
+
+.timer-bar {
+  height: 100%;
+  background-color: #4caf50;
+  width: 100%;
+  animation: shrinkTimer 30s linear forwards;
+  border-radius: 8px;
+}
+
+
+
+@keyframes shrinkTimer {
+  0% {
+    width: 100%;
+    background-color: #4caf50;
+  }
+  80% {
+    background-color: #4caf50; /* still green at 80% (6s left) */
+  }
+  100% {
+    width: 0%;
+    background-color: red;
+  }
+}
+
+.timer-bar_10 {
+  height: 100%;
+  background-color: #4caf50;
+  width: 100%;
+  animation: shrinkTimer10s 10s linear forwards;
+  border-radius: 8px;
+}
+
+@keyframes shrinkTimer10s {
+  0% {
+    width: 100%;
+    background-color: #4caf50;
+  }
+  40% {
+    background-color: #4caf50; /* still green at 80% (6s left) */
+  }
+  100% {
+    width: 0%;
+    background-color: red;
+  }
+}

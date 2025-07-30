@@ -1,6 +1,8 @@
 import React from "react";
 import Card from "./card";
 import {useEffect} from "react";
+import Timer from "../timer.jsx";
+
 
 const SharedPoolSelection = ({
   players,
@@ -22,9 +24,7 @@ const SharedPoolSelection = ({
     return null;
   }
 
-  
-  // console.log("🧑‍🤝‍🧑 Players from df's POV:", players);
-  // console.log("🃏 Hands from df:", players.map(p => ({ name: p.name, hand: p.hand })));
+
 
   
   const player = players[sharedSelectionIndex];
@@ -85,7 +85,7 @@ const SharedPoolSelection = ({
 
   useEffect(() => {
   if (!sharedPool.length && isCurrentPlayer) {
-    onFinish(); // ✅ Safe inside effect
+    onFinish(); 
   }
 }, [sharedPool, isCurrentPlayer, onFinish]);
 
@@ -123,6 +123,16 @@ if (!sharedPool.length && !isCurrentPlayer) {
             </div>
           ))}
         </div>
+
+         {isCurrentPlayer && (
+    <Timer
+      duration={10000}
+      onTimeout={() => {
+        console.log(`${player.name} Pick a card broski`);
+        
+      }}
+    />
+  )}
       </>
     )}
   </div>

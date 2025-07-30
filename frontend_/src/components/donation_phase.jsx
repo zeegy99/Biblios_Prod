@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import Card from "./card";
 import "./card.css";
+import Timer from "../timer.jsx";
 
 const DonationPhase = ({
   player,
@@ -70,6 +71,9 @@ const DonationPhase = ({
     playSpecialCard(card);
   }, 300);
 }, [specialCardToPlay, isCurrentPlayer]);
+
+
+
 
 
 useEffect(() =>
@@ -192,10 +196,10 @@ useEffect(() =>
       const updatedSharedPool = [...sharedPool, pooledCard];
 
       setShared(newShared);
-      setSharedPool(updatedSharedPool); // ✅ Update local sharedPool state
+      setSharedPool(updatedSharedPool); 
 
       broadcastState({
-        sharedPool: updatedSharedPool, // ✅ Broadcast full updated shared pool
+        sharedPool: updatedSharedPool,
         donationAction: {
           player: player.name,
           action: "pooled",
@@ -427,6 +431,15 @@ useEffect(() =>
 
     <div style={{ marginTop: "30px" }}>
   <h3>🫱 Shared Cards</h3>
+  {isCurrentPlayer && (
+    <Timer
+      duration={30000}
+      onTimeout={() => {
+        console.log(`${player.name} ran out of time!`);
+      }}
+    />
+  )}
+
   <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
     {sharedPool.map((card, idx) => (
       <div key={idx} style={{ textAlign: "center" }}>

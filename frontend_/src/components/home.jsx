@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";import { getOrCreatePlayerId } from "../utils/playerId";
+import Timer from "../timer.jsx";
 
 
 const generateRoomCode = () =>
@@ -60,7 +61,8 @@ const Home = ({ setPlayerName }) => {
 
       <button onClick={handleCreateRoom}>🎲 Create Random Room</button>
 
-      {/* <button onClick={goToRules}> Go To Rules</button> */}
+      <Timer duration="30000"/>
+
 
     </div>
   );
