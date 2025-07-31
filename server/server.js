@@ -17,6 +17,7 @@ app.get("/", (req, res) => {
 
 const server = http.createServer(app);
 const deckSettingsInRoom = {};
+
 const io = new Server(server, {
   cors: {
     origin: "*", 
@@ -31,6 +32,7 @@ server.listen(PORT, () => {
 
 
 
+const DEV_MODE = true; // 🔁 Set to false when deploying
 
 const playersInRoom = {};
 
@@ -44,7 +46,7 @@ io.on("connection", (socket) => {
       playersInRoom[room] = [];
     }
 
-    const alreadyJoined = playersInRoom[room].some(p => p.playerId === playerId);
+    const alreadyJoined = DEV_MODE ? false : playersInRoom[room].some(p => p.playerId === playerId);
 
     console.log("alreadyJoined", alreadyJoined)
     if (!alreadyJoined) {

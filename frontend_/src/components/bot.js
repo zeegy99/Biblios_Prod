@@ -10,7 +10,8 @@ export const Bot = {
 
   shared_selection({ sharedPool }) {
     const i = Math.floor(Math.random() * sharedPool.length);
-    return sharedPool[i];
+    console.log("I am in shared_selection and this was sharedPool", sharedPool, "This is i", i)
+    return i;
   },
 
   auction({ currentBid, gold }) {

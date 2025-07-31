@@ -44,7 +44,7 @@ const SharedPoolSelection = ({
     return;
   }
 
-  console.log("🎯 Player", players[sharedSelectionIndex].name, "chose card:", chosenCard);
+  // console.log("🎯 Player", players[sharedSelectionIndex].name, "chose card:", chosenCard);
 
   const newPool = [...sharedPool];
   newPool.splice(choiceIdx, 1);
@@ -128,10 +128,16 @@ if (!sharedPool.length && !isCurrentPlayer) {
          {isCurrentPlayer && (
     <Timer
       duration={10000}
-      onTimeout={() => {
+      onTimeout={() => 
+        {
         console.log(`A bot will be executing the action for ${player.name}`);
         const card = Bot.shared_selection({sharedPool})
-        console.log(card)
+        console.log("The bot randomly selected this card", card)
+
+        setTimeout(() => {
+          handleChoice(card)
+        }, 0)
+        
       }}
       small_duration={true}
     />
