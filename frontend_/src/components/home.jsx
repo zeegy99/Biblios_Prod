@@ -33,35 +33,39 @@ const Home = ({ setPlayerName }) => {
     navigate("/lobby");
   };
 
-  const goToRules = () => {
-    navigate("/rules")
+  const toSigninPage = () => {
+    navigate("/signin")
   }
+
+
 
   return (
     <div style={{ textAlign: "center", marginTop: "100px" }}>
-      <h2>Start or Join a Game</h2>
-      <input
-        type="text"
-        placeholder="Your Name"
-        value={nameInput}
-        onChange={(e) => setNameInput(e.target.value)}
-      /><br /><br />
+      <div style={{ textAlign: "center", marginTop: "100px" }}>
+  <h2>Start or Join a Game</h2>
 
-      <form onSubmit={handleJoin}>
-        <input
-          type="text"
-          placeholder="Enter Room Code"
-          value={roomInput}
-          onChange={(e) => setRoomInput(e.target.value.toUpperCase())}
-        /><br /><br />
-        <button type="submit">Join Room</button>
-      </form>
+  <input
+    type="text"
+    placeholder="Your Name"
+    value={nameInput}
+    onChange={(e) => setNameInput(e.target.value)}
+  /><br /><br />
+
+  <input
+    type="text"
+    placeholder="Enter Room Code"
+    value={roomInput}
+    onChange={(e) => setRoomInput(e.target.value.toUpperCase())}
+  /><br /><br />
+
+  <button onClick={handleJoin}>Join Room</button>
+</div>
 
       <hr style={{ width: "200px", margin: "30px auto" }} />
 
       <button onClick={handleCreateRoom}>🎲 Create Random Room</button>
 
-      <Timer duration="30000"/>
+      <button onClick={toSigninPage}>Go To Signin Page </button>
 
 
     </div>
