@@ -1,11 +1,20 @@
 
 
 export const Bot = {
-  donation_phase({ cardsToDistribute }) {
-    const kept = cardsToDistribute[0];
-    const shared = cardsToDistribute.slice(1, -1);
-    const discarded = cardsToDistribute[cardsToDistribute.length - 1];
-    return { kept, shared, discarded };
+  donation_phase({ currentCard, specialCard, kept, discarded, shared, cardsToProcess}) {
+
+    console.log("🤖 Bot received donation context:");
+    console.log("  Current card:", currentCard);
+    console.log("  Special card:", specialCard);
+    console.log("  Kept:", kept);
+    console.log("  Discarded:", discarded);
+    console.log("  Shared:", shared);
+    console.log("  Remaining cards to assign:", cardsToProcess);
+
+    // Return a random action (ignoring context for now)
+    const choices = ["keep", "discard", "pool"];
+    const i = Math.floor(Math.random() * choices.length);
+    return choices[i];
   },
 
   shared_selection({ sharedPool }) {

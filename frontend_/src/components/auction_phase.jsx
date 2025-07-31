@@ -499,7 +499,7 @@ const AuctionPhase = ({
 
         ) : (
           <p>
-            Pls wait xd
+            Please wait 
           </p>
         )}
         
