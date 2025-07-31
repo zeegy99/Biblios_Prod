@@ -21,7 +21,6 @@ const Signup = () => {
 
     // Proceed with sign-up logic
     alert(`Signed up as ${username} (${email})`);
-    setError("");
     navigate("/signin"); // Redirect to sign-in page
   };
 
