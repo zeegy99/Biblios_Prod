@@ -259,7 +259,6 @@ useEffect(() => {
     if (gameState.donationAction) 
   {
     const { player, action, card } = gameState.donationAction;
-    console.log(`🔊 ${player} just ${action} a card: ${card.type} ${card.value}`);
   }
 
   };
@@ -367,6 +366,7 @@ useEffect(() => {
       <h1 className="game-title">Biblios Game</h1>
         <div className="players-online">
         <h4>Players Online:</h4>
+        
         {/* <ul>
           {playersOnline.map((p, i) => (
             <li key={i}>{p.name}</li>

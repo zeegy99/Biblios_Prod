@@ -4,12 +4,14 @@ import { useState, useEffect, useRef } from 'react';
 import Hikaru from "./sound/Hikaru_Music.wav";
 import Fart from "./sound/fart-5-228245.mp3";
 import clockTick from "./sound/clock-ticking-365218.mp3";
-const Timer = ({duration, onTimeout}) => {
+const Timer = ({duration, onTimeout, small_duration = false}) => {
 
     const [time, setTime] = useState(duration);
     const audio = new Audio(Fart);
     const hasRunRef = useRef(false);
+    const tickingRef = useRef(null);
     audio.volume = 0.3;
+    // console.log("small_duration", small_duration)
 
     useEffect(() => {
         
@@ -28,13 +30,21 @@ const Timer = ({duration, onTimeout}) => {
                 const tick = new Audio(clockTick);
                 tick.volume = 0.3;
                 tick.play();
+                tickingRef.current = tick;
             }
             return prev - 1000;
             });
         
         }, 1000);
 
-  return () => clearInterval(intervalId);
+  return () => {
+    clearInterval(intervalId);
+    if (tickingRef.current) {
+    tickingRef.current.pause();
+    tickingRef.current.currentTime = 0;
+    tickingRef.current = null;
+  }
+  }
 }, []);
 
     const getFormattedTime = (milliseconds) => {
@@ -45,10 +55,25 @@ const Timer = ({duration, onTimeout}) => {
     };
 
     return (
-        <div className="timer-bar-container">
-            <div className="timer-bar" />
-            <p> {getFormattedTime(time)}</p>
-        </div>
+        <>
+            {!small_duration && (
+                <div className="timer-bar-container">
+                    <div className="timer-bar" />
+                    <p> {getFormattedTime(time)}</p>
+                </div>
+            )}
+
+            {small_duration && (
+                <div className="timer-bar-container">
+                    <div className="timer-bar_10" />
+                    <p> {getFormattedTime(time)}</p>
+                </div>
+            )}
+
+        
+        
+        </>
+        
         
 
         

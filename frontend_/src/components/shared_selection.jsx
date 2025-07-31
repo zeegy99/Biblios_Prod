@@ -2,6 +2,7 @@ import React from "react";
 import Card from "./card";
 import {useEffect} from "react";
 import Timer from "../timer.jsx";
+import Bot from "./bot.js";
 
 
 const SharedPoolSelection = ({
@@ -128,9 +129,11 @@ if (!sharedPool.length && !isCurrentPlayer) {
     <Timer
       duration={10000}
       onTimeout={() => {
-        console.log(`${player.name} Pick a card broski`);
-        
+        console.log(`A bot will be executing the action for ${player.name}`);
+        const card = Bot.shared_selection({sharedPool})
+        console.log(card)
       }}
+      small_duration={true}
     />
   )}
       </>

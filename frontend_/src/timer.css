@@ -46,7 +46,7 @@
     background-color: #4caf50;
   }
   40% {
-    background-color: #4caf50; /* still green at 80% (6s left) */
+    background-color: #4caf50; 
   }
   100% {
     width: 0%;

@@ -40,7 +40,7 @@ const Card = (props) => {
 
             {isSpecial && ["Plus", "Minus", "Both"].includes(type) ? (
   <img
-   src={`/dice_cards/dice_${type === "Plus" ? value : type === "Minus" ? -value : "0"}.png`}
+   src={`/dice_cards/dice_${type === "Plus" ? value : type === "Minus" ? -value : type === "Both" ? `pm_${value}` : "0"}.png`}
     alt={`${type} Modifier`}
     style={{
       width: "100%",
