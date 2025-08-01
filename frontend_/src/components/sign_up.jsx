@@ -11,22 +11,48 @@ const Signup = () => {
 
   const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const handleSignup = async (e) => 
+  {
     e.preventDefault();
+    try {
+      const res = await fetch("http://localhost:5000/api/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          email,
+          username,
+          password
+        })
+      });
 
-    if (password !== confirmPassword) {
-      setError("❌ Passwords do not match.");
-      return;
+      console.log("This is res", res)
+
+
+      const data = await res.json();
+
+      if (res.ok) {
+        alert("Registration successful!");
+        navigate("/signin");
+        setUsername("");
+        setEmail("");
+        setPassword("");
+        setConfirmPassword("");
+        setError("");
+      } else {
+        alert("Registration failed: " + data.error);
+      }
+    } catch (err) {
+      console.error("Network error:", err);
+      alert("Something went wrong.");
     }
+};
 
-    // Proceed with sign-up logic
-    alert(`Signed up as ${username} (${email})`);
-    navigate("/signin"); // Redirect to sign-in page
-  };
 
   return (
     <div className="signin-signup">
-      <form className="sign-in-form" onSubmit={handleSubmit}>
+      <form className="sign-in-form" onSubmit={handleSignup}>
         <h2 className="title">Sign Up</h2>
 
         <div className="input-field">
