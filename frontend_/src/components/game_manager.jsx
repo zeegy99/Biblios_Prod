@@ -695,25 +695,27 @@ useEffect(() => {
         {phase !== "results" && phase !== "scoring" && (
         <div>
           <p>
-            {playerName}: {players.find(p => p.name === playerName)?.gold ?? 0} gold
+            {/* {playerName}: {players.find(p => p.name === playerName)?.gold ?? 0} gold */}
           </p>
         </div>
       )}
 
-      <div style={{ marginTop: "30px", }}>
-        <h3>Game State</h3>
+      <div style={{ marginTop: "30px", textAlign: "center" }}>
+  <h4>Your Hand ↓</h4>
 
-        <h4>{playerName}'s Hand</h4>
-        <ul>
-          <PlayerHand
-    hand={players.find(p => p.name === playerName)?.hand || []}
-    isCurrentPlayer={true}
-  />
-        </ul> 
-
-        
-        
-      </div>
+  <ul style={{
+    display: "flex",
+    justifyContent: "center",
+    listStyle: "none",
+    padding: 0,
+    gap: "10px"
+  }}>
+    <PlayerHand
+      hand={players.find(p => p.name === playerName)?.hand || []}
+      isCurrentPlayer={true}
+    />
+  </ul>
+</div>
 
     </div>
   );

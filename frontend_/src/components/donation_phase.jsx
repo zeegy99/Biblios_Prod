@@ -391,13 +391,13 @@ useEffect(() =>
     )}
 
     {/* 👤 Non-current player's view */}
-    {!isCurrentPlayer && (
+    {/* {!isCurrentPlayer && (
       <>
       <p>⏳ Waiting for {players[currentPlayerIndex]?.name} to complete their turn ...</p>
 
       <Card card={currentCard} startflipped={true} />
       </> 
-    )}
+    )} */}
 
     {/* ✅ Main player control section */}
     {isCurrentPlayer && (
@@ -461,9 +461,47 @@ useEffect(() =>
       </>
     )}
 
-    <div style={{ marginTop: "30px" }}>
-  <h3>🫱 Shared Cards</h3>
-  {isCurrentPlayer && (
+    <div
+  style={{
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "flex-start",
+    gap: "60px", // spacing between card back and shared cards
+    marginTop: "40px",
+  }}
+>
+  
+
+  {/* Shared cards + label */}
+  <div>
+    <h3>🫱 Shared Cards</h3>
+
+    
+
+    <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+      
+      {sharedPool.map((card, idx) => (
+        <div key={idx} style={{ textAlign: "center" }}>
+          <Card card={card} />
+          <p style={{ fontSize: "0.9em", color: "gray" }}>
+            Pooled by {card.pooledBy || "?"}
+          </p>
+          
+        </div>
+        
+      ))}
+      {/* Biblios card back (only for non-current player) */}
+  {!isCurrentPlayer && (
+    <div style={{ textAlign: "center" }}>
+      <Card card={currentCard} startflipped={true} />
+    </div>
+  )}
+    </div>
+    
+  </div>
+</div>
+
+{isCurrentPlayer && (
     //Timer is a work in progress 
         <Timer
   duration={10000}
@@ -525,18 +563,6 @@ useEffect(() =>
 />
 
   )}
-
-  <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-    {sharedPool.map((card, idx) => (
-      <div key={idx} style={{ textAlign: "center" }}>
-        <Card card={card} />
-        <p style={{ fontSize: "0.9em", color: "gray" }}>
-          Pooled by {card.pooledBy || "?"}
-        </p>
-      </div>
-    ))}
-  </div>
-</div>
   </div>
 );
 
