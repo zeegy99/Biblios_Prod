@@ -24,6 +24,14 @@ const Home = ({ setPlayerName }) => {
   const [rulesPage, setRulesPage] = useState(false);
   const navigate = useNavigate();
 
+  useEffect(() => {
+  const name = localStorage.getItem("playerName");
+  const isGuest = localStorage.getItem("isGuest") === "true";
+
+  if (name && !isGuest) {
+    navigate("/signedin");
+  }
+}, []);
 
   const toggleDropDown = () => {
     setShowBox((prev) => !prev);
@@ -68,11 +76,7 @@ const Home = ({ setPlayerName }) => {
   <header className="home-header">
     <div className="logo">BIBLIOS</div>
     <div className="nav-buttons">
-  <div className="status-badge">
-    {savedName
-      ? `Logged in as ${savedName} (${elo} LP)`
-      : "Playing as Guest"}
-  </div>
+  
   <button className="play-now-header" onClick={handleCreateRoom}>Play Now</button>
   <button className="login-header" onClick={toSigninPage}>Log In</button>
 </div>
@@ -81,6 +85,7 @@ const Home = ({ setPlayerName }) => {
 
   <main className="home-main">
     <div className="home-card left-card">
+      <h2> Playing as {nameInput ? nameInput : "Guest"}</h2>
       <h2 >Join or Create a Room</h2>
 
       {!savedName && (

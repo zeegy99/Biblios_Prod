@@ -243,7 +243,7 @@ background: #ffe600;
   align-items: center;
   padding: 24px 40px;
   background-color: #2d3142;
-  color: white;
+  /* color: white; */
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
 }
 
@@ -307,7 +307,7 @@ background: #ffe600;
 
 .tagline {
   font-size: 18px;
-  color: #bbb;
+  color: white;
   margin-bottom: 40px;
 }
 
@@ -401,6 +401,82 @@ background: #ffe600;
   background: rgba(0, 0, 0, .08);
   color: rgba(0, 0, 0, .3);
 }
+
+.profile-dropdown {
+  position: absolute;
+  top: 120px;
+  right: 20px;
+  width: 240px;
+  padding: 20px;
+  background-color: #1e1e1e;
+  border: 1px solid #444;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  /* color: white; */
+  z-index: 100;
+}
+
+.profile-name {
+  margin: 0 0 10px;
+  font-size: 20px;
+  font-weight: bold;
+  text-align: center;
+  color: white;
+}
+
+.profile-label {
+  font-size: 14px;
+  margin-bottom: 4px;
+  display: block;
+  color: white;
+}
+
+.profile-input {
+  width: 100%;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #666;
+  background-color: #2a2a2a;
+  color: white;
+  margin-bottom: 12px;
+}
+
+.profile-button {
+  width: 100%;
+  padding: 10px;
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-bottom: 12px;
+}
+
+.profile-button:hover {
+  background-color: #45a049;
+}
+
+.profile-divider {
+  border: 0;
+  height: 1px;
+  background: #555;
+  margin: 10px 0;
+}
+
+.profile-signout {
+  width: 75%;
+  padding: 10px;
+  background-color: #d9534f;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.profile-signout:hover {
+  background-color: #c9302c;
+}
+
 
 
 

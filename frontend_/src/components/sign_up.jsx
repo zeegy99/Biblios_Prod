@@ -14,7 +14,14 @@ const Signup = () => {
   const handleSignup = async (e) => 
   {
     e.preventDefault();
-    try {
+
+     if (password !== confirmPassword) {
+    setError("Passwords do not match");
+    return;
+  }
+
+  setError(""); 
+    try {``
       const res = await fetch("https://biblios-backend.onrender.com/api/register", {
         method: "POST",
         headers: {

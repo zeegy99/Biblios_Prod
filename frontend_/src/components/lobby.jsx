@@ -133,7 +133,6 @@ useEffect(() => {
 
   const toggleRulesPage = () => {
     setRulesPage((prev) => {
-    console.log("Previous value of rulesPage:", prev);
     return !prev;
   });
   }
