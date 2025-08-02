@@ -11,7 +11,7 @@ const SigninPage = () => {
   const handleSignin = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch("https://biblios-backend.onrender.com", {
+      const res = await fetch("https://biblios-backend.onrender.com/api/signin", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
