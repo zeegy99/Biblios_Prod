@@ -6,7 +6,10 @@ import os
 app = Flask(__name__)
 
 # CORS setup for frontend
-CORS(app, resources={r"/api/*": {"origins": "http://localhost:5173"}}, supports_credentials=True)
+CORS(app, resources={r"/api/*": {"origins": [
+    "http://localhost:5173",
+    "https://biblios-game-frontend.onrender.com"
+]}}, supports_credentials=True)
 
 # Use DATABASE_URL from environment
 DATABASE_URL = os.getenv("DATABASE_URL")
