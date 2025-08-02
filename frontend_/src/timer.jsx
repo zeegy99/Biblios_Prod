@@ -56,19 +56,16 @@ const Timer = ({duration, onTimeout, small_duration = false}) => {
 
     return (
         <>
-            {!small_duration && (
-                <div className="timer-bar-container">
-                    <div className="timer-bar" />
-                    <p> {getFormattedTime(time)}</p>
-                </div>
-            )}
+           <div className="timer-bar-container">
+            <div
+                className={small_duration ? "timer-bar_10" : "timer-bar"}
+                style={{
+                width: `${(time / duration) * 100}%`,
+                }}
+            />
+            <p>{getFormattedTime(time)}</p>
+            </div>
 
-            {small_duration && (
-                <div className="timer-bar-container">
-                    <div className="timer-bar_10" />
-                    <p> {getFormattedTime(time)}</p>
-                </div>
-            )}
 
         
         

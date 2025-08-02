@@ -4,14 +4,13 @@
   background-color: #ddd;
   border-radius: 8px;
   overflow: hidden;
-  margin: 8px auto;      /* ✅ center the bar */
+  margin: 8px auto;      
   border: 1px solid #ccc;
 }
 
 .timer-bar {
   height: 100%;
   background-color: #4caf50;
-  width: 100%;
   animation: shrinkTimer 30s linear forwards;
   border-radius: 8px;
 }
@@ -35,7 +34,6 @@
 .timer-bar_10 {
   height: 100%;
   background-color: #4caf50;
-  width: 100%;
   animation: shrinkTimer10s 10s linear forwards;
   border-radius: 8px;
 }

@@ -4,6 +4,7 @@ import socket from "../socket";
 import "./lobby.css";
 import RulesPage from "./rulespage"; 
 import { getOrCreatePlayerId } from "../utils/playerId";
+import Fart from "../sound/fart-5-228245.mp3";
 
 const playerId = getOrCreatePlayerId();
 
@@ -27,6 +28,7 @@ const [res3, setRes3] = useState(0);
 const [res4, setRes4] = useState(0);
 const [hasManuallyAdjusted, setHasManuallyAdjusted] = useState(false);
 const [showCardSettings, setShowCardSettings] = useState(false);
+const [updateMessage, setUpdateMessage] = useState("");
 
 
 useEffect(() => {
@@ -60,8 +62,12 @@ useEffect(() => {
     resource: { 1: res1, 2: res2, 3: res3, 4: res4 },
   };
 
-  console.log("🃏 New Deck Settings:", deckSettings);
   socket.emit("update_deck_settings", { room, deckSettings });
+
+    setUpdateMessage("Deck successfully updated!");
+
+  // Optional: auto-hide after 3 seconds
+  setTimeout(() => setUpdateMessage(""), 3000);
 };
 
   
@@ -132,6 +138,15 @@ useEffect(() => {
   });
   }
 
+  const playFartSound = () => {
+    console.log("button")
+  const audio = new Audio(Fart); // path is relative to public/
+  audio.volume=0.3;
+  audio.play().catch((err) => {
+    console.error("Failed to play fart sound:", err);
+  });
+};
+
   const updateName = () => {
   if (tempName.trim()) {
     setPlayerName(tempName.trim());
@@ -151,7 +166,7 @@ useEffect(() => {
       <h2>Waiting Room</h2>
       <p>Room: <strong>{room}</strong></p>
       <h3>Players Joined:</h3>
-      <ul>
+      <ul style = {{listStyle: "none"}}>
         {players.map((p, i) => (
           <li key={p.id}>{p.name}</li>
         ))}
@@ -165,7 +180,7 @@ useEffect(() => {
           <br></br>
 
           <button
-            className="normal-button"
+            className="deck-settings"
             onClick={() => setShowCardSettings((prev) => !prev)}
           >
             {showCardSettings ? "Hide Deck Settings" : "Show Deck Settings"}
@@ -183,7 +198,12 @@ useEffect(() => {
   min="0"
   value={gold1}
   onChange={(e) => {
-    setGold1(Number(e.target.value));
+    const val = e.target.value;
+    if (val === "") {
+      setGold1(""); 
+    } else {
+      setGold1(Math.max(0, Number(val)));
+    }
     setHasManuallyAdjusted(true);
   }}
 />
@@ -195,7 +215,12 @@ useEffect(() => {
   min="0"
   value={gold2}
   onChange={(e) => {
-    setGold2(Number(e.target.value));
+    const val = e.target.value;
+    if (val === "") {
+      setGold2("");
+    } else {
+      setGold2(Math.max(0, Number(val))); 
+    }
     setHasManuallyAdjusted(true);
   }}
 />
@@ -206,7 +231,12 @@ useEffect(() => {
   min="0"
   value={gold3}
   onChange={(e) => {
-    setGold3(Number(e.target.value));
+    const val = e.target.value;
+    if (val === "") {
+      setGold3(""); 
+    } else {
+      setGold3(Math.max(0, Number(val)));
+    }
     setHasManuallyAdjusted(true);
   }}
 />
@@ -217,7 +247,12 @@ useEffect(() => {
   min="0"
   value={res1}
   onChange={(e) => {
-    setRes1(Number(e.target.value));
+    const val = e.target.value;
+    if (val === "") {
+      setRes1(""); 
+    } else {
+      setRes1(Math.max(0, Number(val))); 
+    }
     setHasManuallyAdjusted(true);
   }}
 />
@@ -228,7 +263,12 @@ useEffect(() => {
   min="0"
   value={res2}
   onChange={(e) => {
-    setRes2(Number(e.target.value));
+    const val = e.target.value;
+    if (val === "") {
+      setRes2(""); 
+    } else {
+      setRes2(Math.max(0, Number(val))); 
+    }
     setHasManuallyAdjusted(true);
   }}
 />
@@ -239,7 +279,12 @@ useEffect(() => {
   min="0"
   value={res3}
   onChange={(e) => {
-    setRes3(Number(e.target.value));
+    const val = e.target.value;
+    if (val === "") {
+      setRes3(""); 
+    } else {
+      setRes3(Math.max(0, Number(val))); 
+    }
     setHasManuallyAdjusted(true);
   }}
 />
@@ -250,7 +295,12 @@ useEffect(() => {
   min="0"
   value={res4}
   onChange={(e) => {
-    setRes4(Number(e.target.value));
+    const val = e.target.value;
+    if (val === "") {
+      setRes4(""); 
+    } else {
+      setRes4(Math.max(0, Number(val))); 
+    }
     setHasManuallyAdjusted(true);
   }}
 />
@@ -259,6 +309,12 @@ useEffect(() => {
   <button className="normal-button" onClick={applyCardSettings}>
     Apply Settings
   </button>
+
+  {updateMessage && (
+  <div style={{ marginTop: "20px", color: "green", textAlign: "center" }}>
+    {updateMessage}
+  </div>
+)}
 </div>
             )}
           
@@ -271,7 +327,7 @@ useEffect(() => {
 
       <div className="button-bar">
 
-        <button className={'menu-button'}>
+        <button className={'menu-button'} onClick={playFartSound}>
         Button
       </button>
 

@@ -6,6 +6,7 @@ import Play from "./components/play_component.jsx";
 import SigninPage from "./components/sign_in.jsx";
 import Signup from "./components/sign_up.jsx";
 import socket from "./socket";
+import SignedIn from "./components/home_signedin.jsx";
 
 function App() {
   const [playerName, setPlayerName] = useState(() => {
@@ -21,7 +22,7 @@ function App() {
         <Route path="/game/:room" element={<Play playerName={playerName} playerList={playerList} />} />
         <Route path="/signin" element={<SigninPage />} />
         <Route path="/signup" element={<Signup/>} />
-        
+        <Route path="/signedin" element={<SignedIn />} />
       </Routes>
     </Router>
   );

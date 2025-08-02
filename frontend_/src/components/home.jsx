@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Navigate, useNavigate } from "react-router-dom";import { getOrCreatePlayerId } from "../utils/playerId";
 import Timer from "../timer.jsx";
 import "./lobby.css";
@@ -12,7 +12,10 @@ const playerId = getOrCreatePlayerId();
 
 
 const Home = ({ setPlayerName }) => {
+  
   const savedName = localStorage.getItem("playerName") || "";
+
+
   const elo = localStorage.getItem("elo") || "-10";
   const [nameInput, setNameInput] = useState(savedName);
   const [roomInput, setRoomInput] = useState("");
@@ -20,6 +23,7 @@ const Home = ({ setPlayerName }) => {
   const [tempName, setTempName] = useState(localStorage.getItem("playerName") || "");
   const [rulesPage, setRulesPage] = useState(false);
   const navigate = useNavigate();
+
 
   const toggleDropDown = () => {
     setShowBox((prev) => !prev);
@@ -60,95 +64,71 @@ const Home = ({ setPlayerName }) => {
 
 
   return (
-    <div style={{ textAlign: "center", marginTop: "100px" }}>
-
-      {savedName && <h3>Welcome back, {savedName}!</h3>}
-      {savedName && <h3>Your elo is: {elo} lp</h3>}
-      <div style={{ textAlign: "center", marginTop: "100px" }}>
-      
-     
-  <h2>Start or Join a Game</h2>
- {!savedName && <input
-    type="text"
-    placeholder="Your Name"
-    value={nameInput}
-    onChange={(e) => setNameInput(e.target.value)}
-  />}
-  <br /><br />
-
-  <input
-    type="text"
-    placeholder="Enter Room Code"
-    value={roomInput}
-    onChange={(e) => setRoomInput(e.target.value.toUpperCase())}
-  /><br /><br />
-
-  <button onClick={handleJoin}>Join Room</button>
-</div>
-
-      <hr style={{ width: "200px", margin: "30px auto" }} />
-
-      <button onClick={handleCreateRoom}>🎲 Create Random Room</button>
-
-      {!savedName && <button onClick={toSigninPage}>Go To Sign In Page </button>
-
-      }
-
-      <div className="button-bar">
-  <button className={'menu-button'}>Button</button>
-
-  <button className={'menu-button'} onClick={() => setRulesPage(true)}>
-  Rules
-</button>
-
-  <button className={'naming-button'} onClick={toggleDropDown}>
-    {nameInput || "Guest"}
-  </button>
-</div>
-
-{showBox && (
-  <div className={'dropdown-box'}>
-    <p className="nickname">Nickname</p>
-
-    {localStorage.getItem("playerName") ? (
-      <>
-        <p className="nickname-display">{localStorage.getItem("playerName")}</p>
-        <button
-          className="normal-button"
-          onClick={() => {
-            localStorage.removeItem("playerName");
-            localStorage.removeItem("elo");
-            window.location.reload(); // or navigate to "/signin"
-          }}
-        >
-          Sign Out
-        </button>
-      </>
-    ) : (
-      <>
-        <input
-          className="nickname-input"
-          type="text"
-          value={tempName}
-          onChange={(e) => setTempName(e.target.value)}
-          placeholder="Enter your nickname"
-        />
-        <br />
-        <button className={'normal-button'} onClick={updateName}>
-          Update your nickname
-        </button>
-      </>
-    )}
+    <div className="home-container">
+  <header className="home-header">
+    <div className="logo">BIBLIOS</div>
+    <div className="nav-buttons">
+  <div className="status-badge">
+    {savedName
+      ? `Logged in as ${savedName} (${elo} LP)`
+      : "Playing as Guest"}
   </div>
-)}
+  <button className="play-now-header" onClick={handleCreateRoom}>Play Now</button>
+  <button className="login-header" onClick={toSigninPage}>Log In</button>
+</div>
 
+  </header>
 
-      
+  <main className="home-main">
+    <div className="home-card left-card">
+      <h2 >Join or Create a Room</h2>
 
-{rulesPage && <RulesPage onClose={() => setRulesPage(false)} />}
+      {!savedName && (
+        <input
+          className="home-input"
+          type="text"
+          placeholder="Your Name"
+          value={nameInput}
+          onChange={(e) => setNameInput(e.target.value)}
+        />
+      )}
 
+      <input
+        className="home-input"
+        type="text"
+        placeholder="Enter Room Code"
+        value={roomInput}
+        onChange={(e) => setRoomInput(e.target.value.toUpperCase())}
+      />
 
+      <button className="home-button" onClick={handleJoin}>
+        Join Room
+      </button>
+
+      <div className="divider">or</div>
+
+      <button className="home-button" onClick={handleCreateRoom}>
+        🎲 Create Random Room
+      </button>
+
+      {!savedName && (
+        <button className="secondary-button" onClick={toSigninPage}>
+          Go to Sign In Page
+        </button>
+      )}
     </div>
+
+    <div className="hero">
+      <h1>Play Biblios Online</h1>
+      
+    </div>
+  </main>
+
+  {rulesPage && <RulesPage onClose={() => setRulesPage(false)} />}
+</div>
+
+
+
   );
 };
 
