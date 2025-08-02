@@ -36,13 +36,14 @@ const DonationPhase = ({
   const [specialCardToPlay, setSpecialCardToPlay] = useState(null);
   const [drawnCount, setDrawnCount] = useState(0); // counts non-specials
   const isFirstRender = useRef(true);
+  const hasConfirmed = useRef(false);
 
   //Dice UI
   const [diceToModify, setDiceToModify] = useState(null);
   const [diceSelectionCard, setDiceSelectionCard] = useState(null);
   const [diceChosen, setDiceChosen] = useState(new Set());
 
-
+  
   //For my <Timer/>
   const specialCardRef = useRef(null);
   useEffect(() => {
@@ -69,6 +70,13 @@ const DonationPhase = ({
   };
 
 //For SpecialCards
+useEffect(() => {
+  const isDone = kept && discarded && shared.length > 0;
+  if (isDone && !hasConfirmed.current) {
+    confirmTurn();
+    hasConfirmed.current = true;
+  }
+}, [kept, discarded, shared]);
  useEffect(() => 
 {
   if (!specialCardToPlay || !isCurrentPlayer) return;
@@ -399,23 +407,39 @@ useEffect(() =>
             <h4>Choose what to do with this card:</h4>
 
             {/* Temporarily keeping the cards on the left*/}
-                <div style={{ display: "flex", justifyContent: "flex-start", paddingLeft: "20px" }}>
+                <div >
       <Card {...currentCard} />
     </div>
-            <div style={{ marginTop: "10px" }}>
-              <button onClick={() => handleChoice(currentCard, "keep")}
-                disabled={specialCardToPlay || diceSelectionCard || diceToModify}>
-                Keep
-              </button>
-              <button onClick={() => handleChoice(currentCard, "discard")}
-                disabled={specialCardToPlay || diceSelectionCard || diceToModify}>
-                Discard
-              </button>
-              <button onClick={() => handleChoice(currentCard, "pool")}
-                disabled={specialCardToPlay || diceSelectionCard || diceToModify}>
-                Pool
-              </button>
-            </div>
+            <div
+  style={{
+    display: "flex",
+    justifyContent: "center", // centers horizontally
+    gap: "10px",               // adds spacing between buttons
+    marginTop: "10px"
+  }}
+>
+  <button
+    onClick={() => handleChoice(currentCard, "keep")}
+    disabled={specialCardToPlay || diceSelectionCard || diceToModify}
+  >
+    Keep
+  </button>
+
+  <button
+    onClick={() => handleChoice(currentCard, "discard")}
+    disabled={specialCardToPlay || diceSelectionCard || diceToModify}
+  >
+    Discard
+  </button>
+
+  <button
+    onClick={() => handleChoice(currentCard, "pool")}
+    disabled={specialCardToPlay || diceSelectionCard || diceToModify}
+  >
+    Pool
+  </button>
+</div>
+
           </div>
         ) : (
           <div>
@@ -430,7 +454,7 @@ useEffect(() =>
               {shared.map((c, i) => `${c.type} ${c.value}`).join(", ")}
             </p>
             {/* {confirmTurn()} */}
-            <button onClick={confirmTurn}>Confirm Turn</button>
+            {/* <button onClick={confirmTurn}>Confirm Turn</button> */}
             
           </div>
         )}
