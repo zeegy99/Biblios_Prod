@@ -15,7 +15,6 @@
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
     "mongoose": "^8.17.0",
-    "msnodesqlv8": "^5.1.1",
     "mssql": "^11.0.1",
     "nodemon": "^3.1.10",
     "socket.io": "^4.8.1"
