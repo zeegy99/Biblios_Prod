@@ -454,7 +454,7 @@ useEffect(() =>
               {shared.map((c, i) => `${c.type} ${c.value}`).join(", ")}
             </p>
             {/* {confirmTurn()} */}
-            {/* <button onClick={confirmTurn}>Confirm Turn</button> */}
+            <button onClick={confirmTurn}>Confirm Turn</button>
             
           </div>
         )}

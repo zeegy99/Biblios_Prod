@@ -4,10 +4,12 @@ import { useState, useEffect, useRef } from 'react';
 import Hikaru from "./sound/Hikaru_Music.wav";
 import Fart from "./sound/fart-5-228245.mp3";
 import clockTick from "./sound/clock-ticking-365218.mp3";
+import Boom from "./sound/vine-boom-162668.mp3";
 const Timer = ({duration, onTimeout, small_duration = false}) => {
 
     const [time, setTime] = useState(duration);
-    const audio = new Audio(Fart);
+    const rand = Math.random() < 0.5;
+    const audio = new Audio(rand ? Fart : Boom);
     const hasRunRef = useRef(false);
     const tickingRef = useRef(null);
     audio.volume = 0.3;
