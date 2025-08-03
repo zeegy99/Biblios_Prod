@@ -93,36 +93,32 @@ const ScoringPhase = ({ players, dice, setFinalResults, goToResults, isHost }) =
     return b.gold - a.gold;
   });
 
- // 🎯 ELO calculation
-const step = 10;
-const isOdd = sorted.length % 2 === 1;
-const median = Math.floor(sorted.length / 2);
-const eloResults = [];
-
+ // 🏅 Assign ranks instead of ELO
 sorted.forEach((player, i) => {
-  let gain = 0;
-  if (isOdd && i === median) {
-    gain = 0; // Middle player gets 0
-  } else {
-    gain = step * (sorted.length - 1 - i) - step * median;
+  console.log("I am i", i)
+  player.rank = i + 1;
+  
+  console.log((i+1), (players.length + 1) / 2)
+  if ((i+1) < ((players.length + 1) / 2)) {
+    player.elo = Math.floor(player.length/2) * 10
   }
 
-  const isSignedIn = player.email; // Adjust based on how you check
-  if (isSignedIn) {
-    player.eloGained = gain;
-
-    const key = `elo-${player.email}`;
-    const current = parseInt(localStorage.getItem(key) || "1000");
-    localStorage.setItem(key, current + gain);
-  } else {
-    player.eloGained = 0;
+  else if ((i+1) === player.length / 2) {
+    player.elo = 0
   }
 
-  eloResults.push(`${player.name} ${gain >= 0 ? "+" : ""}${gain}`);
+  else {
+    player.elo = Math.floor((i+1)/2) * -10
+  }
+  console.log("I am player.elo", player.elo)
+  
 });
 
+const median = (players.length + 1) / 2
+console.log("median", median)
+const rankResults = sorted.map((p) => `${p.name}: #${p.rank}, elo: ${p.elo}`);
+newLog.push(`📊 Final Rankings: ${rankResults.join(", ")}`);
 
-  newLog.push(`📈 ELO changes: ${eloResults.join(", ")}`);
   setLog((prev) => [...prev, ...newLog]);
   setFinalResults(sorted);
   setIsDone(true);
