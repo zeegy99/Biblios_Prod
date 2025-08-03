@@ -46,10 +46,11 @@ useEffect(() => {
   console.log("username", username)
 
   if (username) {
+    const cleanUsername = username.trim();
     fetch("https://biblios-backend.onrender.com/api/get_elo", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username })
+      body: JSON.stringify({ username: cleanUsername })
     })
       .then(res => res.json())
       .then(data => {

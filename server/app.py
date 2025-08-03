@@ -82,7 +82,7 @@ def signin():
 @app.route("/api/update_elo", methods=["POST", "OPTIONS"])
 def update_elo():
     data = request.json
-    username = data.get("username")
+    username = data.get("username", "").strip()
     elo_change = data.get("eloChange")
 
     if username == "none":
@@ -108,13 +108,8 @@ def update_elo():
     
 @app.route("/api/get_elo", methods=["POST", "OPTIONS"])
 def get_elo():
-
     if request.method == "OPTIONS":
-        response = jsonify({"message": "CORS preflight OK"})
-        response.headers.add("Access-Control-Allow-Origin", "https://biblios-game-frontend.onrender.com")
-        response.headers.add("Access-Control-Allow-Headers", "Content-Type")
-        response.headers.add("Access-Control-Allow-Methods", "POST, OPTIONS")
-        return response, 200
+        return '', 200
     data = request.json
     username = data.get("username")
 
