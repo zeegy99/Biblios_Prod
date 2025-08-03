@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 
 const ScoringPhase = ({ players, dice, setFinalResults, goToResults, isHost }) => {
   const [log, setLog] = useState([]);
+  const username = localStorage.getItem("username") || "none";
   const [currentDieIndex, setCurrentDieIndex] = useState(0);
   const [scoredPlayers, setScoredPlayers] = useState(() =>
     players.map((p) => ({ ...p, points: 0 }))
@@ -104,13 +105,19 @@ sorted.forEach((player, i) => {
   else {
     player.elo = Math.floor((i+1)/2) * -10
   }
-  console.log("I am player.elo", player.elo)
+  fetch("https://biblios-backend.onrender.com/api/update_elo", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ username, eloChange: player.elo })
+  });
 });
 
-const median = (players.length + 1) / 2
-console.log("median", median)
+
+
 const rankResults = sorted.map((p) => `${p.name}: #${p.rank}, elo: ${p.elo}`);
-newLog.push(`📊 Final Rankings: ${rankResults.join(", ")}`);
+newLog.push(`Final Rankings: ${rankResults.join(", ")}`);
 
   setLog((prev) => [...prev, ...newLog]);
   setFinalResults(sorted);

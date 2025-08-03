@@ -78,5 +78,59 @@ def signin():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/update_elo", methods=["POST", "OPTIONS"])
+def update_elo():
+    data = request.json
+    username = data.get("username")
+    elo_change = data.get("eloChange")
+
+    if username != "none":
+        return jsonify({"message": "No username associated with this account"}), 400
+
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor()
+
+        cursor.execute(
+            "UPDATE users SET elo = elo + %s WHERE username = %s",
+            (elo_change, username)
+        )
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({"message": "Elo updated"}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+@app.route("/api/get_elo", methods=["POST", "OPTIONS"])
+def get_elo():
+    data = request.json
+    username = data.get("username")
+
+    if not username:
+        return jsonify({"error": "Missing username"}), 400
+    
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT elo FROM users WHERE username = %s", (username,))
+        result = cursor.fetchone()
+
+        cursor.close()
+        conn.close()
+
+        if result:
+            return jsonify({"elo": result[0]}), 200
+        else:
+            return jsonify({"error": "User not found"}), 404
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    
 if __name__ == "__main__":
     app.run(port=5000, debug=True)

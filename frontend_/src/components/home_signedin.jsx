@@ -5,7 +5,7 @@ import RulesPage from "./rulespage";
 
 const SignedIn = () => {
   const savedName = localStorage.getItem("playerName");
-  const elo = localStorage.getItem("elo") || "-10";
+  const [elo, setElo] = useState(null);
   const isGuest = localStorage.getItem("isGuest") === "true";
   const navigate = useNavigate();
   const [showBox, setShowBox] = useState(false);
@@ -39,6 +39,31 @@ const handleJoin = (e) => {
   localStorage.setItem("roomCode", roomInput.toUpperCase());
   navigate("/lobby");
 };
+
+useEffect(() => {
+  const username = localStorage.getItem("username");
+
+  if (username) {
+    fetch("https://biblios-backend.onrender.com/api/get_elo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.elo !== undefined) {
+          setElo(data.elo);
+        } else {
+          console.warn("No elo found:", data);
+          setElo("N/A");
+        }
+      })
+      .catch(err => {
+        console.error("Failed to fetch elo:", err);
+        setElo("Error");
+      });
+  }
+}, []);
 
 const handleCreateRoom = () => {
   const newRoom = Math.random().toString(36).substring(2, 7).toUpperCase();
