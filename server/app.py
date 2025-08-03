@@ -6,10 +6,11 @@ import os
 app = Flask(__name__)
 
 # CORS setup for frontend
-CORS(app, resources={r"/api/*": {"origins": [
-    "http://localhost:5173",
-    "https://biblios-game-frontend.onrender.com"
-]}}, supports_credentials=True)
+CORS(app, resources={r"/api/*": {"origins": "https://biblios-game-frontend.onrender.com"}}, supports_credentials=True)
+# CORS(app, resources={r"/api/*": {"origins": [
+#     "http://localhost:5173",
+#     "https://biblios-game-frontend.onrender.com"
+# ]}}, supports_credentials=True)
 
 # Use DATABASE_URL from environment
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -110,7 +111,7 @@ def get_elo():
 
     if request.method == "OPTIONS":
         response = jsonify({"message": "CORS preflight OK"})
-        response.headers.add("Access-Control-Allow-Origin", "*")
+        response.headers.add("Access-Control-Allow-Origin", "https://biblios-game-frontend.onrender.com")
         response.headers.add("Access-Control-Allow-Headers", "Content-Type")
         response.headers.add("Access-Control-Allow-Methods", "POST, OPTIONS")
         return response, 200
