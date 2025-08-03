@@ -93,25 +93,18 @@ const ScoringPhase = ({ players, dice, setFinalResults, goToResults, isHost }) =
     return b.gold - a.gold;
   });
 
- // 🏅 Assign ranks instead of ELO
 sorted.forEach((player, i) => {
-  console.log("I am i", i)
   player.rank = i + 1;
-  
-  console.log((i+1), (players.length + 1) / 2)
   if ((i+1) < ((players.length + 1) / 2)) {
-    player.elo = Math.floor(player.length/2) * 10
+    player.elo = Math.floor(players.length/2) * 10
   }
-
   else if ((i+1) === player.length / 2) {
     player.elo = 0
   }
-
   else {
     player.elo = Math.floor((i+1)/2) * -10
   }
   console.log("I am player.elo", player.elo)
-  
 });
 
 const median = (players.length + 1) / 2

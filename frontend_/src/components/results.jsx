@@ -39,7 +39,7 @@ const ResultsScreen = ({ players, onRestart }) => {
         <td style={cellStyle}>{p.points}</td>
         <td style={cellStyle}>{p.gold}</td>
         <td style={cellStyle}>
-          {p.eloGained > 0 ? `+${p.eloGained}` : p.eloGained}
+          {p.elo> 0 ? `+${p.elo}` : p.elo}
         </td>
       </tr>
     ))}
