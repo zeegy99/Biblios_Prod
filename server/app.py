@@ -120,7 +120,7 @@ def get_elo():
         conn = psycopg2.connect(DATABASE_URL)
         cursor = conn.cursor()
 
-        cursor.execute("SELECT elo FROM users WHERE username = %s", (username,))
+        cursor.execute("SELECT elo_score FROM elo WHERE username = %s", (username,))
         result = cursor.fetchone()
 
         cursor.close()
