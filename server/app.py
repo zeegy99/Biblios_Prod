@@ -84,7 +84,7 @@ def update_elo():
     username = data.get("username")
     elo_change = data.get("eloChange")
 
-    if username != "none":
+    if username == "none":
         return jsonify({"message": "No username associated with this account"}), 400
 
     try:
@@ -107,6 +107,13 @@ def update_elo():
     
 @app.route("/api/get_elo", methods=["POST", "OPTIONS"])
 def get_elo():
+
+    if request.method == "OPTIONS":
+        response = jsonify({"message": "CORS preflight OK"})
+        response.headers.add("Access-Control-Allow-Origin", "*")
+        response.headers.add("Access-Control-Allow-Headers", "Content-Type")
+        response.headers.add("Access-Control-Allow-Methods", "POST, OPTIONS")
+        return response, 200
     data = request.json
     username = data.get("username")
 
