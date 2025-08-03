@@ -357,7 +357,7 @@ useEffect(() =>
                       const resource = diceToModify[i].resource_type;
                 
                       const newVal = updated[i].value;
-                      return `${resource} → ${newVal}`;
+                      return `${resource}: ${newVal-1} → ${newVal}`;
                     });
 
                     broadcastState({ dice: updated }, `${player.name} modified the dice. He changed: ${changeDetails.join(", ")}`);

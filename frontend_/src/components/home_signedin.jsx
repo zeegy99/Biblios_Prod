@@ -12,6 +12,26 @@ const SignedIn = () => {
   const [rulesPage, setRulesPage] = useState(false);
   const [roomInput, setRoomInput] = useState("");
 
+const handleRejoin = () => {
+  const playerId = localStorage.getItem("playerId");
+  const playerName = localStorage.getItem("playerName");
+  const roomCode = localStorage.getItem("roomCode");
+
+  if (!playerId || !playerName || !roomCode) {
+    alert("No game to rejoin.");
+    return;
+  }
+
+  // Emit rejoin request
+  socket.emit("rejoin_game", {
+    room: roomCode,
+    playerId,
+    playerName,
+  });
+
+  // Navigate back to the game
+  navigate(`/game/${roomCode}`);
+};
 
 const handleJoin = (e) => {
   e.preventDefault();
@@ -50,6 +70,15 @@ const handleCreateRoom = () => {
       <header className="home-header">
         <div className="logo">BIBLIOS</div>
         <div className="nav-buttons">
+
+          <button
+            className="login-header"
+            style={{ backgroundColor: "#e53935", color: "white" }}
+            onClick={handleRejoin}
+          >
+            Rejoin
+          </button>
+
           <button className="login-header" onClick={toggleRulesPage}>
             Rules
           </button>

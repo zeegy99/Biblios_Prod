@@ -40,20 +40,21 @@ io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
   socket.on("join_game", ({ room, playerName, playerId}) => {
-    socket.join(room);
+
 
     if (!playersInRoom[room]) {
       playersInRoom[room] = [];
     }
 
-    const alreadyJoined = DEV_MODE ? false : playersInRoom[room].some(p => p.playerId === playerId);
+    const alreadyJoined = playersInRoom[room].some(p => p.playerId === playerId);
+
 
     console.log("alreadyJoined", alreadyJoined)
     if (!alreadyJoined) {
       playersInRoom[room].push({ id: socket.id, playerId, name: playerName });
       console.log(`${playerName} joined room ${room}`);
     } 
-
+    socket.join(room);
     io.to(room).emit("player_list", playersInRoom[room]);
   });
 
@@ -95,8 +96,38 @@ io.on("connection", (socket) => {
     for (const room in playersInRoom) {
       playersInRoom[room] = playersInRoom[room].filter(p => p.id !== socket.id);
       io.to(room).emit("player_list", playersInRoom[room]);
+    };
+
+    if (playersInRoom[room].length === 0) {
+      delete playersInRoom[room];
+    } else {
+      io.to(room).emit("player_list", playersInRoom[room]);
     }
   });
+
+  //Rejoining
+  socket.on("rejoin_game", ({ room, playerId, playerName }) => {
+  console.log(`🔄 ${playerName} attempting to rejoin ${room}`);
+
+  if (!playersInRoom[room]) return;
+
+  // Find matching player
+  const player = playersInRoom[room].find(p => p.playerId === playerId);
+
+  if (player) {
+    // Reassign new socket ID to existing player
+    player.socketId = socket.id;
+    socket.join(room);
+
+    // Re-sync full game state
+    const gameState = currentGameState[room];
+    if (gameState) {
+      socket.emit("sync_game_state", gameState);
+      console.log(`✅ ${playerName} rejoined and synced`);
+    }
+  }
+});
+
 
    //Chat system
   socket.on("chat_message", ({ room, playerName, message }) => 

@@ -108,8 +108,8 @@ if (!sharedPool.length && !isCurrentPlayer) {
 
     {sharedPool.length > 0 && (
       <>
-        {isCurrentPlayer && <p>Select a card or skip:</p>}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "12px" }}>
+        {isCurrentPlayer && <p>Select a card:</p>}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", justifyContent: "center", alignItems: "center"}}>
           {sharedPool.map((card, idx) => (
             <div key={idx} style={{ textAlign: "center", opacity: card.taken ? 0.4 : 1 }}>
               <Card {...card} />

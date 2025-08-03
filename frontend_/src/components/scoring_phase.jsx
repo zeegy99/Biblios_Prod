@@ -38,11 +38,21 @@ const ScoringPhase = ({ players, dice, setFinalResults, goToResults, isHost }) =
       const minTie = Math.min(...contenders.map((p) => p.__bestTie));
       const tieWinners = contenders.filter((p) => p.__bestTie === minTie);
       if (tieWinners.length === 1) {
-        tieWinners[0].points += die.value;
-        newLog.push(`Tiebreaker! ${tieWinners[0].name} wins ${die.resource_type}`);
-      } else {
-        newLog.push(`Tie on ${die.resource_type}. No points awarded.`);
-      }
+  tieWinners[0].points += die.value;
+  newLog.push(`Tiebreaker! ${tieWinners[0].name} wins ${die.resource_type}`);
+} else {
+  // tie-breakers also tied → split points
+  const splitPoints = die.value / tieWinners.length;
+  tieWinners.forEach((p) => {
+    p.points += splitPoints;
+  });
+  newLog.push(
+    `Tie-breakers also tied on ${die.resource_type}. ${splitPoints} point(s) awarded to each of: ${tieWinners
+      .map((p) => p.name)
+      .join(", ")}`
+  );
+}
+
     }
 
     // Clean up helper props
@@ -59,27 +69,66 @@ const ScoringPhase = ({ players, dice, setFinalResults, goToResults, isHost }) =
   };
 
   const finishScoring = (finalPlayers) => {
-    const newLog = [];
+  const newLog = [];
 
-    const maxPoints = Math.max(...finalPlayers.map((p) => p.points));
-    const pointLeaders = finalPlayers.filter((p) => p.points === maxPoints);
+  const maxPoints = Math.max(...finalPlayers.map((p) => p.points));
+  const pointLeaders = finalPlayers.filter((p) => p.points === maxPoints);
 
-    if (pointLeaders.length === 1) {
-      newLog.push(`🏆 ${pointLeaders[0].name} wins the game!`);
+  let winners;
+  if (pointLeaders.length === 1) {
+    winners = [pointLeaders[0]];
+    newLog.push(`🏆 ${winners[0].name} wins the game!`);
+  } else {
+    const maxGold = Math.max(...pointLeaders.map((p) => p.gold));
+    winners = pointLeaders.filter((p) => p.gold === maxGold);
+    if (winners.length === 1) {
+      newLog.push(`🏆 ${winners[0].name} wins by gold tiebreaker!`);
     } else {
-      const maxGold = Math.max(...pointLeaders.map((p) => p.gold));
-      const goldWinners = pointLeaders.filter((p) => p.gold === maxGold);
-      if (goldWinners.length === 1) {
-        newLog.push(`🏆 ${goldWinners[0].name} wins by gold tiebreaker!`);
-      } else {
-        newLog.push(`🏆 Tie between: ${goldWinners.map((p) => p.name).join(", ")}`);
-      }
+      newLog.push(`🏆 Tie between: ${winners.map((p) => p.name).join(", ")}`);
     }
+  }
 
-    setLog((prev) => [...prev, ...newLog]);
-    setFinalResults(finalPlayers);
-    setIsDone(true);
-  };
+  const sorted = [...finalPlayers].sort((a, b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    return b.gold - a.gold;
+  });
+
+ // 🎯 ELO calculation
+const step = 10;
+const isOdd = sorted.length % 2 === 1;
+const median = Math.floor(sorted.length / 2);
+const eloResults = [];
+
+sorted.forEach((player, i) => {
+  let gain = 0;
+  if (isOdd && i === median) {
+    gain = 0; // Middle player gets 0
+  } else {
+    gain = step * (sorted.length - 1 - i) - step * median;
+  }
+
+  const isSignedIn = player.email; // Adjust based on how you check
+  if (isSignedIn) {
+    player.eloGained = gain;
+
+    const key = `elo-${player.email}`;
+    const current = parseInt(localStorage.getItem(key) || "1000");
+    localStorage.setItem(key, current + gain);
+  } else {
+    player.eloGained = 0;
+  }
+
+  eloResults.push(`${player.name} ${gain >= 0 ? "+" : ""}${gain}`);
+});
+
+
+  newLog.push(`📈 ELO changes: ${eloResults.join(", ")}`);
+  setLog((prev) => [...prev, ...newLog]);
+  setFinalResults(sorted);
+  setIsDone(true);
+};
+
+
 
   return (
     <div>

@@ -72,36 +72,29 @@ useEffect(() => {
 
   
 
-  useEffect(() => {
-    const hasJoined = sessionStorage.getItem("hasJoined");
+ useEffect(() => {
+  const joinedKey = `hasJoined-${room}`;
+  const hasJoined = sessionStorage.getItem(joinedKey);
 
-     if (!hasJoined) {
+  if (!hasJoined) {
     socket.emit("join_game", { room, playerName, playerId });
-    sessionStorage.setItem("hasJoined", "true");
+    sessionStorage.setItem(joinedKey, "true");
   }
 
-
   socket.on("player_list", (updatedPlayers) => {
-    // console.log("📡 Received player list:", updatedPlayers);
     setPlayers(updatedPlayers);
   });
 
   socket.on("start_game", (data) => {
-  console.log("📩 start_game received in lobby:", data);
-  localStorage.setItem("start_game_payload", JSON.stringify(data));
-  localStorage.setItem("playerName", playerName);
-  setPlayerName(playerName);
-
-  // ⏳ Give localStorage a moment to flush before navigating
-  setTimeout(() => {
-    console.log("🚪 Navigating to /game...");
-    navigate(`/game/${room}`);
-  }, 50);  // 50ms is usually enough
-});
-
+    localStorage.setItem("start_game_payload", JSON.stringify(data));
+    localStorage.setItem("playerName", playerName);
+    setPlayerName(playerName);
+    setTimeout(() => {
+      navigate(`/game/${room}`);
+    }, 50);
+  });
 
   socket.on("game_state", (data) => {
-    console.log("✅ game_state received in lobby. Navigating to game...");
     localStorage.setItem("playerName", playerName);
     navigate("/game");
   });
@@ -111,7 +104,8 @@ useEffect(() => {
     socket.off("start_game");
     socket.off("game_state");
   };
-}, [playerName]);
+}, [playerName, room]);
+
 
   const handleStartGame = () => 
   {
@@ -136,6 +130,19 @@ useEffect(() => {
     return !prev;
   });
   }
+  const navigateHome = () => {
+  // Clear all hasJoined-* flags from sessionStorage
+  for (let i = 0; i < sessionStorage.length; i++) {
+    const key = sessionStorage.key(i);
+    if (key.startsWith("hasJoined-")) {
+      sessionStorage.removeItem(key);
+      i--; // account for reindexing after removeItem
+    }
+  }
+
+  localStorage.removeItem("roomCode");
+  navigate("/");
+};
 
   const playFartSound = () => {
     console.log("button")
@@ -325,6 +332,8 @@ useEffect(() => {
       )}
 
       <div className="button-bar">
+
+        <button className={'menu-button'} onClick={navigateHome}>Home</button>
 
         <button className={'menu-button'} onClick={playFartSound}>
         Button

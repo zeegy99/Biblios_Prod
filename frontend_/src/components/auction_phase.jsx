@@ -51,8 +51,17 @@ const AuctionPhase = ({
 
   useEffect(() => 
   {
-    if (discardPile[currentCardIndex]) 
-      {
+     if (discardPile.length > 0 && currentCardIndex < discardPile.length) {
+
+
+        console.log("I am in here BBBB")
+        const isLastCard = discardPile.length === 1;
+
+         if (isLastCard) {
+      console.log("🟥 Last card in discard pile — doing something special");
+  
+      return;
+    }
         const allTrue = players.map(() => true);
         setActiveBidders(allTrue);
         setActivePlayerIndex(0); 
@@ -258,6 +267,7 @@ const AuctionPhase = ({
       const updatedDiscardPile = [...discardPile];
       updatedDiscardPile.splice(currentCardIndex, 1); 
       setDiscardPile(updatedDiscardPile);
+      setCurrentCardIndex(0);
 
        if (updatedDiscardPile.length === 0) {
           console.log("🎯 No more cards — transitioning to scoring phase.");
