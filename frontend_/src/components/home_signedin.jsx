@@ -41,7 +41,9 @@ const handleJoin = (e) => {
 };
 
 useEffect(() => {
-  const username = localStorage.getItem("username");
+  const username = localStorage.getItem("playerName");
+
+  console.log("username", username)
 
   if (username) {
     fetch("https://biblios-backend.onrender.com/api/get_elo", {
