@@ -74,3 +74,22 @@
 .signup-link a:hover {
   text-decoration: underline;
 }
+
+.error-container {
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transition: max-height 0.3s ease, opacity 0.3s ease;
+}
+
+.error-container.visible {
+  max-height: 40px; /* height enough for your <p> */
+  opacity: 1;
+}
+
+.error-text {
+  color: red;
+  font-size: 0.9rem;
+  margin: 0;
+  padding: 0 0 10px 0;
+}

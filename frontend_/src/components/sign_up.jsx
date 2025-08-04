@@ -8,6 +8,7 @@ const Signup = () => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  const [showError, setShowError] = useState(false);
 
   const navigate = useNavigate();
 
@@ -17,10 +18,14 @@ const Signup = () => {
 
      if (password !== confirmPassword) {
     setError("Passwords do not match");
-    return;
+    setShowError(true);
+
+    setTimeout(() => setShowError(false), 3000);
+    return; 
   }
 
   setError(""); 
+  setShowError(false);
     try {``
       const res = await fetch("https://biblios-backend.onrender.com/api/register", {
         method: "POST",
@@ -34,13 +39,10 @@ const Signup = () => {
         })
       });
 
-      console.log("This is res", res)
-
 
       const data = await res.json();
 
       if (res.ok) {
-        alert("Registration successful!");
         navigate("/signin");
         setUsername("");
         setEmail("");
@@ -58,64 +60,76 @@ const Signup = () => {
 
 
   return (
-    <div className="signin-signup">
-      <form className="sign-in-form" onSubmit={handleSignup}>
-        <h2 className="title">Sign Up</h2>
+    <>
+    <div className="login-page">
+      <div className="login-card">
+        <h2 className="login-title">Sign Up</h2>
+        <form onSubmit={handleSignup} className="login-form">
 
-        <div className="input-field">
-          <i className="fas fa-user"></i>
-          <input
-            type="text"
-            placeholder="Username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            required
-          />
-        </div>
+        <label className="login-label">Username</label>
+        <input
+          type="text"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          className="login-input"
+          required
+        />
 
-        <div className="input-field">
-          <i className="fas fa-envelope"></i>
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-        </div>
+        <label className="login-label">Email</label>
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="login-input"
+          required
+        />
 
-        <div className="input-field">
-          <i className="fas fa-lock"></i>
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-        </div>
+        <label className="login-label">Password</label>
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="login-input"
+          required
+        />
 
-        <div className="input-field">
-          <i className="fas fa-lock"></i>
-          <input
-            type="password"
-            placeholder="Confirm Password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            required
-          />
-        </div>
+        <label className="login-label">Confirm Password</label>
+        <input
+          type="password"
+          placeholder="Confirm Password"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          className="login-input"
+          required
+        />
 
-        {error && <p style={{ color: "red", marginBottom: "10px" }}>{error}</p>}
+        <div className={`error-container ${showError ? "visible" : ""}`}>
+  {showError && <p className="error-text">{error}</p>}
+</div>
 
-        <input type="submit" value="Sign Up" className="btn solid" />
 
-        <p className="social-text">
-          Already have an account?{" "}
-          <Link to="/signin" style={{ color: "red" }}>Sign in</Link>
-        </p>
-      </form>
+
+         <button type="submit" className="login-button">
+          Sign up
+        </button>
+
+        </form>
+
+        <div className="signup-link">
+                Already have an account? <Link to="/signin">Sign In</Link>
+              </div>
+
+
+
+
+
+
+      </div>
     </div>
+      
+        
+    </>
   );
 };
 
