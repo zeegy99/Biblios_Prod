@@ -2,9 +2,15 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import psycopg2
 import os
+import bcrypt
 
 app = Flask(__name__)
 
+def hash_function(curr_pass):
+    combined = curr_pass.encode()
+    a = bcrypt.hashpw(combined, bcrypt.gensalt()) 
+    return (a.decode())
+    
 # CORS setup for frontend
 CORS(app, resources={r"/api/*": {"origins": "https://biblios-game-frontend.onrender.com"}}, supports_credentials=True)
 # CORS(app, resources={r"/api/*": {"origins": [
@@ -38,7 +44,7 @@ def register():
         # Register user
         cursor.execute(
             "INSERT INTO users (email, username, password_hash) VALUES (%s, %s, %s)",
-            (email, username, password)
+            (email, username, hash_function(password))
         )
 
         # Add default ELO
@@ -64,14 +70,19 @@ def signin():
         conn = psycopg2.connect(DATABASE_URL)
         cursor = conn.cursor()
 
-        cursor.execute(
-            "SELECT * FROM users WHERE username = %s AND password_hash = %s",
-            (username, password)
-        )
-        user = cursor.fetchone()
+        cursor.execute("""
+            SELECT password_hash FROM users WHERE username = %s
+        """, (username,))
+        row = cursor.fetchone()
 
-        if user:
-            return jsonify({"message": "Login successful"}), 200
+        if row:
+            stored_hash = row[0]
+            is_valid = bcrypt.checkpw(password.encode(), stored_hash.encode())
+
+            if is_valid:
+                return jsonify({"message": "Login successful"}), 200
+            else:
+                return jsonify({"error": "Invalid username or password"}), 401
         else:
             return jsonify({"error": "Invalid username or password"}), 401
 
