@@ -35,37 +35,45 @@ const SigninPage = () => {
   };
 
   return (
-    <div className="signin-signup">
-      <form className="sign-in-form" onSubmit={handleSignin}>
-        <h2 className="title">Sign in</h2>
-        <div className="input-field">
-          <i className="fas fa-user"></i>
-          <input
-            type="text"
-            placeholder="Username or Email"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            required
-          />
-        </div>
-        <div className="input-field">
-          <i className="fas fa-lock"></i>
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-        </div>
-        <input type="submit" value="Login" className="btn solid" />
+  <div className="login-page">
+    <div className="login-card">
+      <h2 className="login-title">Log In</h2>
+      <form onSubmit={handleSignin} className="login-form">
+        <label className="login-label">Username</label>
+        <input
+          type="text"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          className="login-input"
+          required
+        />
 
-        <p className="social-text">
-          New here? <Link to="/signup" style={{ color: "red" }}>Sign Up</Link>
-        </p>
+        <label className="login-label">Password</label>
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="login-input"
+          required
+        />
+
+        <button type="submit" className="login-button">
+          Log In
+        </button>
+
+        <div className="login-link">
+          <Link to="/forgot-password">Forgot Password?</Link>
+        </div>
       </form>
+
+      <div className="signup-link">
+        Need an account? <Link to="/signup">Sign Up</Link>
+      </div>
     </div>
-  );
+  </div>
+);
+
+
 };
 
 export default SigninPage;

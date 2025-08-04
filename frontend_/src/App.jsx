@@ -7,6 +7,7 @@ import SigninPage from "./components/sign_in.jsx";
 import Signup from "./components/sign_up.jsx";
 import socket from "./socket";
 import SignedIn from "./components/home_signedin.jsx";
+// import 'bootstrap/dist/css/bootstrap.min.css';
 
 function App() {
   const [playerName, setPlayerName] = useState(() => {
