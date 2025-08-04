@@ -707,12 +707,17 @@ const AuctionPhase = ({
   <button
   onClick={() => {
     const parsed = Number(bidInput);
-    const isInvalid = bidInput === "" || isNaN(parsed) || parsed < 0;
+    const isInvalid =
+      bidInput === "" ||
+      isNaN(parsed) ||
+      !Number.isInteger(parsed) ||
+      parsed < 1;
 
     if (isInvalid) {
-      alert("Please enter a valid number.");
+      alert("Please enter a valid whole number (minimum 1).");
       return;
     }
+
 
     handleBid(parsed);
     setBidInput("");
