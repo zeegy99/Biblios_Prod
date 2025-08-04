@@ -94,17 +94,21 @@ const ScoringPhase = ({ players, dice, setFinalResults, goToResults, isHost }) =
     return b.gold - a.gold;
   });
 
+const step = 10;
+const numPlayers = sorted.length;
+const isOdd = numPlayers % 2 === 1;
+const medianIndex = Math.floor(numPlayers / 2);
 sorted.forEach((player, i) => {
   player.rank = i + 1;
-  if ((i+1) < ((players.length + 1) / 2)) {
-    player.elo = Math.floor(players.length/2) * 10
+
+  if (isOdd && i === medianIndex) {
+    player.elo = 0;
+  } else if (i < medianIndex) {
+    player.elo = step * (medianIndex - i);
+  } else {
+    player.elo = -step * (i - medianIndex + (isOdd ? 0 : 1));
   }
-  else if ((i+1) === player.length / 2) {
-    player.elo = 0
-  }
-  else {
-    player.elo = Math.floor((i+1)/2) * -10
-  }
+  
   fetch("https://biblios-backend.onrender.com/api/update_elo", {
     method: "POST",
     headers: {
