@@ -92,9 +92,12 @@ def signin():
 
 @app.route("/api/update_elo", methods=["POST", "OPTIONS"])
 def update_elo():
+    print("I have been received in updateelo")
     data = request.json
     username = data.get("username", "").strip()
     elo_change = data.get("eloChange")
+
+    print("I am username", username, "I am elo_change", elo_change)
 
     if username == "none":
         return jsonify({"message": "No username associated with this account"}), 400
