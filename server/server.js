@@ -91,19 +91,20 @@ io.on("connection", (socket) => {
  
 });
   socket.on("disconnect", () => {
-    console.log("User disconnected:", socket.id);
+  console.log("User disconnected:", socket.id);
 
-    for (const room in playersInRoom) {
-      playersInRoom[room] = playersInRoom[room].filter(p => p.id !== socket.id);
-      io.to(room).emit("player_list", playersInRoom[room]);
-    };
+  for (const room in playersInRoom) {
+    playersInRoom[room] = playersInRoom[room].filter(p => p.id !== socket.id);
 
     if (playersInRoom[room].length === 0) {
       delete playersInRoom[room];
+      console.log(`🧹 Room ${room} is now empty and deleted.`);
     } else {
       io.to(room).emit("player_list", playersInRoom[room]);
     }
-  });
+  }
+});
+
 
   //Rejoining
   socket.on("rejoin_game", ({ room, playerId, playerName }) => {

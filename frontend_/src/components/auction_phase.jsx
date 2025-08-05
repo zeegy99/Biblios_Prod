@@ -1,5 +1,6 @@
 import Card from "./card";
 import React, { useState, useMemo, useRef, useEffect } from "react";
+import Timer from "../timer.jsx";
 
 const AuctionPhase = ({
   players,
@@ -678,64 +679,83 @@ const AuctionPhase = ({
         <button onClick={hostResetAuction}>🔁 Reset Auction Round</button>
       )}
       <h3>Auction Phase</h3>
-      <Card {...currentCard} locked_back_flip={!isCurrentPlayer} />
-      <p>
+      <div style={{ display: "flex", alignItems: "center", gap: "2rem" }}>
+
+    <div>
+      <p style={{ fontWeight: "bold", fontSize: "1.2rem", margin: 0 }}>
+        👉 {player.name}'s turn to bid
+      </p>
+      <p style={{ marginTop: "0.25rem" }}>
+        {player.name === playerName
+          ? `Gold: ${player.gold}, Cards: ${player.hand.length}`
+          : `Cards: ${player.hand.length}`}
+      </p>
+    </div>
+
+    <div style={{ display: "flex", justifyContent: "center", marginLeft:"468px" }}>
+  <Card {...currentCard} locked_back_flip={!isCurrentPlayer} />
+</div>
+    
+</div>
+      <p style={{textAlign: "center"}}>
         Current Bid: {currentBid} by{" "}
         {highestBidder != null ? biddingOrder[highestBidder].name : "None"}
       </p>
-      <p style={{ fontWeight: "bold", fontSize: "1.2rem" }}>
-      👉 {player.name}'s turn to bid
-    </p>
+     
+   
 
-    <p>
-  {player.name === playerName
-    ? `Gold: ${player.gold}, Cards: ${player.hand.length}`
-    : `Cards: ${player.hand.length}`}
-</p>
+    {player.name === playerName && (
+      <div style={{textAlign: "center"}}>
+        <>
+          <input
+            type="number"
+            min={1}
+            placeholder="Enter bid"
+            value={bidInput}
+            onChange={(e) => setBidInput(e.target.value)}
+          />
+          <button
+            onClick={() => {
+            const parsed = Number(bidInput);
+            const isInvalid =
+            bidInput === "" ||
+            isNaN(parsed) ||
+            !Number.isInteger(parsed) ||
+            parsed < 1;
 
-
-      {player.name === playerName && (
-  <>
-    <>
-  <input
-    type="number"
-    min={1}
-    placeholder="Enter bid"
-    value={bidInput}
-    onChange={(e) => setBidInput(e.target.value)}
-  />
-  <button
-  onClick={() => {
-    const parsed = Number(bidInput);
-    const isInvalid =
-      bidInput === "" ||
-      isNaN(parsed) ||
-      !Number.isInteger(parsed) ||
-      parsed < 1;
-
-    if (isInvalid) {
-      alert("Please enter a valid whole number (minimum 1).");
-      return;
-    }
+            if (isInvalid) {
+            alert("Please enter a valid whole number (minimum 1).");
+            return;
+            }
 
 
-    handleBid(parsed);
-    setBidInput("");
-  }}
-  style={{
-    opacity: bidInput === "" || isNaN(Number(bidInput)) ? 0.5 : 1,
-    pointerEvents:
-      bidInput === "" || isNaN(Number(bidInput)) ? "none" : "auto",
-  }}
->
-  Bid
-</button>
+            handleBid(parsed);
+            setBidInput("");
+            }}
+            style={{
+            opacity: bidInput === "" || isNaN(Number(bidInput)) ? 0.5 : 1,
+            pointerEvents:
+            bidInput === "" || isNaN(Number(bidInput)) ? "none" : "auto",
+            }}
+          >
+          Bid
+          </button>
 
-</>
+        </>
 
-    <button onClick={handlePass}>Pass</button>
-  </>
-)}
+        <button onClick={handlePass}>Pass</button>
+
+          <Timer
+          duration={10000}
+          onTimeout={() => 
+            {
+            console.log("poop")
+          }}
+          small_duration={true}
+          
+          />
+      </div>
+    )}
 
     </div>
   );

@@ -359,23 +359,35 @@ useEffect(() => {
       console.log("Game over.");
     }
   };
+  const activeIndex =
+  phase === "auction" ? activePlayerIndex : currentPlayerIndex;
 
   return (
+
     <div>
       
-      <h1 className="game-title">Biblios Game</h1>
+      <h1 className="game-title">Biblios Game</h1> 
+
+       <button style={{marginLeft: "200px", marginTop: "10px"}} className={'menu-button'} onClick={toggleRulesPage}>
+        Rules
+      </button>
         <div className="players-online">
         <h4>Players Online:</h4>
         
-        {/* <ul>
-          {playersOnline.map((p, i) => (
-            <li key={i}>{p.name}</li>
-          ))}
-        </ul> */}
+         <p style={{ margin: 0, fontWeight: "bold" }}>
+  {playersOnline.map((p, i) => {
+    const isActive = players[activeIndex]?.name === p.name;
+    return (
+      <span key={i} style={{ color: isActive ? "black" : "red" }}>
+        {p.name}
+        {i < playersOnline.length - 1 ? ", " : ""}
+      </span>
+    );
+  })}
+</p>
 
-        <button className={'menu-button'} onClick={toggleRulesPage}>
-        Rules
-      </button>
+
+       
 
       {rulesPage && <RulesPage onClose={() => setRulesPage(false)} />}
     </div>

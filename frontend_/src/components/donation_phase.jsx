@@ -499,7 +499,7 @@ useEffect(() =>
 {isCurrentPlayer && (
     //Timer is a work in progress 
         <Timer
-  duration={10000}
+  duration={30000}
   onTimeout={() => {
     console.log(`${player.name} ran out of time!`);
 
@@ -554,7 +554,7 @@ useEffect(() =>
     //   }, idx * 100); // staggered delay
     // });
   }}
-  small_duration={true}
+  small_duration={false}
 />
 
   )}
