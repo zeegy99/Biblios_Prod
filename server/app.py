@@ -92,6 +92,8 @@ def signin():
 
 @app.route("/api/update_elo", methods=["POST", "OPTIONS"])
 def update_elo():
+    if request.method == "OPTIONS":
+        return '', 200
     print("I have been received in updateelo")
     data = request.json
     username = data.get("username", "").strip()
@@ -107,7 +109,7 @@ def update_elo():
         cursor = conn.cursor()
 
         cursor.execute(
-            "UPDATE users SET elo = elo + %s WHERE username = %s",
+            "UPDATE elo SET elo = elo + %s WHERE username = %s",
             (elo_change, username)
         )
 
