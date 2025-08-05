@@ -502,57 +502,6 @@ useEffect(() =>
   duration={30000}
   onTimeout={() => {
     console.log(`${player.name} ran out of time!`);
-
-    // const currentSpecial = specialCardRef.current;
-    // const cardsRemaining = [...cardsToProcess];
-    // const sharedCards = [...shared];
-    // let botKept = kept;
-    // let botDiscarded = discarded;
-
-    // const actions = [];
-    // console.log("i am here")
-
-    // console.log("cards remainig", cardsRemaining)
-
-    // while (cardsRemaining.length > 0) {
-    //   console.log("inside the while loop")
-    //   const currentCard = cardsRemaining[0];
-    //   const action = Bot.donation_phase({
-    //     currentCard,
-    //     specialCard: currentSpecial,
-    //     kept: botKept,
-    //     discarded: botDiscarded,
-    //     shared: sharedCards,
-    //     cardsToProcess: cardsRemaining,
-    //   });
-
-    //   console.log("🤖 Bot decided:", action, "on", currentCard);
-
-    //   if (!action || !["keep", "discard", "pool"].includes(action)) {
-    //     console.warn("❌ Invalid or missing bot action. Stopping loop.");
-    //     break;
-    //   }
-
-    //   actions.push({ card: currentCard, action });
-
-    //   // Update local simulated state
-    //   if (action === "keep") {
-    //     botKept = currentCard;
-    //   } else if (action === "discard") {
-    //     botDiscarded = currentCard;
-    //   } else if (action === "pool") {
-    //     sharedCards.push({ ...currentCard, pooledBy: player.name });
-    //   }
-
-    //   cardsRemaining.shift(); // move to next card
-    // }
-
-    // // Perform actions 1 by 1 with delay so React state has time to update
-    // actions.forEach(({ card, action }, idx) => {
-    //   setTimeout(() => {
-    //     handleChoice(card, action);
-    //   }, idx * 100); // staggered delay
-    // });
   }}
   small_duration={false}
 />

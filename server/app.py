@@ -12,7 +12,7 @@ def hash_function(curr_pass):
     return (a.decode())
     
 # CORS setup for frontend
-CORS(app, resources={r"/api/*": {"origins": "https://biblios-game-frontend.onrender.com"}}, supports_credentials=True)
+CORS(app, resources={r"/api/*": {"origins": ["https://biblios-game-frontend.onrender.com", "http://localhost:5173"]}}, supports_credentials=True) #https://biblios-game-frontend.onrender.com
 # CORS(app, resources={r"/api/*": {"origins": [
 #     "http://localhost:5173",
 #     "https://biblios-game-frontend.onrender.com"
@@ -109,7 +109,7 @@ def update_elo():
         cursor = conn.cursor()
 
         cursor.execute(
-            "UPDATE elo SET elo = elo + %s WHERE username = %s",
+            "UPDATE elo SET elo_score = elo + %s WHERE username = %s",
             (elo_change, username)
         )
 

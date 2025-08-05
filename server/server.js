@@ -32,12 +32,11 @@ server.listen(PORT, () => {
 
 
 
-const DEV_MODE = true; // 🔁 Set to false when deploying
+const DEV_MODE = true; 
 
 const playersInRoom = {};
 
 io.on("connection", (socket) => {
-  console.log("User connected:", socket.id);
 
   socket.on("join_game", ({ room, playerName, playerId}) => {
 
@@ -48,13 +47,12 @@ io.on("connection", (socket) => {
 
     const alreadyJoined = playersInRoom[room].some(p => p.playerId === playerId);
 
-
-    console.log("alreadyJoined", alreadyJoined)
     if (!alreadyJoined) {
       playersInRoom[room].push({ id: socket.id, playerId, name: playerName });
-      console.log(`${playerName} joined room ${room}`);
+      console.log(`This is what I am pushing into my list: id ${socket.id}, playerId ${playerId}, name ${playerName}`);
     } 
     socket.join(room);
+    console.log("📋 Emitting player list for room", room, playersInRoom[room]);
     io.to(room).emit("player_list", playersInRoom[room]);
   });
 
