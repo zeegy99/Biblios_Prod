@@ -108,11 +108,12 @@ def update_elo():
         return jsonify({"message": "No username associated with this account"}), 400
 
     try:
+        
         conn = psycopg2.connect(DATABASE_URL)
         cursor = conn.cursor()
 
         cursor.execute(
-            "UPDATE elo SET elo_score = elo + %s WHERE username = %s",
+            "UPDATE elo SET elo_score = elo_score + %s WHERE username = %s",
             (elo_change, username)
         )
 

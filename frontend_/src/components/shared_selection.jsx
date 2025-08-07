@@ -20,10 +20,7 @@ const SharedPoolSelection = ({
   phase,
 }) => {
 
-  if (phase !== "shared_selection") {
-    console.log(`🚫 [${playerName}] SharedPoolSelection rendered but phase is: ${phase}`);
-    return null;
-  }
+
 
 
 
@@ -44,7 +41,7 @@ const SharedPoolSelection = ({
     return;
   }
 
-  // console.log("🎯 Player", players[sharedSelectionIndex].name, "chose card:", chosenCard);
+
 
   const newPool = [...sharedPool];
   newPool.splice(choiceIdx, 1);
@@ -73,11 +70,9 @@ const SharedPoolSelection = ({
     };
 
     if (next === lastDonatorIndex) {
-      console.log("🚨 Final selector in shared phase, broadcasting & finishing");
       broadcastState(sharedSelectionState);
       onFinish(); 
     } else {
-      console.log("➡️ Broadcasting next turn in shared pool");
       broadcastState(sharedSelectionState);
     }
   }, 0);

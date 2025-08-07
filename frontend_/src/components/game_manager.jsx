@@ -21,7 +21,7 @@ import Timer from "../timer.jsx";
 
 
 const GameRunner = ({ playerName }) => {
-  // console.log("🧠 GameRunner mounted with playerName:", playerName);
+
   const hasSynced = useRef(false);
   const [auctionStarterIndex, setAuctionStarterIndex] = useState(null);
   const [sharedSelectionIndex, setSharedSelectionIndex] = useState(0);
@@ -67,7 +67,7 @@ const GameRunner = ({ playerName }) => {
 
   const toggleRulesPage = () => {
     setRulesPage((prev) => {
-    console.log("Previous value of rulesPage:", prev);
+  
     return !prev;
   });
   }
@@ -129,15 +129,14 @@ const GameRunner = ({ playerName }) => {
     ...buildGameState(),      // ⬅️ get the full current state
     ...newPartialState        // ⬅️ overwrite any fields provided
   };
-  console.log("📤 Broadcasting FULL game state:", fullState, playerName);
+ 
   socket.emit("sync_game_state", { room: `${room}`, gameState: fullState });
 
   if (message) {
     socket.emit("chat_message", {room, playerName: "Game Announcement", message});
   }
 
- 
-  console.log("After broadcasting full gamestate")
+
 };
 
 //Next section is taking information from broadcasts
@@ -145,8 +144,8 @@ const GameRunner = ({ playerName }) => {
 //For Auction
 useEffect(() => {
   if (phase === "auction") {
-    console.log("🧾 Entering Auction Phase — FULL game state:");
-    console.log(buildGameState());
+    // console.log("🧾 Entering Auction Phase — FULL game state:");
+    // console.log(buildGameState());
   }
 }, [phase]);
 
@@ -154,7 +153,7 @@ useEffect(() => {
 useEffect(() => {
   const handler = (gameState) => {
     if (gameState?.donationAction?.action === "discarded") {
-      console.log(`ASDFDSF🗑️ ${gameState.donationAction.player} discarded a card`);
+    
     }
   };
   socket.on("sync_game_state", handler);
@@ -165,7 +164,7 @@ useEffect(() => {
 useEffect(() => {
   const handler = (gameState) => {
     if (gameState?.donationAction?.action === "kept") {
-      console.log(`sfsfsfs ${gameState.donationAction.player} kept a card`);
+     
     }
   };
   socket.on("sync_game_state", handler);
@@ -177,7 +176,7 @@ useEffect(() => {
 useEffect(() => {
   const handler = (gameState) => {
     if (gameState.action === "hostReset") {
-      console.log("This is the new gamestate after host reset the game", gameState)
+  
     }
   };
   socket.on("sync_game_state", handler);
@@ -188,10 +187,10 @@ useEffect(() => {
 //When someone draws a special card
 useEffect(() => {
   const handleSync = (gameState) => {
-    console.log("📡 Full sync received:", gameState);
+   
 
     if ("specialCardToPlay" in gameState) {
-      console.log("🎴 Setting specialCardToPlay:", gameState.specialCardToPlay);
+    
       setSpecialCardToPlay(gameState.specialCardToPlay); // Can be null or an object
     }
   };
@@ -215,18 +214,18 @@ useEffect(() => {
 
 
 useEffect(() => {
-  console.log("🎯 auctionTurnOffset updated to:", auctionTurnOffset);
+  // console.log("🎯 auctionTurnOffset updated to:", auctionTurnOffset);
 }, [auctionTurnOffset]);
 
 useEffect(() => {
-  console.log("📡 GameManager useEffect ran");
+
 
   const handleGameState = (gameState) => {
    if (!hasSynced.current) {
   hasSynced.current = true;
-  console.log("✅ First sync");
+
 } else {
-  console.log("🔁 Re-syncing from broadcast");
+
 }
 
     localStorage.setItem("last_game_state", JSON.stringify(gameState)); 
@@ -277,7 +276,7 @@ useEffect(() => {
     
     const cachedStart = localStorage.getItem("start_game_payload");
     if (cachedStart) {
-      console.log("📦 Using cached start_game payload");
+     
       const { players: rawPlayers, deckSettings: receivedSettings } = JSON.parse(cachedStart);
       setDeckSettings(receivedSettings);  // 👈 Save for deck building
 
@@ -311,7 +310,7 @@ useEffect(() => {
           finalPhaseDone: false,
           auctionTurnOffset: 0,  
         };
-        console.log("👑 Host broadcasting initial game state:", state);
+      
         socket.emit("sync_game_state", { room: `${room}`, gameState: state });
       }, 0);
 
@@ -322,7 +321,7 @@ useEffect(() => {
     if (!hasSynced.current) {
       const cachedGameState = localStorage.getItem("last_game_state");
       if (cachedGameState) {
-        console.log("📦 Using cached game state");
+       
         handleGameState(JSON.parse(cachedGameState));
       }
     }
@@ -342,7 +341,6 @@ useEffect(() => {
 
 
   if (!players.length || !players[currentPlayerIndex]) {
-    console.log("⏳ Still waiting for game initialization...");
     return <div>Waiting for game state to initialize...</div>;
   }
 
@@ -375,12 +373,12 @@ useEffect(() => {
         <h4>Players Online:</h4>
         
          <p style={{ margin: 0, fontWeight: "bold" }}>
-  {playersOnline.map((p, i) => {
+  {playersOnline.slice(0, -1).map((p, i) => {
     const isActive = players[activeIndex]?.name === p.name;
     return (
       <span key={i} style={{ color: isActive ? "black" : "red" }}>
         {p.name}
-        {i < playersOnline.length - 1 ? ", " : ""}
+        {i < playersOnline.length - 1 ? "  " : ""}
       </span>
     );
   })}
@@ -584,9 +582,9 @@ useEffect(() => {
     onFinish={() => {
   
       const nextPlayerIndex = (lastDonatorIndex + 1) % players.length;
-      // console.log(`   - nextPlayerIndex: ${nextPlayerIndex}`);
+    
       if (deck.length < players.length + 1) {
-        // console.log("🎯 Switching to auction phase — NO broadcast here");
+
     setAuctionStarterIndex(nextPlayerIndex);
     setPhase("auction");
 
@@ -597,7 +595,7 @@ useEffect(() => {
       });
     }, 50);
       } else {
-        console.log(`🔄 [${playerName}] Continuing to next donation round — NO broadcast here`);
+  
         setCurrentPlayerIndex(nextPlayerIndex);
         setSharedPool([]);
         setPhase("donation");

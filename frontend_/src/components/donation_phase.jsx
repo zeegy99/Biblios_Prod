@@ -133,7 +133,7 @@ useEffect(() =>
     drawn.push(card);
   }
   setDrawnCount(drawn.length);
-  console.log("setDrawnCount to ", drawn.length)
+
 
   
 
@@ -223,10 +223,10 @@ useEffect(() =>
   };
 
   const confirmTurn = () => {
-  if (!kept || !discarded || shared.length !== numToDraw - 2) {
-    alert("You must assign all cards.");
-    return;
-  }
+  // if (!kept || !discarded || shared.length !== numToDraw - 2) {
+  //   alert("You must assign all cards.");
+  //   return;
+  // }
   
 
 
@@ -246,7 +246,7 @@ useEffect(() =>
   const updatedShared = [...sharedPool];
   const lastDonatorIdx = players.findIndex(p => p.name === player.name);
 
-  console.log("Updated players before broadcast:", updatedPlayers);
+
 
   onFinish({
     updatedDiscard,
@@ -254,7 +254,7 @@ useEffect(() =>
     updatedPlayers,
   });
   
-  console.log("Broadcasting updated deck length:", donationDeck.length);
+ 
   broadcastState({
     discardPile: updatedDiscard,
     sharedPool: updatedShared,
@@ -350,9 +350,12 @@ useEffect(() =>
 
                     const changeDetails = [...nextChosen].map(i => {
                       const resource = diceToModify[i].resource_type;
-                      const oldVal = diceToModify[i].value;
                       const newVal = updated[i].value;
-                      return `${resource}: ${oldVal} → ${newVal}`;
+
+                      const oldVal = diceSelectionCard.type === "Plus"
+                      ? newVal - 1
+                      : newVal + 1;
+                      return `${resource}: ${oldVal}→ ${newVal}`;
                     });
 
                     broadcastState({ dice: updated }, `${player.name} modified the dice. He changed: ${changeDetails.join(", ")}`);
@@ -385,15 +388,6 @@ useEffect(() =>
       </div>
     )}
 
-    {/* 👤 Non-current player's view */}
-    {/* {!isCurrentPlayer && (
-      <>
-      <p>⏳ Waiting for {players[currentPlayerIndex]?.name} to complete their turn ...</p>
-
-      <Card card={currentCard} startflipped={true} />
-      </> 
-    )} */}
-
     {/* ✅ Main player control section */}
     {isCurrentPlayer && (
       <>
@@ -408,8 +402,8 @@ useEffect(() =>
             <div
   style={{
     display: "flex",
-    justifyContent: "center", // centers horizontally
-    gap: "10px",               // adds spacing between buttons
+    justifyContent: "center", 
+    gap: "10px",               
     marginTop: "10px"
   }}
 >

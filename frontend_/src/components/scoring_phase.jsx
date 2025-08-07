@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 
 const ScoringPhase = ({ players, dice, setFinalResults, goToResults, isHost }) => {
   const [log, setLog] = useState([]);
-  const username = localStorage.getItem("username") || "none";
+  const username = localStorage.getItem("playerName") || "none";
   const [currentDieIndex, setCurrentDieIndex] = useState(0);
   const [scoredPlayers, setScoredPlayers] = useState(() =>
     players.map((p) => ({ ...p, points: 0 }))
@@ -99,6 +99,7 @@ const numPlayers = sorted.length;
 const isOdd = numPlayers % 2 === 1;
 const medianIndex = Math.floor(numPlayers / 2);
 sorted.forEach((player, i) => {
+  console.log("this is player", player)
   player.rank = i + 1;
 
   if (isOdd && i === medianIndex) {
@@ -109,13 +110,18 @@ sorted.forEach((player, i) => {
     player.elo = -step * (i - medianIndex + (isOdd ? 0 : 1));
   }
   
-  fetch("https://biblios-backend.onrender.com/api/update_elo", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ username, eloChange: player.elo })
-  });
+  if (player.name === username) {
+    console.log("I am sending the update elo results")
+    fetch("https://biblios-backend.onrender.com/api/update_elo", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ username, eloChange: player.elo })
+    });
+    console.log("I am sending", username, player.elo)
+  }
+  
 });
 
 
