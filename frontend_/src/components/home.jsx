@@ -51,6 +51,7 @@ const Home = ({ setPlayerName }) => {
     if (!nameInput || !roomInput) return;
     localStorage.setItem("playerName", nameInput);
     localStorage.setItem("roomCode", roomInput.toUpperCase());
+    localStorage.setItem("isGuest", "true")
     setPlayerName(nameInput);
     navigate("/lobby");
   };
@@ -61,6 +62,7 @@ const Home = ({ setPlayerName }) => {
     console.log(newRoom)
     localStorage.setItem("playerName", nameInput);
     localStorage.setItem("roomCode", newRoom);
+    localStorage.setItem("isGuest", "true")
     setPlayerName(nameInput);
     navigate("/lobby");
   };

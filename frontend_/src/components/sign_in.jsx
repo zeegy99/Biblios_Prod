@@ -24,6 +24,7 @@ const SigninPage = () => {
       if (res.ok) {
         localStorage.setItem("playerName", username);
         localStorage.setItem("elo", data.elo)
+        localStorage.setItem("isGuest", "false")
         navigate("/signedin");  
       } else {
         alert("❌ Login failed: " + data.error);
