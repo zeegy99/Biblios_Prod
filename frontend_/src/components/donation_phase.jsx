@@ -223,10 +223,10 @@ useEffect(() =>
   };
 
   const confirmTurn = () => {
-  // if (!kept || !discarded || shared.length !== numToDraw - 2) {
-  //   alert("You must assign all cards.");
-  //   return;
-  // }
+  if (!kept || !discarded || shared.length !== numToDraw - 2) {
+    alert("You must assign all cards.");
+    return;
+  }
   
 
 
