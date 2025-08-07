@@ -11,7 +11,7 @@ const typeColors = {
 };
 
 const Card = (props) => {
-  const { card: cardProp, startflipped = false } = props;
+  const { card: cardProp, startflipped = false, pooled = false } = props;
   const [flipped, setFlipped] = useState(false);
   const card = props.card ?? props;
 
@@ -23,12 +23,12 @@ const Card = (props) => {
       ? "#b266ff"
     : typeColors[type] || "#fff";
 
-  const isFlipped = startflipped || flipped;
+  const isFlipped = startflipped || flipped || props.pooled;
 
    return (
-  <div className="container" onClick={() => {
-    if (!startflipped) setFlipped(!flipped);
-  }}>
+  <div className={`container ${props.pooled ? "pooled" : ""}`} onClick={() => {
+  if (!startflipped) setFlipped(!flipped);
+}}>
     <div className="card-wrapper">
       <div className="card-hover-info">
         {type} — Value: {value}

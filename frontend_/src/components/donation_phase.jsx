@@ -470,7 +470,7 @@ useEffect(() =>
       
       {sharedPool.map((card, idx) => (
         <div key={idx} style={{ textAlign: "center" }}>
-          <Card card={card} />
+          <Card card={card} pooled={true}/>
           <p style={{ fontSize: "0.9em", color: "gray" }}>
             Pooled by {card.pooledBy || "?"}
           </p>
@@ -481,7 +481,7 @@ useEffect(() =>
       {/* Biblios card back (only for non-current player) */}
   {!isCurrentPlayer && (
     <div style={{ textAlign: "center" }}>
-      <Card card={currentCard} startflipped={true} />
+      <Card card={currentCard}/>
     </div>
   )}
     </div>
