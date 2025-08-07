@@ -126,7 +126,8 @@ const Home = ({ setPlayerName }) => {
     </div>
 
     <div className="hero">
-      <h1>Play Biblios Online</h1>
+      <h1>Play Multiplayer Biblios Online</h1>
+      <p>Draft, bid, and battle for knowledge in this browser version of the classic card game Biblios.</p>
       
     </div>
   </main>
