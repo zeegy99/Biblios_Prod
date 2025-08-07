@@ -22,6 +22,7 @@ const DonationPhase = ({
   phase,
 }) => {
 
+  console.log("🧠 DonationPhase mounted for", player?.name);
 
   
   const numToDraw = 2 + (totalPlayers - 1);
@@ -52,6 +53,7 @@ const DonationPhase = ({
   //Resolving Special Dice Cards: 
   const playSpecialCard = (card) =>
   {
+    console.log(`${player.name} is playing special dice modifier:`, card);
 
     // Clone dice from localStorage
     const prevState = JSON.parse(localStorage.getItem("last_game_state"));
@@ -94,15 +96,16 @@ useEffect(() =>
 {
   if (phase !== "donation") return;
   hasDrawn.current = false;
+  console.log("🔄 Resetting draw flag for", player.name);
 }, [phase, player.name]);
 
 
   //For DrawingCards
 useEffect(() => 
 {
-  
+  console.log(`📍 DRAW EFFECT: phase=${phase}, isCurrentPlayer=${isCurrentPlayer}, drawnCount=${drawnCount}, hasDrawn=${hasDrawn.current}`);
    if (phase !== "donation" || !isCurrentPlayer) {
-    
+    console.log("I am in if (phase !== ")
     return;
    }
 
@@ -111,10 +114,11 @@ useEffect(() =>
     return;
   }
 
-  
+  console.log("📌 Draw effect triggered for", player.name);
   hasDrawn.current = true;
 
- 
+  console.log("📦 Current deck (from props):", deck.map(c => `${c.type} ${c.value}`));
+  console.log("📦 donationDeck (local state):", donationDeck.map(c => `${c.type} ${c.value}`));
 
 
   const updatedDeck = [...deck];
@@ -133,9 +137,10 @@ useEffect(() =>
     drawn.push(card);
   }
   setDrawnCount(drawn.length);
+  console.log("setDrawnCount to ", drawn.length)
 
-
-  
+  console.log(`🃏 ${player.name} drew cards:`, drawn);
+  console.log(`📦 Deck size after draw: ${updatedDeck.length}`);
 
   setDeck(updatedDeck);
   setDonationDeck(updatedDeck);
@@ -246,7 +251,7 @@ useEffect(() =>
   const updatedShared = [...sharedPool];
   const lastDonatorIdx = players.findIndex(p => p.name === player.name);
 
-
+  console.log("✅ Updated players before broadcast:", updatedPlayers);
 
   onFinish({
     updatedDiscard,
@@ -254,7 +259,7 @@ useEffect(() =>
     updatedPlayers,
   });
   
- 
+  console.log("🧮 Broadcasting updated deck length:", donationDeck.length);
   broadcastState({
     discardPile: updatedDiscard,
     sharedPool: updatedShared,
@@ -350,12 +355,9 @@ useEffect(() =>
 
                     const changeDetails = [...nextChosen].map(i => {
                       const resource = diceToModify[i].resource_type;
+                
                       const newVal = updated[i].value;
-
-                      const oldVal = diceSelectionCard.type === "Plus"
-                      ? newVal - 1
-                      : newVal + 1;
-                      return `${resource}: ${oldVal}→ ${newVal}`;
+                      return `${resource}: ${newVal-1} → ${newVal}`;
                     });
 
                     broadcastState({ dice: updated }, `${player.name} modified the dice. He changed: ${changeDetails.join(", ")}`);
@@ -388,6 +390,15 @@ useEffect(() =>
       </div>
     )}
 
+    {/* 👤 Non-current player's view */}
+    {/* {!isCurrentPlayer && (
+      <>
+      <p>⏳ Waiting for {players[currentPlayerIndex]?.name} to complete their turn ...</p>
+
+      <Card card={currentCard} startflipped={true} />
+      </> 
+    )} */}
+
     {/* ✅ Main player control section */}
     {isCurrentPlayer && (
       <>
@@ -402,8 +413,8 @@ useEffect(() =>
             <div
   style={{
     display: "flex",
-    justifyContent: "center", 
-    gap: "10px",               
+    justifyContent: "center", // centers horizontally
+    gap: "10px",               // adds spacing between buttons
     marginTop: "10px"
   }}
 >
@@ -496,8 +507,59 @@ useEffect(() =>
   duration={30000}
   onTimeout={() => {
     console.log(`${player.name} ran out of time!`);
+
+    // const currentSpecial = specialCardRef.current;
+    // const cardsRemaining = [...cardsToProcess];
+    // const sharedCards = [...shared];
+    // let botKept = kept;
+    // let botDiscarded = discarded;
+
+    // const actions = [];
+    // console.log("i am here")
+
+    // console.log("cards remainig", cardsRemaining)
+
+    // while (cardsRemaining.length > 0) {
+    //   console.log("inside the while loop")
+    //   const currentCard = cardsRemaining[0];
+    //   const action = Bot.donation_phase({
+    //     currentCard,
+    //     specialCard: currentSpecial,
+    //     kept: botKept,
+    //     discarded: botDiscarded,
+    //     shared: sharedCards,
+    //     cardsToProcess: cardsRemaining,
+    //   });
+
+    //   console.log("🤖 Bot decided:", action, "on", currentCard);
+
+    //   if (!action || !["keep", "discard", "pool"].includes(action)) {
+    //     console.warn("❌ Invalid or missing bot action. Stopping loop.");
+    //     break;
+    //   }
+
+    //   actions.push({ card: currentCard, action });
+
+    //   // Update local simulated state
+    //   if (action === "keep") {
+    //     botKept = currentCard;
+    //   } else if (action === "discard") {
+    //     botDiscarded = currentCard;
+    //   } else if (action === "pool") {
+    //     sharedCards.push({ ...currentCard, pooledBy: player.name });
+    //   }
+
+    //   cardsRemaining.shift(); // move to next card
+    // }
+
+    // // Perform actions 1 by 1 with delay so React state has time to update
+    // actions.forEach(({ card, action }, idx) => {
+    //   setTimeout(() => {
+    //     handleChoice(card, action);
+    //   }, idx * 100); // staggered delay
+    // });
   }}
-  small_duration={false}
+  small_duration={true}
 />
 
   )}
