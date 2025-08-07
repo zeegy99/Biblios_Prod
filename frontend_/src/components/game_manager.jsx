@@ -18,6 +18,7 @@ import "./game_layout.css";
 import "./lobby.css";
 import RulesPage from "./rulespage"; 
 import Timer from "../timer.jsx";
+import CardFlip from "../sound/flipcard-91468.mp3";
 
 
 const GameRunner = ({ playerName }) => {
@@ -165,6 +166,21 @@ useEffect(() => {
   const handler = (gameState) => {
     if (gameState?.donationAction?.action === "kept") {
      
+    }
+  };
+  socket.on("sync_game_state", handler);
+  return () => socket.off("sync_game_state", handler);
+}, []);
+
+//For when someone pools
+useEffect(() => {
+  const handler = (gameState) => {
+    if (gameState?.donationAction?.action === "pooled") {
+     console.log("I have been received by everyone")
+     const cardFlipAudio = new Audio(CardFlip)
+     cardFlipAudio.volume = 1
+     cardFlipAudio.play()
+     console.log("end")
     }
   };
   socket.on("sync_game_state", handler);
@@ -376,7 +392,7 @@ useEffect(() => {
   {playersOnline.slice(0, -1).map((p, i) => {
     const isActive = players[activeIndex]?.name === p.name;
     return (
-      <span key={i} style={{ color: isActive ? "black" : "red" }}>
+      <span key={i} style={{ color: isActive ? "red" : "black" }}>
         {p.name}
         {i < playersOnline.length - 1 ? "  " : ""}
       </span>

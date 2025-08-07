@@ -6,9 +6,10 @@ export class Die {
 }
 
 export const rollDice = () => [
-  new Die("Religion"),
-  new Die("Science"),
-  new Die("Military"),
   new Die("Art"),
   new Die("Herbs"),
+   new Die("Military"),
+  new Die("Religion"),
+  new Die("Science"),
+ 
 ];

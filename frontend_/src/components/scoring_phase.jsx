@@ -111,7 +111,7 @@ sorted.forEach((player, i) => {
   }
   
   if (player.name === username) {
-    console.log("I am sending the update elo results")
+    
     fetch("https://biblios-backend.onrender.com/api/update_elo", {
       method: "POST",
       headers: {
@@ -119,7 +119,7 @@ sorted.forEach((player, i) => {
       },
       body: JSON.stringify({ username, eloChange: player.elo })
     });
-    console.log("I am sending", username, player.elo)
+
   }
   
 });
