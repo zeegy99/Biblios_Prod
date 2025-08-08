@@ -7,6 +7,7 @@ import SigninPage from "./components/sign_in.jsx";
 import Signup from "./components/sign_up.jsx";
 import socket from "./socket";
 import SignedIn from "./components/home_signedin.jsx";
+import LeaderBoard from "./components/leaderboard.jsx";
 // import 'bootstrap/dist/css/bootstrap.min.css';
 
 function App() {
@@ -24,6 +25,7 @@ function App() {
         <Route path="/signin" element={<SigninPage />} />
         <Route path="/signup" element={<Signup/>} />
         <Route path="/signedin" element={<SignedIn />} />
+        <Route path="/leaderboard" element={<LeaderBoard/>} />
       </Routes>
     </Router>
   );

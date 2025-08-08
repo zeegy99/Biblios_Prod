@@ -154,6 +154,37 @@ def get_elo():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
+@app.route("/api/get_leaderboard", methods=["GET", "OPTIONS"])
+def get_leaderboard():
+    if request.method == "OPTIONS":
+        return '', 200
+
+    limit = request.args.get("limit", default=100, type=int)
+
+    try:
+        conn = psycopg2.connect(os.getenv("DATABASE_URL"))
+        cur = conn.cursor()
+
+        # Adjust table/column names if yours differ
+        cur.execute("""
+            SELECT username, elo_score
+            FROM elo
+            ORDER BY elo_score DESC
+            LIMIT %s;
+        """, (limit,))
+
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        data = [{"username": r[0], "elo": r[1]} for r in rows]
+        return jsonify(data), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+
     
 if __name__ == "__main__":
     app.run(port=5000, debug=True)

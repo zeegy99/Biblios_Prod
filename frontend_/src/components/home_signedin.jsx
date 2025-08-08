@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import "./lobby.css";
 import RulesPage from "./rulespage"; 
 
+
 const SignedIn = () => {
   const savedName = localStorage.getItem("playerName");
   const [elo, setElo] = useState(null);
@@ -83,6 +84,7 @@ const handleCreateRoom = () => {
     setShowBox((prev) => !prev);
   }
 
+
   const toggleRulesPage = () => {
     setRulesPage((prev) => {
     return !prev;
@@ -107,11 +109,22 @@ const handleCreateRoom = () => {
             Rejoin
           </button>
 
-          <button className="login-header" onClick={toggleRulesPage}>
+          <button
+           className="login-header"
+            onClick={() => navigate("/leaderboard")}
+            style={{ backgroundColor: "#9694FF", color: "white" }}
+          >
+            Leaderboard
+          </button>
+
+          <button className="login-header" onClick={toggleRulesPage}
+           style={{ backgroundColor: "#9694FF", color: "white" }}>
             Rules
           </button>
 
           {rulesPage && <RulesPage onClose={() => setRulesPage(false)} />}
+          
+          
 
           <button className={'naming-button'} onClick={toggleDropDown}>
           {savedName}
