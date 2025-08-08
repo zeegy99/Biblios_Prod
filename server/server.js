@@ -38,6 +38,8 @@ const playersInRoom = {};
 
 io.on("connection", (socket) => {
 
+  
+
   socket.on("join_game", ({ room, playerName, playerId}) => {
 
 
@@ -139,6 +141,11 @@ io.on("connection", (socket) => {
   console.log(`Deck settings updated for room ${room}:`, deckSettings);
   deckSettingsInRoom[room] = deckSettings;
   });
+
+  socket.on("score_next", ({ room }) => {
+    const gs = rooms[room]
+    console.log(gs)
+  })
 
   
 });
