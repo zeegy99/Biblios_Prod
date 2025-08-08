@@ -5,6 +5,7 @@ import RulesPage from "./rulespage";
 
 
 const SignedIn = () => {
+  const login_info = localStorage.getItem("signin_username") || "none";
   const savedName = localStorage.getItem("playerName");
   const [elo, setElo] = useState(null);
   const isGuest = localStorage.getItem("isGuest") === "true";
@@ -42,7 +43,7 @@ const handleJoin = (e) => {
 };
 
 useEffect(() => {
-  const username = localStorage.getItem("playerName");
+  const username = localStorage.getItem("signin_username");
 
   console.log("username", username)
 
@@ -133,7 +134,10 @@ const handleCreateRoom = () => {
           {showBox && (
             <div className="profile-dropdown">
               <p className="profile-label">You are logged in as:</p>
-              <h3 className="profile-name">{savedName}</h3>
+              <h3 className="profile-name">{login_info}</h3>
+
+              <p className="profile-label"> current alias: {savedName}</p>
+
 
               <p className="profile-label" style={{ marginTop: "8px", fontSize: "14px" }}>
                 ELO Rating: <strong>{elo} LP</strong>

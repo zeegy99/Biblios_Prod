@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 const ScoringPhase = ({ players, dice, setFinalResults, goToResults, isHost }) => {
   const [log, setLog] = useState([]);
   const username = localStorage.getItem("playerName") || "none";
+  const login_info = localStorage.getItem("signin_username") || "none";
   const [currentDieIndex, setCurrentDieIndex] = useState(0);
   const [scoredPlayers, setScoredPlayers] = useState(() =>
     players.map((p) => ({ ...p, points: 0 }))
@@ -136,11 +137,11 @@ const ScoringPhase = ({ players, dice, setFinalResults, goToResults, isHost }) =
         player.elo = -step * (i - medianIndex + (isOdd ? 0 : 1));
       }
 
-      if (player.name === username) {
+      if (player.name === login_info) {
         fetch("https://biblios-backend.onrender.com/api/update_elo", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username, eloChange: player.elo })
+          body: JSON.stringify({ login_info, eloChange: player.elo })
         });
       }
     });

@@ -4,6 +4,7 @@ import RulesPage from "./rulespage";
 import "./leaderboard.css";
 
 const LeaderBoard = () => {
+  const login_info = localStorage.getItem("signin_username") || "none";
   const savedName = localStorage.getItem("playerName");
   const [elo, setElo] = useState(null);
   const isGuest = localStorage.getItem("isGuest") === "true";
@@ -88,17 +89,12 @@ const LeaderBoard = () => {
 
           {showBox && (
             <div className="profile-dropdown">
-              <p className="profile-label">You are logged in as:</p>
-              <h3 className="profile-name">{savedName}</h3>
-              <p
-                className="profile-label"
-                style={{ marginTop: "8px", fontSize: "14px" }}
-              >
-                ELO Rating: <strong>{elo} LP</strong>
-              </p>
+              <p className="profile-label" style={{marginLeft: "50px"}}>You are logged in as:</p>
+              <h3 className="profile-name">{login_info}</h3>
+              
               <hr className="profile-divider" />
               <button
-                className="profile-signout"
+                className="profile-signout" style={{marginLeft: "30px"}}
                 onClick={() => {
                   localStorage.clear();
                   navigate("/");
