@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, session, make_response
 from flask_cors import CORS
 import psycopg2
 import os
@@ -6,7 +6,7 @@ import bcrypt
 from dotenv import load_dotenv
 load_dotenv()
 
-print("DATABASE_URL:", os.getenv("DATABASE_URL"))
+
 app = Flask(__name__)
 
 def hash_function(curr_pass):
