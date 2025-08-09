@@ -137,7 +137,7 @@ const ScoringPhase = ({ players, dice, setFinalResults, goToResults, isHost }) =
         player.elo = -step * (i - medianIndex + (isOdd ? 0 : 1));
       }
 
-      if (player.name === login_info) {
+      if (player.name === username) {
         fetch("https://biblios-backend.onrender.com/api/update_elo", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
