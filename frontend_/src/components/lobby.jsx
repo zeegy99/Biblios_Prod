@@ -17,8 +17,7 @@ const Lobby = ({ playerName, setPlayerName }) => {
   const [rulesPage, setRulesPage] = useState(false);
   const [tempName, setTempName] = useState(playerName);
 
-  //Lettig players adjust cards 
-  // Dynamically scaling deck card values based on player count
+
 const [gold1, setGold1] = useState(0);
 const [gold2, setGold2] = useState(0);
 const [gold3, setGold3] = useState(0);
@@ -31,6 +30,7 @@ const [showCardSettings, setShowCardSettings] = useState(false);
 const [updateMessage, setUpdateMessage] = useState("");
 
 
+  
 useEffect(() => {
   if (hasManuallyAdjusted) return;
 
@@ -138,8 +138,12 @@ useEffect(() => {
       sessionStorage.removeItem(key);
       i--; // account for reindexing after removeItem
     }
+    
   }
 
+  
+  console.log("I am going to socket.emit", room, playerId)
+  socket.emit("leave_game", {room: room, playerId: playerId})
   localStorage.removeItem("roomCode");
   navigate("/");
 };

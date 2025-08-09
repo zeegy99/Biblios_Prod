@@ -1,6 +1,7 @@
 // src/components/ResultsScreen.jsx
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import socket from "../socket.js";
 
 const ResultsScreen = ({ players, onRestart }) => {
   const maxPoints = Math.max(...players.map((p) => p.points));
@@ -10,16 +11,7 @@ const ResultsScreen = ({ players, onRestart }) => {
   const goToHome = () => {
     const room = localStorage.getItem("roomCode");
     const playerId = localStorage.getItem("playerId");
-    if (room && playerId) socket.emit("leave_game", { room, playerId });
-
-     [
-    "player_list",
-    "start_game",
-    "sync_game_state",
-    "auction_update",
-    "special_card",
-    "chat_message",
-  ].forEach((ev) => socket.off(ev));
+    
     localStorage.removeItem("roomCode");
     localStorage.removeItem("start_game_payload");
     navigate("/");

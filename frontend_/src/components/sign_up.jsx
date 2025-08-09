@@ -67,13 +67,24 @@ const Signup = () => {
         <form onSubmit={handleSignup} className="login-form">
 
         <label className="login-label">Username</label>
-        <input
-          type="text"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          className="login-input"
-          required
-        />
+<input
+  type="text"
+  value={username}
+  onChange={(e) => {
+    const value = e.target.value;
+    setUsername(value);
+
+    if (value.length > 16) {
+      setError("Username cannot exceed 16 characters");
+      setShowError(true);
+    } else {
+      setError("");
+      setShowError(false);
+    }
+  }}
+  className="login-input"
+  required
+/>
 
         <label className="login-label">Email</label>
         <input
