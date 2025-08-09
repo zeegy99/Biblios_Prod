@@ -141,7 +141,7 @@ const ScoringPhase = ({ players, dice, setFinalResults, goToResults, isHost }) =
         fetch("https://biblios-backend.onrender.com/api/update_elo", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ login_info, eloChange: player.elo })
+          body: JSON.stringify({ username: login_info, eloChange: player.elo })
         });
       }
     });
