@@ -87,9 +87,37 @@ io.on("connection", (socket) => {
 
   socket.on("sync_game_state", ({ room, gameState }) => {
   io.to(room).emit("sync_game_state", gameState);
-
- 
 });
+
+  function removePlayerFromRoom(room, predicate) {
+  if (!playersInRoom[room]) return;
+  playersInRoom[room] = playersInRoom[room].filter(p => !predicate(p));
+
+  // if empty, cleanup
+  const roomHasSockets = io.sockets.adapter.rooms.get(room);
+  if (!roomHasSockets || roomHasSockets.size === 0 || playersInRoom[room].length === 0) {
+    delete playersInRoom[room];
+    delete deckSettingsInRoom[room];
+    // delete currentGameState[room]; // if you have this
+    console.log(`🧹 Room ${room} cleaned up.`);
+  } else {
+    io.to(room).emit("player_list", playersInRoom[room]);
+  }
+}
+
+socket.on("leave_game", ({ room, playerId }) => {
+  console.log("I HAVE RUN")
+  try {
+    // leave socket.io room
+    socket.leave(room);
+    // drop by playerId (stable across reconnects)
+    removePlayerFromRoom(room, (p) => p.playerId === playerId || p.id === socket.id);
+    console.log(`👋 ${playerId} left ${room}`);
+  } catch (e) {
+    console.error("leave_game error:", e);
+  }
+});
+
   socket.on("disconnect", () => {
   console.log("User disconnected:", socket.id);
 
@@ -104,6 +132,8 @@ io.on("connection", (socket) => {
     }
   }
 });
+
+
 
 
   //Rejoining
