@@ -1,6 +1,7 @@
 import Card from "./card";
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import Timer from "../timer.jsx";
+import "./auction_phase_css.css";
 
 const AuctionPhase = ({
   players,
@@ -98,6 +99,7 @@ const AuctionPhase = ({
 
   const [bidInput, setBidInput] = useState("");
   const isCurrentPlayer = player.name === playerName;
+  const increment = 485 //485 for df 
 
 
 
@@ -506,7 +508,7 @@ const AuctionPhase = ({
 
         ) : (
           <p>
-            Please wait 
+            Please wait for {isDiscardingPlayer} to Pay.
           </p>
         )}
         
@@ -676,7 +678,7 @@ const AuctionPhase = ({
       <div style={{ display: "flex", alignItems: "center", gap: "2rem" }}>
 
     <div>
-      <p style={{ fontWeight: "bold", fontSize: "1.2rem", margin: 0 }}>
+      <p style={{ fontWeight: "bold", fontSize: "1.2rem", margin: 0, textAlign: "centered" }}>
         👉 {player.name}'s turn to bid
       </p>
       <p style={{ marginTop: "0.25rem" }}>
@@ -686,7 +688,7 @@ const AuctionPhase = ({
       </p>
     </div>
 
-    <div style={{ display: "flex", justifyContent: "center", marginLeft:"455px" }}>
+    <div className="card-center" style={{ display: "flex", justifyContent: "center", marginLeft: `${increment}px`}}>
   <Card {...currentCard} locked_back_flip={!isCurrentPlayer} />
 </div>
     
