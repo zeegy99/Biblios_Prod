@@ -1,6 +1,9 @@
 import React from "react";
 import Card from "./card";
 import {useEffect} from "react";
+import Timer from "../timer.jsx";
+import Bot from "./bot.js";
+
 
 const SharedPoolSelection = ({
   players,
@@ -17,14 +20,9 @@ const SharedPoolSelection = ({
   phase,
 }) => {
 
-  if (phase !== "shared_selection") {
-    console.log(`🚫 [${playerName}] SharedPoolSelection rendered but phase is: ${phase}`);
-    return null;
-  }
 
-  
-  // console.log("🧑‍🤝‍🧑 Players from df's POV:", players);
-  // console.log("🃏 Hands from df:", players.map(p => ({ name: p.name, hand: p.hand })));
+
+
 
   
   const player = players[sharedSelectionIndex];
@@ -43,7 +41,7 @@ const SharedPoolSelection = ({
     return;
   }
 
-  console.log("🎯 Player", players[sharedSelectionIndex].name, "chose card:", chosenCard);
+
 
   const newPool = [...sharedPool];
   newPool.splice(choiceIdx, 1);
@@ -72,11 +70,9 @@ const SharedPoolSelection = ({
     };
 
     if (next === lastDonatorIndex) {
-      console.log("🚨 Final selector in shared phase, broadcasting & finishing");
       broadcastState(sharedSelectionState);
       onFinish(); 
     } else {
-      console.log("➡️ Broadcasting next turn in shared pool");
       broadcastState(sharedSelectionState);
     }
   }, 0);
@@ -85,7 +81,7 @@ const SharedPoolSelection = ({
 
   useEffect(() => {
   if (!sharedPool.length && isCurrentPlayer) {
-    onFinish(); // ✅ Safe inside effect
+    onFinish(); 
   }
 }, [sharedPool, isCurrentPlayer, onFinish]);
 
@@ -107,8 +103,8 @@ if (!sharedPool.length && !isCurrentPlayer) {
 
     {sharedPool.length > 0 && (
       <>
-        {isCurrentPlayer && <p>Select a card or skip:</p>}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "12px" }}>
+        {isCurrentPlayer && <p>Select a card:</p>}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", justifyContent: "center", alignItems: "center"}}>
           {sharedPool.map((card, idx) => (
             <div key={idx} style={{ textAlign: "center", opacity: card.taken ? 0.4 : 1 }}>
               <Card {...card} />
@@ -123,6 +119,24 @@ if (!sharedPool.length && !isCurrentPlayer) {
             </div>
           ))}
         </div>
+
+         {isCurrentPlayer && (
+    <Timer
+      duration={10000}
+      onTimeout={() => 
+        {
+        console.log(`A bot will be executing the action for ${player.name}`);
+        const card = Bot.shared_selection({sharedPool})
+        console.log("The bot randomly selected this card", card)
+
+        setTimeout(() => {
+          handleChoice(card)
+        }, 0)
+        
+      }}
+      small_duration={true}
+    />
+  )}
       </>
     )}
   </div>

@@ -13,16 +13,26 @@ import { useParams } from "react-router-dom";
 import { useLocation } from "react-router-dom";
 import "./lobby.css";
 import PlayerHand from "./player_hand";
+import ChatBox from "./chatbox.jsx";
+import "./game_layout.css";
+import "./lobby.css";
+import RulesPage from "./rulespage"; 
+import Timer from "../timer.jsx";
+import CardFlip from "../sound/flipcard-91468.mp3";
 
 
 const GameRunner = ({ playerName }) => {
-  // console.log("🧠 GameRunner mounted with playerName:", playerName);
+
   const hasSynced = useRef(false);
   const [auctionStarterIndex, setAuctionStarterIndex] = useState(null);
   const [sharedSelectionIndex, setSharedSelectionIndex] = useState(0);
   const [dice, setDice] = useState(null);
   const [phase, setPhase] = useState("donation");
-  const [deck, setDeck] = useState(buildDeck());
+
+  //Test
+  const [deck, setDeck] = useState([]); // Start empty; build later with receivedSettings
+
+
   const [discardPile, setDiscardPile] = useState([]);
   const [sharedPool, setSharedPool] = useState([]);
   const [players, setPlayers] = useState([]);
@@ -54,6 +64,18 @@ const GameRunner = ({ playerName }) => {
   const [remoteCursor, setRemoteCursor] = useState(null);
 
   const navigate = useNavigate();
+   const [rulesPage, setRulesPage] = useState(false);
+
+  const toggleRulesPage = () => {
+    setRulesPage((prev) => {
+  
+    return !prev;
+  });
+  }
+
+  //Deck
+  const [deckSettings, setDeckSettings] = useState(null);
+
 
   //For UI
   
@@ -103,14 +125,19 @@ const GameRunner = ({ playerName }) => {
     specialCardToPlay,
   });
 
-  const broadcastState = (newPartialState = null) => {
+  const broadcastState = (newPartialState = null, message = null) => {
   const fullState = {
     ...buildGameState(),      // ⬅️ get the full current state
     ...newPartialState        // ⬅️ overwrite any fields provided
   };
-  console.log("📤 Broadcasting FULL game state:", fullState, playerName);
+ 
   socket.emit("sync_game_state", { room: `${room}`, gameState: fullState });
-  console.log("After broadcasting full gamestate")
+
+  if (message) {
+    socket.emit("chat_message", {room, playerName: "Game Announcement", message});
+  }
+
+
 };
 
 //Next section is taking information from broadcasts
@@ -118,8 +145,8 @@ const GameRunner = ({ playerName }) => {
 //For Auction
 useEffect(() => {
   if (phase === "auction") {
-    console.log("🧾 Entering Auction Phase — FULL game state:");
-    console.log(buildGameState());
+    // console.log("🧾 Entering Auction Phase — FULL game state:");
+    // console.log(buildGameState());
   }
 }, [phase]);
 
@@ -127,7 +154,7 @@ useEffect(() => {
 useEffect(() => {
   const handler = (gameState) => {
     if (gameState?.donationAction?.action === "discarded") {
-      console.log(`ASDFDSF🗑️ ${gameState.donationAction.player} discarded a card`);
+    
     }
   };
   socket.on("sync_game_state", handler);
@@ -138,7 +165,22 @@ useEffect(() => {
 useEffect(() => {
   const handler = (gameState) => {
     if (gameState?.donationAction?.action === "kept") {
-      console.log(`sfsfsfs ${gameState.donationAction.player} kept a card`);
+     
+    }
+  };
+  socket.on("sync_game_state", handler);
+  return () => socket.off("sync_game_state", handler);
+}, []);
+
+//For when someone pools
+useEffect(() => {
+  const handler = (gameState) => {
+    if (gameState?.donationAction?.action === "pooled") {
+     console.log("I have been received by everyone")
+     const cardFlipAudio = new Audio(CardFlip)
+     cardFlipAudio.volume = 1
+     cardFlipAudio.play()
+     console.log("end")
     }
   };
   socket.on("sync_game_state", handler);
@@ -150,7 +192,7 @@ useEffect(() => {
 useEffect(() => {
   const handler = (gameState) => {
     if (gameState.action === "hostReset") {
-      console.log("This is the new gamestate after host reset the game", gameState)
+  
     }
   };
   socket.on("sync_game_state", handler);
@@ -161,10 +203,10 @@ useEffect(() => {
 //When someone draws a special card
 useEffect(() => {
   const handleSync = (gameState) => {
-    console.log("📡 Full sync received:", gameState);
+   
 
     if ("specialCardToPlay" in gameState) {
-      console.log("🎴 Setting specialCardToPlay:", gameState.specialCardToPlay);
+    
       setSpecialCardToPlay(gameState.specialCardToPlay); // Can be null or an object
     }
   };
@@ -188,18 +230,18 @@ useEffect(() => {
 
 
 useEffect(() => {
-  console.log("🎯 auctionTurnOffset updated to:", auctionTurnOffset);
+  // console.log("🎯 auctionTurnOffset updated to:", auctionTurnOffset);
 }, [auctionTurnOffset]);
 
 useEffect(() => {
-  console.log("📡 GameManager useEffect ran");
+
 
   const handleGameState = (gameState) => {
    if (!hasSynced.current) {
   hasSynced.current = true;
-  console.log("✅ First sync");
+
 } else {
-  console.log("🔁 Re-syncing from broadcast");
+
 }
 
     localStorage.setItem("last_game_state", JSON.stringify(gameState)); 
@@ -232,7 +274,6 @@ useEffect(() => {
     if (gameState.donationAction) 
   {
     const { player, action, card } = gameState.donationAction;
-    console.log(`🔊 ${player} just ${action} a card: ${card.type} ${card.value}`);
   }
 
   };
@@ -251,8 +292,10 @@ useEffect(() => {
     
     const cachedStart = localStorage.getItem("start_game_payload");
     if (cachedStart) {
-      console.log("📦 Using cached start_game payload");
-      const { players: rawPlayers } = JSON.parse(cachedStart);
+     
+      const { players: rawPlayers, deckSettings: receivedSettings } = JSON.parse(cachedStart);
+      setDeckSettings(receivedSettings);  // 👈 Save for deck building
+
 
       const initializedPlayers = rawPlayers.map((p) => ({
         name: p.name,
@@ -266,7 +309,8 @@ useEffect(() => {
 
       setTimeout(() => {
 
-        const newDeck = buildDeck();
+        const newDeck = buildDeck(receivedSettings);
+        setDeck(newDeck);
 
         const rolledDice = rollDice();
         setDice(rolledDice); 
@@ -282,7 +326,7 @@ useEffect(() => {
           finalPhaseDone: false,
           auctionTurnOffset: 0,  
         };
-        console.log("👑 Host broadcasting initial game state:", state);
+      
         socket.emit("sync_game_state", { room: `${room}`, gameState: state });
       }, 0);
 
@@ -293,7 +337,7 @@ useEffect(() => {
     if (!hasSynced.current) {
       const cachedGameState = localStorage.getItem("last_game_state");
       if (cachedGameState) {
-        console.log("📦 Using cached game state");
+       
         handleGameState(JSON.parse(cachedGameState));
       }
     }
@@ -313,7 +357,6 @@ useEffect(() => {
 
 
   if (!players.length || !players[currentPlayerIndex]) {
-    console.log("⏳ Still waiting for game initialization...");
     return <div>Waiting for game state to initialize...</div>;
   }
 
@@ -330,24 +373,46 @@ useEffect(() => {
       console.log("Game over.");
     }
   };
+  const activeIndex =
+  phase === "auction" ? activePlayerIndex : currentPlayerIndex;
 
   return (
+
     <div>
-      <h1 style={{ textAlign: "center", marginTop: "50px" }}>Biblios Game</h1>
+      
+      <h1 className="game-title">Biblios Game</h1> 
 
-      <div>
-        <h3>Players Online:</h3>
-        <ul style={{ display: "flex", gap: "1rem", listStyleType: "none", padding: 0 }}>
-          {playersOnline.map((p, i) => (
-            <li key={i}>{p.name}</li>
-          ))}
-        </ul>
-      </div>
+       <button style={{marginLeft: "200px", marginTop: "10px"}} className={'menu-button'} onClick={toggleRulesPage}>
+        Rules
+      </button>
+        <div className="players-online">
+        <h4>Players Online:</h4>
+        
+         <p style={{ margin: 0, fontWeight: "bold" }}>
+  {playersOnline.slice(0, -1).map((p, i) => {
+    const isActive = players[activeIndex]?.name === p.name;
+    return (
+      <span key={i} style={{ color: isActive ? "red" : "black" }}>
+        {p.name}
+        {i < playersOnline.length - 1 ? "  " : ""}
+      </span>
+    );
+  })}
+</p>
 
-      <p style={{ textAlign: "center" }}>Current Phase: {phase}</p>
-     {dice && (
-  <div style={{ position: "relative", marginBottom: "20px" }}>
-    <h3 style={{ textAlign: "center" }}>🎲 Dice Values</h3>
+
+       
+
+      {rulesPage && <RulesPage onClose={() => setRulesPage(false)} />}
+    </div>
+
+    <p style={{ textAlign: "center" }}>Current Phase: {phase}</p>
+    {dice && (
+      <div style={{ position: "relative", marginBottom: "20px" }}>
+      <h3 style={{ textAlign: "center" }}>🎲 Dice Values</h3>
+
+    
+
 
     <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "20px" }}>
       <ul
@@ -359,7 +424,8 @@ useEffect(() => {
           margin: 0,
         }}
       >
-        {dice.map((die, idx) => (
+        {dice.map((die, idx) => 
+        (
           <li
             key={idx}
             style={{
@@ -371,62 +437,16 @@ useEffect(() => {
               textAlign: "center",
             }}
           >
-            <strong>{die.resource_type}</strong>: {die.value}
-          </li>
+          <strong>{die.resource_type}</strong>: {die.value}
+            </li>
         ))}
       </ul>
 
-      {(phase === "donation" || phase === "shared_selection") &&(
-  <div style={{ position: "relative", display: "inline-block", textAlign: "center" }} className="deck-container">
-    <div style={{ fontSize: "14px", marginBottom: "4px", fontWeight: "bold" }}>
-      Remaining Deck
-    </div>
-    <img
-      src="/hearthstonecards.webp"
-      alt="Deck"
-      style={{
-        width: "70px",
-        height: "auto",
-        borderRadius: "6px",
-        boxShadow: "0 0 6px rgba(0,0,0,0.3)",
-        cursor: "pointer",
-      }}
-    />
-    <div
-      style={{
-        position: "absolute",
-        top: "-30px",
-        left: "50%",
-        transform: "translateX(-50%)",
-        backgroundColor: "#333",
-        color: "#fff",
-        padding: "4px 8px",
-        borderRadius: "4px",
-        fontSize: "12px",
-        whiteSpace: "nowrap",
-        pointerEvents: "none",
-        opacity: 0,
-        transition: "opacity 0s",
-      }}
-      className="deck-tooltip"
-    >
-      Cards remaining: {deck.length}
-    </div>
-  </div>
-)}
-
-    </div>
-
-    {/* ✅ Add inline CSS for hover effect */}
-    <style>
-      {`
-        .deck-container:hover .deck-tooltip {
-          opacity: 1 !important;
-        }
-      `}
-    </style>
-
-    <div style={{ position: "relative", display: "inline-block", marginLeft: "20px", textAlign: "center" }}>
+      {(phase === "donation" || phase === "shared_selection" || phase === "auction") && (
+  <div className="top-right-card-container">
+    
+    {/* Discard Pile on the Left */}
+    <div className="discard-container">
       <div style={{ fontSize: "14px", marginBottom: "4px" }}>Discard</div>
       <img
         src="/hearthstonecards.webp"
@@ -436,7 +456,7 @@ useEffect(() => {
           height: "auto",
           borderRadius: "6px",
           boxShadow: "0 0 6px rgba(0,0,0,0.3)",
-          filter: "grayscale(100%) brightness(80%)", // visually distinguish it
+          filter: "grayscale(100%) brightness(80%)",
           transform: "rotate(-10deg)",
           cursor: "default",
         }}
@@ -460,6 +480,61 @@ useEffect(() => {
         {discardPile.length} cards
       </div>
     </div>
+
+    {/* Remaining Deck on the Right */}
+    <div className="deck-container">
+      <div style={{ fontSize: "14px", marginBottom: "4px", fontWeight: "bold" }}>
+        Remaining Deck
+      </div>
+      <img
+        src="/hearthstonecards.webp"
+        alt="Deck"
+        style={{
+          width: "70px",
+          height: "auto",
+          borderRadius: "6px",
+          boxShadow: "0 0 6px rgba(0,0,0,0.3)",
+          cursor: "pointer",
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          top: "-30px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          backgroundColor: "#333",
+          color: "#fff",
+          padding: "4px 8px",
+          borderRadius: "4px",
+          fontSize: "12px",
+          whiteSpace: "nowrap",
+          pointerEvents: "none",
+          opacity: 0,
+          transition: "opacity 0s",
+        }}
+        className="deck-tooltip"
+      >
+        Cards remaining: {deck.length}
+      </div>
+    </div>
+  </div>
+)}
+
+    </div>
+
+    {/* ✅ Add inline CSS for hover effect */}
+    <style>
+      {`
+        .deck-container:hover .deck-tooltip {
+          opacity: 1 !important;
+        }
+      `}
+    </style>
+
+    
+
+    
   </div> 
 )}
 
@@ -523,9 +598,9 @@ useEffect(() => {
     onFinish={() => {
   
       const nextPlayerIndex = (lastDonatorIndex + 1) % players.length;
-      // console.log(`   - nextPlayerIndex: ${nextPlayerIndex}`);
+    
       if (deck.length < players.length + 1) {
-        // console.log("🎯 Switching to auction phase — NO broadcast here");
+
     setAuctionStarterIndex(nextPlayerIndex);
     setPhase("auction");
 
@@ -536,7 +611,7 @@ useEffect(() => {
       });
     }, 50);
       } else {
-        console.log(`🔄 [${playerName}] Continuing to next donation round — NO broadcast here`);
+  
         setCurrentPlayerIndex(nextPlayerIndex);
         setSharedPool([]);
         setPhase("donation");
@@ -633,9 +708,6 @@ useEffect(() => {
         />
       )}
 
-      {/* {phase !== "donation" && phase !== "shared" && (
-        <button onClick={advancePhase}>Next Phase</button>
-      )} */}
 
       {phase !== "results" && (
         <>
@@ -649,54 +721,28 @@ useEffect(() => {
         {phase !== "results" && phase !== "scoring" && (
         <div>
           <p>
-            {playerName}: {players.find(p => p.name === playerName)?.gold ?? 0} gold
+            {/* {playerName}: {players.find(p => p.name === playerName)?.gold ?? 0} gold */}
           </p>
         </div>
       )}
 
-      <div style={{ marginTop: "30px" }}>
-        <h3>Game State</h3>
+      <div style={{ marginTop: "30px", textAlign: "center" }}>
+  <h4>Your Hand ↓</h4>
 
-        {/* ✅ KEEP: Player sees only their own hand */}
-        <h4>{playerName}'s Hand</h4>
-        <ul>
-          <PlayerHand
-    hand={players.find(p => p.name === playerName)?.hand || []}
-    isCurrentPlayer={true}
-  />
-          {players.find(p => p.name === playerName)?.hand.map((card, index) => (
-            <li key={index}>
-              {card.type} {card.value}
-            </li>
-          )) ?? <li>(No cards)</li>}
-        </ul>
+  <ul style={{
+    display: "flex",
+    justifyContent: "center",
+    listStyle: "none",
+    padding: 0,
+    gap: "10px"
+  }}>
+    <PlayerHand
+      hand={players.find(p => p.name === playerName)?.hand || []}
+      isCurrentPlayer={true}
+    />
+  </ul>
+</div>
 
-        
-
-        {/* 🔻 CHANGED: Hide discard pile unless debugging */}
-        {false && (
-          <>
-            <h4>Discard Pile</h4>
-            <ul>
-              {discardPile.map((card, index) => (
-                <li key={index}>
-                  {card.type} {card.value}
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-
-        {/* ✅ KEEP: Everyone sees the shared pool */}
-        <h4>Shared Pool</h4>
-        <ul>
-          {sharedPool.map((card, index) => (
-            <li key={index}>
-              {card.type} {card.value}
-            </li>
-          ))}
-        </ul>
-      </div>
     </div>
   );
 };

@@ -110,3 +110,16 @@
   opacity: 1;
 }
 
+/* Slide-left animation */
+.container.pooled {
+  animation: slideLeft 0.5s forwards;
+}
+
+@keyframes slideLeft {
+  0% {
+    transform: translateX(0px) rotateY(180deg);
+  }
+  100% {
+    transform: translateX(-100px) rotateY(180deg);
+  }
+}

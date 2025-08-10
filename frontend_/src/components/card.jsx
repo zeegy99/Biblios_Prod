@@ -2,16 +2,16 @@ import React, { useState } from "react";
 import "./card.css";
 
 const typeColors = {
-  Religion: "#a67c52",
+  Religion: "#8B0000",
   Science: "#5b9bd5",
-  Military: "#c0504d",
-  Art: "#70ad47",
-  Herbs: "#9e480e",
+  Military: "#DEB887",
+  Art: "#FF8C00",
+  Herbs: "#228B22",
   Gold: "#ffd700",
 };
 
 const Card = (props) => {
-  const { card: cardProp, startflipped = false } = props;
+  const { card: cardProp, startflipped = false, pooled = false } = props;
   const [flipped, setFlipped] = useState(false);
   const card = props.card ?? props;
 
@@ -20,15 +20,15 @@ const Card = (props) => {
   const { value, type, tieBreaker, isSpecial } = card;
 
   const backgroundColor = isSpecial
-    ? "#ffd700"
+      ? "#b266ff"
     : typeColors[type] || "#fff";
 
-  const isFlipped = startflipped || flipped;
+  const isFlipped = startflipped || flipped || props.pooled;
 
    return (
-  <div className="container" onClick={() => {
-    if (!startflipped) setFlipped(!flipped);
-  }}>
+  <div className={`container ${props.pooled ? "pooled" : ""}`} onClick={() => {
+  if (!startflipped) setFlipped(!flipped);
+}}>
     <div className="card-wrapper">
       <div className="card-hover-info">
         {type} — Value: {value}
@@ -37,28 +37,47 @@ const Card = (props) => {
       <div className={`card ${isFlipped ? "flipped" : ""} ${type?.toLowerCase()}`}>
         <div className="front">
           <div style={{ backgroundColor, padding: "10px", borderRadius: "8px" }}>
-            {type === "Religion" || type === "Science" || type ==="Military" || type ==="Herbs" || type ==="Art" ? (
-              <img
-                src={`/${type.toLowerCase()}_cards/${type.toLowerCase()}_${value}.png`}
-                alt={`${type} ${value}`}
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                  borderRadius: "8px"
-                }}
-                onError={(e) => {
-                  console.warn("Missing religion image:", e.target.src);
-                  e.target.style.display = "none";
-                }}
-              />
-            ) : (
-              <>
-                <h4>{type}</h4>
-                <p>Value: {value}</p>
-                {!isSpecial && <p>Tiebreaker: {tieBreaker}</p>}
-              </>
-            )}
+
+            {isSpecial && ["Plus", "Minus", "Both"].includes(type) ? (
+  <img
+   src={`/dice_cards/dice_${type === "Plus" ? value : type === "Minus" ? -value : type === "Both" ? `pm_${value}` : "0"}.png`}
+    alt={`${type} Modifier`}
+    style={{
+      width: "100%",
+      height: "100%",
+      objectFit: "cover",
+      borderRadius: "8px"
+    }}
+    onError={(e) => {
+      console.warn(`Missing dice image for ${type}:`, e.target.src);
+      e.target.style.display = "none";
+    }}
+  />
+) : (
+  ["Religion", "Science", "Military", "Herbs", "Art", "Gold"].includes(type) ? (
+    <img
+      src={`/${type.toLowerCase()}_cards/${type.toLowerCase()}_${value}.png`}
+      alt={`${type} ${value}`}
+      style={{
+        width: "100%",
+        height: "100%",
+        objectFit: "cover",
+        borderRadius: "8px"
+      }}
+      onError={(e) => {
+        console.warn(`Missing image for ${type} ${value}:`, e.target.src);
+        e.target.style.display = "none";
+      }}
+    />
+  ) : (
+    <>
+      <h4>{type}</h4>
+      <p>Value: {value}</p>
+      {!isSpecial && <p>Tiebreaker: {tieBreaker}</p>}
+    </>
+  )
+)}
+
           </div>
         </div>
         <div className="back">

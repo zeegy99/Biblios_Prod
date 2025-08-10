@@ -1,0 +1,260 @@
+.game-chat {
+  width: 260px;
+  max-height: 60vh;           /* Grow up to 60% of screen height */
+  background-color: #f4f4f4;
+  border: 1px solid #ccc;
+  border-radius: 12px;
+  padding: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  font-family: 'Segoe UI', sans-serif;
+  font-size: 13px;
+
+  display: flex;
+  flex-direction: column;
+
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 1000;
+
+  overflow-y: auto;           /* Allow scrolling after max height */
+}
+
+.chat-header {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  flex-shrink: 0;
+}
+
+.chat-messages {
+  max-height: 300px; 
+  overflow-y: auto;
+  margin-bottom: 10px;
+}
+
+.chat-input {
+  display: flex;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.chat-input input {
+  flex: 1;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  outline: none;
+}
+
+.chat-input button {
+  background-color: white;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 0 10px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.game-title {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  font-size: 26px;
+  font-weight: bold;
+  color: #333;
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  z-index: 1000;
+}
+
+.player-list-container {
+  margin: 20px auto;
+  max-width: 600px;
+  text-align: left;
+}
+
+.player-list {
+  display: flex;
+  gap: 1rem;
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+  font-size: 18px;
+  color: #222;
+}
+
+.players-online {
+  position: absolute;
+  top: 50px; /* directly under title */
+  left: 10px;
+  background-color: #f5f5f5;
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 14px;
+  z-index: 999;
+  max-width: 200px;
+  font-family: 'Segoe UI', sans-serif;
+}
+
+.players-online h4 {
+  margin: 0 0 5px;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.players-online ul {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+}
+
+.players-online li {
+  margin-bottom: 2px;
+}
+
+.dice-display {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background-color: #f5f5f5;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 14px;
+  z-index: 10;
+  width: 200px;
+}
+
+.dice-display h3 {
+  margin-top: 0;
+  font-size: 16px;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.dice-list {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+}
+
+.dice-list li {
+  margin-bottom: 4px;
+}
+
+.deck-discard-wrapper {
+  position: fixed;
+  bottom: 36vh; /* 3vh above chat */
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  z-index: 999;
+}
+
+.deck-container,
+.discard-container {
+  position: relative;
+  text-align: center;
+}
+
+.deck-label {
+  font-size: 14px;
+  margin-bottom: 4px;
+  font-weight: bold;
+}
+
+.deck-image {
+  width: 70px;
+  border-radius: 6px;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+
+.discard-image {
+  width: 70px;
+  border-radius: 6px;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.3);
+  filter: grayscale(100%) brightness(80%);
+  transform: rotate(-10deg);
+  cursor: default;
+}
+
+.deck-tooltip,
+.discard-tooltip {
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #333;
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.deck-container:hover .deck-tooltip {
+  opacity: 1;
+}
+
+.deck-top-right {
+  position: fixed;
+  top: 55px;
+  right: 20px;
+  z-index: 1000;
+}
+
+.top-right-card-container {
+  position: fixed;
+  top: 55px;
+  right: 20px;
+  display: flex;
+  gap: 20px;
+  z-index: 1000;
+}
+
+.deck-container,
+.discard-container {
+  position: relative;
+  text-align: center;
+}
+
+.chat-toggle-button {
+  padding: 6px 10px;
+  background-color: #333;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.chat-toggle-button:hover {
+  background-color: #555;
+}
+
+.host-name {
+  color: red;
+  font-weight: bold;
+}
+
+.players-two-rows {
+  display: flex;
+  flex-wrap: wrap;
+  max-height: 2.5em; /* limits to 2 rows visually */
+  row-gap: 6px;
+  column-gap: 10px;
+}
+
+.player-box {
+  min-width: 100px;
+  padding: 6px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  text-align: center;
+}

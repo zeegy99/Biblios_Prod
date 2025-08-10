@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 
 const ScoringPhase = ({ players, dice, setFinalResults, goToResults, isHost }) => {
   const [log, setLog] = useState([]);
+  const username = localStorage.getItem("playerName") || "none";
+  const login_info = localStorage.getItem("signin_username") || "none";
   const [currentDieIndex, setCurrentDieIndex] = useState(0);
   const [scoredPlayers, setScoredPlayers] = useState(() =>
     players.map((p) => ({ ...p, points: 0 }))
@@ -28,20 +30,36 @@ const ScoringPhase = ({ players, dice, setFinalResults, goToResults, isHost }) =
       return { ...player, __total: total, __bestTie: bestTie };
     });
 
+    console.log("This is what updated is", updated)
+    const perPlayerTotalsLine = updated
+      .map((p) => `${p.name}: ${p.__total}`)
+      .join(", ");
+    newLog.push(`Totals — ${die.resource_type}: ${perPlayerTotalsLine}`);
+
     const max = Math.max(...updated.map((p) => p.__total));
     const contenders = updated.filter((p) => p.__total === max);
 
     if (contenders.length === 1) {
       contenders[0].points += die.value;
       newLog.push(`${contenders[0].name} wins ${die.resource_type} for ${die.value} points`);
-    } else {
+      } 
+    else {
       const minTie = Math.min(...contenders.map((p) => p.__bestTie));
       const tieWinners = contenders.filter((p) => p.__bestTie === minTie);
       if (tieWinners.length === 1) {
         tieWinners[0].points += die.value;
         newLog.push(`Tiebreaker! ${tieWinners[0].name} wins ${die.resource_type}`);
       } else {
-        newLog.push(`Tie on ${die.resource_type}. No points awarded.`);
+        // tie-breakers also tied → split points
+        const splitPoints = die.value / tieWinners.length;
+        tieWinners.forEach((p) => {
+          p.points += splitPoints;
+        });
+        newLog.push(
+          `Tie-breakers also tied on ${die.resource_type}. ${splitPoints} point(s) to each: ${tieWinners
+            .map((p) => p.name)
+            .join(", ")}`
+        );
       }
     }
 
@@ -58,26 +76,81 @@ const ScoringPhase = ({ players, dice, setFinalResults, goToResults, isHost }) =
     }
   };
 
+  
+  const computeTotalsForCategory = (playersList, category) => {
+    return playersList.map((p) => {
+      const sum = (p.hand || []).reduce(
+        (acc, c) => acc + (c.type === category ? c.value : 0),
+        0
+      );
+      return { name: p.name, total: sum };
+    });
+  };
+
   const finishScoring = (finalPlayers) => {
     const newLog = [];
+
+  
+    const categoriesInDice = Array.from(
+      new Set(dice.map((d) => d.resource_type))
+    );
+    categoriesInDice.forEach((cat) => {
+      const totals = computeTotalsForCategory(finalPlayers, cat);
+      const line = totals.map((t) => `${t.name}: ${t.total}`).join(", ");
+      newLog.push(`Breakdown — ${cat}: ${line}`);
+    });
 
     const maxPoints = Math.max(...finalPlayers.map((p) => p.points));
     const pointLeaders = finalPlayers.filter((p) => p.points === maxPoints);
 
+    let winners;
     if (pointLeaders.length === 1) {
-      newLog.push(`🏆 ${pointLeaders[0].name} wins the game!`);
+      winners = [pointLeaders[0]];
+      newLog.push(`🏆 ${winners[0].name} wins the game!`);
     } else {
       const maxGold = Math.max(...pointLeaders.map((p) => p.gold));
-      const goldWinners = pointLeaders.filter((p) => p.gold === maxGold);
-      if (goldWinners.length === 1) {
-        newLog.push(`🏆 ${goldWinners[0].name} wins by gold tiebreaker!`);
+      winners = pointLeaders.filter((p) => p.gold === maxGold);
+      if (winners.length === 1) {
+        newLog.push(`🏆 ${winners[0].name} wins by gold tiebreaker!`);
       } else {
-        newLog.push(`🏆 Tie between: ${goldWinners.map((p) => p.name).join(", ")}`);
+        newLog.push(`🏆 Tie between: ${winners.map((p) => p.name).join(", ")}`);
       }
     }
 
+    const sorted = [...finalPlayers].sort((a, b) => {
+      if (b.points !== a.points) return b.points - a.points;
+      return b.gold - a.gold;
+    });
+
+    const step = 10;
+    const numPlayers = sorted.length;
+    const isOdd = numPlayers % 2 === 1;
+    const medianIndex = Math.floor(numPlayers / 2);
+    sorted.forEach((player, i) => {
+      player.rank = i + 1;
+
+      if (isOdd && i === medianIndex) {
+        player.elo = 0;
+      } else if (i < medianIndex) {
+        player.elo = step * (medianIndex - i);
+      } else {
+        player.elo = -step * (i - medianIndex + (isOdd ? 0 : 1));
+      }
+
+      if (player.name === username) {
+        fetch("https://biblios-backend.onrender.com/api/update_elo", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: login_info, eloChange: player.elo })
+        });
+      }
+    });
+
+    const rankResults = sorted.map((p) => `${p.name}: #${p.rank}, elo: ${p.elo}`);
+    newLog.push(`Final Rankings: ${rankResults.join(", ")}`);
+
     setLog((prev) => [...prev, ...newLog]);
-    setFinalResults(finalPlayers);
+    setFinalResults(sorted);
     setIsDone(true);
   };
 

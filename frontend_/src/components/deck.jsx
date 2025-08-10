@@ -1,13 +1,17 @@
 // src/utils/deck.js
 
-export function buildDeck() {
-  const card_q = { 1: 5, 2: 4, 3: 2, 4: 2 }; //{ 1: 5, 2: 4, 3: 2, 4: 1 }
+export function buildDeck(settings = null) {
+  const defaultResource = { 1: 5, 2: 4, 3: 2, 4: 2  }; //{ 1: 5, 2: 4, 3: 2, 4: 1 }
+  const defaultGold = { 1: 5, 2: 5, 3: 5 };
+
+  const resourceCounts = settings?.resource || defaultResource;
+  const goldCounts = settings?.gold || defaultGold;
   const resourceTypes =["Religion", "Science", "Military", "Art", "Herbs"]; //["Religion", "Science", "Military", "Art", "Herbs"]
   const tieBreakers = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"];
   const deck = [];
 
   for (const res of resourceTypes) {
-    for (const [val, quantity] of Object.entries(card_q)) {
+    for (const [val, quantity] of Object.entries(resourceCounts)) {
       for (let i = 0; i < quantity; i++) {
         const tie = tieBreakers[Math.floor(Math.random() * tieBreakers.length)];
         deck.push({
@@ -20,11 +24,11 @@ export function buildDeck() {
     }
   }
 
-  // Add Gold cards: 5 of each value (1–3) = 15 total
-  for (let i = 0; i < 6; i++) {
-    for (let k = 1; k <= 3; k++) {
+  // 🟨 Add gold cards
+  for (const [val, quantity] of Object.entries(goldCounts)) {
+    for (let i = 0; i < quantity; i++) {
       deck.push({
-        value: k,
+        value: parseInt(val),
         type: "Gold",
         tieBreaker: "N",
         isSpecial: false,
@@ -32,7 +36,7 @@ export function buildDeck() {
     }
   }
 
-  // 2 of each special card type: Plus, Minus, Both
+  // 🟥 Add special cards (static)
   for (let j = 1; j < 3; j++) {
     ["Plus", "Minus", "Both"].forEach(type => {
       deck.push({
