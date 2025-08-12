@@ -141,7 +141,13 @@ const GameRunner = ({ playerName }) => {
 };
 
 //Next section is taking information from broadcasts
-
+socket.on("add_playerlist", ({ playerName }) => {
+  setPlayersOnline(prev => {
+    const next = prev.includes(playerName) ? prev : [...prev, playerName];
+    console.log("playersOnline ->", next);
+    return next;
+  });
+});
 //For Auction
 useEffect(() => {
   if (phase === "auction") {
@@ -345,6 +351,8 @@ useEffect(() => {
     socket.on("player_list", (list) => {
       setPlayersOnline(list);
     });
+
+    
   }
 
   return () => {

@@ -2,6 +2,7 @@ import React, {useState, useEffect} from "react";
 import { useNavigate } from "react-router-dom";
 import "./lobby.css";
 import RulesPage from "./rulespage"; 
+import socket from "../socket";
 
 
 const SignedIn = () => {
@@ -15,21 +16,26 @@ const SignedIn = () => {
   const [roomInput, setRoomInput] = useState("");
 
 const handleRejoin = () => {
-  const playerId = localStorage.getItem("playerId");
-  const playerName = localStorage.getItem("playerName");
-  const roomCode = localStorage.getItem("roomCode");
+  const signin_username = localStorage.getItem("signin_username");
+  const playerName = localStorage.getItem("playerName") || localStorage.getItem("signin_username");
+  const prevRoomCode = localStorage.getItem("prevRoomCode")
+  const roomCode = localStorage.getItem("roomCode") || prevRoomCode;
+  
 
-  if (!playerId || !playerName || !roomCode) {
+  if (!signin_username || !playerName || !roomCode) {
     alert("No game to rejoin.");
     return;
   }
+  console.log("before the rejoin_game emit")
 
   // Emit rejoin request
   socket.emit("rejoin_game", {
     room: roomCode,
-    playerId,
-    playerName,
+    signin_username: signin_username,
+    playerName: playerName,
   });
+
+  console.log("after the socket emit")
 
   // Navigate back to the game
   navigate(`/game/${roomCode}`);

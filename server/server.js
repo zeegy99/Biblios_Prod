@@ -137,13 +137,17 @@ socket.on("leave_game", ({ room, playerId }) => {
 
 
   //Rejoining
-  socket.on("rejoin_game", ({ room, playerId, playerName }) => {
+  socket.on("rejoin_game", ({ room, signin_username, playerName }) => {
   console.log(`🔄 ${playerName} attempting to rejoin ${room}`);
+
+  socket.emit("add_playerlist", ({ playerName }))
+  console.log("I did the add_playerlist", playerName)
+
 
   if (!playersInRoom[room]) return;
 
   // Find matching player
-  const player = playersInRoom[room].find(p => p.playerId === playerId);
+  const player = playersInRoom[room].find(p => p.playerId === signin_username);
 
   if (player) {
     // Reassign new socket ID to existing player

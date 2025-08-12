@@ -145,6 +145,7 @@ useEffect(() => {
       resource: { 1: res1, 2: res2, 3: res3, 4: res4 },
     };
     console.log("Start Game button clicked with deckSettings", deckSettings);
+    localStorage.setItem("prevRoomCode", room)
     socket.emit("start_game", { room: room, deckSettings });
   };
 
