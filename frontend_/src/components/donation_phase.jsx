@@ -357,7 +357,7 @@ useEffect(() =>
                       return `${resource}: ${oldVal} → ${newVal}`;
                     });
 
-                    broadcastState({ dice: updated }, `${player.name} modified the dice. He changed: ${changeDetails.join(", ")}`);
+                    broadcastState({ dice: updated }, `${player.name} modified the dice. They changed: ${changeDetails.join(", ")}`);
                     // setSpecialCardToPlay(null);
                     setDiceToModify(null);
                     setDiceSelectionCard(null);

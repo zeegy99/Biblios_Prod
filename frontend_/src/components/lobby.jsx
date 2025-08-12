@@ -30,7 +30,36 @@ const [showCardSettings, setShowCardSettings] = useState(false);
 const [updateMessage, setUpdateMessage] = useState("");
 
 
+useEffect(() => {
+    const handleBackButton = (event) => {
+      event.preventDefault(); // stops automatic navigation (optional)
+      for (let i = 0; i < sessionStorage.length; i++) {
+    const key = sessionStorage.key(i);
+    if (key.startsWith("hasJoined-")) {
+      sessionStorage.removeItem(key);
+      i--; // account for reindexing after removeItem
+    }
+    
+  }
+
   
+  console.log("I am going to socket.emit in the back button", room, playerId)
+  socket.emit("leave_game", {room: room, playerId: playerId})
+  localStorage.removeItem("roomCode");
+  navigate("/");
+    };
+
+    // Add listener for browser back/forward navigation
+    window.addEventListener("popstate", handleBackButton);
+
+    // Add a history entry so back can be triggered
+    window.history.pushState(null, "", window.location.href);
+
+    return () => {
+      window.removeEventListener("popstate", handleBackButton);
+    };
+  }, []);
+
 useEffect(() => {
   if (hasManuallyAdjusted) return;
 
@@ -66,7 +95,6 @@ useEffect(() => {
 
     setUpdateMessage("Deck successfully updated!");
 
-  // Optional: auto-hide after 3 seconds
   setTimeout(() => setUpdateMessage(""), 3000);
 };
 
@@ -150,7 +178,7 @@ useEffect(() => {
 
   const playFartSound = () => {
     console.log("button")
-  const audio = new Audio(Fart); // path is relative to public/
+  const audio = new Audio(Fart); 
   audio.volume=0.3;
   audio.play().catch((err) => {
     console.error("Failed to play fart sound:", err);
@@ -162,10 +190,10 @@ useEffect(() => {
     setPlayerName(tempName.trim());
     localStorage.setItem("playerName", tempName.trim());
 
-    // Optional: re-emit join_game with new name
+
     socket.emit("update_name", { room, newName: tempName.trim() });
 
-    setShowBox(false); // Close dropdown after update
+    setShowBox(false); 
     } 
   };
 
