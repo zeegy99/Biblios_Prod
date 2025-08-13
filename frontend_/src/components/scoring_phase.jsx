@@ -97,7 +97,7 @@ const ScoringPhase = ({ players, dice, setFinalResults, goToResults, isHost }) =
     categoriesInDice.forEach((cat) => {
       const totals = computeTotalsForCategory(finalPlayers, cat);
       const line = totals.map((t) => `${t.name}: ${t.total}`).join(", ");
-      newLog.push(`Breakdown — ${cat}: ${line}`);
+      
     });
 
     const maxPoints = Math.max(...finalPlayers.map((p) => p.points));

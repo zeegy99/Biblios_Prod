@@ -116,6 +116,14 @@ const handleCreateRoom = () => {
             Rejoin
           </button>
 
+            <button
+           className="login-header"
+            onClick={() => navigate("/settings")}
+            style={{ backgroundColor: "#9694FF", color: "white" }}
+          >
+            Settings
+          </button>
+
           <button
            className="login-header"
             onClick={() => navigate("/leaderboard")}
@@ -123,6 +131,10 @@ const handleCreateRoom = () => {
           >
             Leaderboard
           </button>
+
+        
+
+          
 
           <button className="login-header" onClick={toggleRulesPage}
            style={{ backgroundColor: "#9694FF", color: "white" }}>
@@ -140,9 +152,13 @@ const handleCreateRoom = () => {
           {showBox && (
             <div className="profile-dropdown">
               <p className="profile-label">You are logged in as:</p>
-              <h3 className="profile-name">{login_info}</h3>
+              <h3 className="profile-name">{login_info} 
+
+                
+              </h3>
 
               <p className="profile-label"> current alias: {savedName}</p>
+            
 
 
               <p className="profile-label" style={{ marginTop: "8px", fontSize: "14px" }}>

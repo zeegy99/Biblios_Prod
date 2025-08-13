@@ -8,6 +8,7 @@ import Signup from "./components/sign_up.jsx";
 import socket from "./socket";
 import SignedIn from "./components/home_signedin.jsx";
 import LeaderBoard from "./components/leaderboard.jsx";
+import Settings from "./components/settings.jsx";
 // import 'bootstrap/dist/css/bootstrap.min.css';
 
 function App() {
@@ -26,6 +27,7 @@ function App() {
         <Route path="/signup" element={<Signup/>} />
         <Route path="/signedin" element={<SignedIn />} />
         <Route path="/leaderboard" element={<LeaderBoard/>} />
+        <Route path="/settings" element={<Settings/>} />
       </Routes>
     </Router>
   );
