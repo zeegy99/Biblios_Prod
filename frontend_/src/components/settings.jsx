@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import RulesPage from "./rulespage";
 import "./leaderboard.css";
+import "./settings.css";
+import {DEFAULT_KEYBINDS} from "./keybinds_defaults.js";
 
 const settings = () => {
   const login_info = localStorage.getItem("signin_username") || "none";
@@ -27,8 +29,15 @@ const settings = () => {
   }, [isGuest, savedName]);
 
   useEffect(() => {
+    console.log("I literally do nothing")
+    // console.log(DEFAULT_KEYBINDS)
+    for (let i = 0; i < Object.values(DEFAULT_KEYBINDS).length; i++) {
+      console.log(Object.keys(DEFAULT_KEYBINDS)[i], Object.values(DEFAULT_KEYBINDS)[i])
+    }
 
-  })
+   
+  }, [])
+
 
   
   const handleRejoin = () => {
@@ -103,7 +112,13 @@ const settings = () => {
       <p>Current username: {login_info} edit png</p>
       <p>Current email: fuck u{}</p>
       <p>Volume: Unable to change</p>
-      <p>Keybinds: TBD I ain't doing that</p>
+      <p>Keybinds: </p>
+      Keep: <input className="asdf" type="string" value={DEFAULT_KEYBINDS["KEEP_CARD"]}/>
+      Discard: <input className="asdf">
+      </input>
+      Pool:  <input className="asdf">
+      </input>
+
     </div>
   );
 };

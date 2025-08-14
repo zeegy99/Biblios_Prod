@@ -8,7 +8,8 @@ load_dotenv()
 
 
 app = Flask(__name__)
-
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = False
 def hash_function(curr_pass):
     combined = curr_pass.encode()
     a = bcrypt.hashpw(combined, bcrypt.gensalt()) 
@@ -83,7 +84,16 @@ def signin():
             is_valid = bcrypt.checkpw(password.encode(), stored_hash.encode())
 
             if is_valid:
-                return jsonify({"message": "Login successful"}), 200
+
+                session["username"] = username
+                cursor.execute("SELECT elo_score FROM elo WHERE username = %s", (username,))
+                elo_row = cursor.fetchone()
+                elo = elo_row[0] if elo_row else 1000
+
+                cursor.close()
+                conn.close()
+                return jsonify({"message": "Login successful", "elo": elo}), 200
+
             else:
                 return jsonify({"error": "Invalid username or password"}), 401
         else:
