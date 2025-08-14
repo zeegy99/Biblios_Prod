@@ -19,9 +19,13 @@ import "./lobby.css";
 import RulesPage from "./rulespage"; 
 import Timer from "../timer.jsx";
 import CardFlip from "../sound/flipcard-91468.mp3";
+import {updatedSettings} from "./settings.jsx";
+
 
 
 const GameRunner = ({ playerName }) => {
+
+  console.log(updatedSettings)
 
   const hasSynced = useRef(false);
   const [auctionStarterIndex, setAuctionStarterIndex] = useState(null);
