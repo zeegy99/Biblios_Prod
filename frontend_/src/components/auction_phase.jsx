@@ -2,6 +2,7 @@ import Card from "./card";
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import Timer from "../timer.jsx";
 import "./auction_phase_css.css";
+import {updatedSettings} from "./settings.jsx";
 
 const AuctionPhase = ({
   players,
@@ -39,6 +40,9 @@ const AuctionPhase = ({
   auctionTurnOffset,
   setAuctionTurnOffset,
 }) => {
+  
+
+
   
 
 
@@ -101,7 +105,41 @@ const AuctionPhase = ({
   const isCurrentPlayer = player.name === playerName;
   const increment = 485 //485 for df 
 
+//Keybinds 
 
+useEffect(() => {
+  if (!isCurrentPlayer) return;
+
+  const keys = {
+    inc: String(updatedSettings.BID_INCREASE).toLowerCase(),
+    dec: String(updatedSettings.BID_DECREASE).toLowerCase(),
+    pass: String(updatedSettings.PASS_BID).toLowerCase(),
+    bid: String(updatedSettings.PLACE_BID).toLowerCase(),
+  };
+
+  const handleKey = (event) => {
+    const key = event.key.toLowerCase();
+    if (isNaN(bidInput) || bidInput < 1) {
+  setBidInput(0);
+}
+
+    if (key === keys.inc) {
+      setBidInput((prev) => parseInt(prev) + 1);
+      console.log("This is bidinput", bidInput)
+    } else if (key === keys.dec) {
+      setBidInput((prev) => parseInt(prev) - 1);
+      console.log("This is bidinput", bidInput)
+    } else if (key === keys.pass) {
+      handlePass();
+    } else if (key === keys.bid) {
+      handleBid(bidInput); 
+    }
+  };
+
+  window.addEventListener("keydown", handleKey);
+  return () => window.removeEventListener("keydown", handleKey);
+
+}, [isCurrentPlayer, updatedSettings, bidInput]);
 
   const hostResetAuction = () => 
   {
@@ -159,6 +197,7 @@ const AuctionPhase = ({
 
   const handleBid = (amount) =>
   {
+    console.log("handlebid sent with this amount", amount)
     if (isGold && amount > player.hand.length) return;
     if (!isGold && amount > player.gold) 
     {
@@ -171,6 +210,7 @@ const AuctionPhase = ({
       return alert("Bid too low!");
     }
 
+    console.log("made it past everything", amount)
     const updated = [...activeBidders];
     updated[activePlayerIndex] = true;
 

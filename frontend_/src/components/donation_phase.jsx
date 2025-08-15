@@ -282,42 +282,75 @@ useEffect(() =>
 
   //Keybinds
   useEffect(() => {
-    if (!isCurrentPlayer) return
-     
-      const handleKeep = (event) => {
-         if (event.key === (String(updatedSettings["KEEP_CARD"])).toLowerCase()) {
-         
-          handleChoice(currentCard, "keep");
-          
-        }
-      };
-      const handleDiscard = (event) => {
-         if (event.key === (String(updatedSettings["DISCARD_CARD"])).toLowerCase()) {
-         
-          handleChoice(currentCard, "discard");
-          
-        }
-      };
+  if (!isCurrentPlayer) return;
 
-      const handlePool = (event) => {
-         if (event.key === (String(updatedSettings["DONATE_CARD"])).toLowerCase()) {
-         
-          handleChoice(currentCard, "pool");
-          
+ 
+  if (diceToModify && diceSelectionCard) {
+    console.log("I am in here")
+    const handleDiceKey = (event) => {
+      
+      const keyIndex = parseInt(event.key, 10) - 1;
+      console.log("I am keyIndex", keyIndex)
+
+      // Check if the key is a valid number and corresponds to an existing die
+      if (
+        !isNaN(keyIndex) &&
+        keyIndex >= 0 &&
+        keyIndex < diceToModify.length
+      ) {
+        // Find the dice button and simulate a click
+        const diceButton = document.querySelector(
+          `button[data-dice-index='${keyIndex}']`
+        );
+        if (diceButton) {
+          diceButton.click();
         }
-      };
+      }
+    };
 
-      window.addEventListener('keydown', handleKeep);
-      window.addEventListener('keydown', handleDiscard);
-      window.addEventListener('keydown', handlePool);
-  
-      return () => {
-        window.removeEventListener('keydown', handleKeep);
-        window.removeEventListener('keydown', handleDiscard);
-        window.removeEventListener('keydown', handlePool);
+    window.addEventListener("keydown", handleDiceKey);
 
-      };
-    }, [isCurrentPlayer, updatedSettings, handleChoice, currentCard]);
+    return () => {
+      window.removeEventListener("keydown", handleDiceKey);
+    };
+  }
+  // Keybinds for card choices
+  else if (currentCard) {
+    const handleKeep = (event) => {
+      if (
+        event.key === String(updatedSettings["KEEP_CARD"]).toLowerCase()
+      ) {
+        handleChoice(currentCard, "keep");
+      }
+    };
+    const handleDiscard = (event) => {
+      if (
+        event.key ===
+        String(updatedSettings["DISCARD_CARD"]).toLowerCase()
+      ) {
+        handleChoice(currentCard, "discard");
+      }
+    };
+    const handlePool = (event) => {
+      if (
+        event.key ===
+        String(updatedSettings["DONATE_CARD"]).toLowerCase()
+      ) {
+        handleChoice(currentCard, "pool");
+      }
+    };
+
+    window.addEventListener("keydown", handleKeep);
+    window.addEventListener("keydown", handleDiscard);
+    window.addEventListener("keydown", handlePool);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeep);
+      window.removeEventListener("keydown", handleDiscard);
+      window.removeEventListener("keydown", handlePool);
+    };
+  }
+}, [isCurrentPlayer, updatedSettings, handleChoice, currentCard, diceToModify, diceSelectionCard]);
 
 
  

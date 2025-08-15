@@ -36,6 +36,11 @@ const SharedPoolSelection = ({
     return;
   }
 
+  if (choiceIdx > players.length - 2) {
+    alert("That card does not exist")
+    return;
+  }
+
   const chosenCard = sharedPool[choiceIdx];
   if (!chosenCard) {
     console.warn("❌ Card already taken or stale click");
@@ -90,6 +95,7 @@ if (!sharedPool.length && !isCurrentPlayer) {
   return <p>Waiting for other players...</p>;
 }
 
+//Keybinds
 useEffect(() => {
     if (!isCurrentPlayer) return
      
@@ -97,17 +103,43 @@ useEffect(() => {
          if (event.key === (String(updatedSettings["TAKE_CARD_1"]))) {
          
           handleChoice(0);
-          
+        }
+      };
+
+      const handleKeep2 = (event) => {
+         if (event.key === (String(updatedSettings["TAKE_CARD_2"]))) {
+         
+          handleChoice(1);
+        }
+      };
+
+      const handleKeep3 = (event) => {
+         if (event.key === (String(updatedSettings["TAKE_CARD_3"]))) {
+         
+          handleChoice(2);
+        }
+      };
+
+      const handleKeep4 = (event) => {
+         if (event.key === (String(updatedSettings["TAKE_CARD_4"]))) {
+         
+          handleChoice(3);
         }
       };
       
 
 
       window.addEventListener('keydown', handleKeep1);
+      window.addEventListener('keydown', handleKeep2);
+      window.addEventListener('keydown', handleKeep3);
+      window.addEventListener('keydown', handleKeep4);
      
   
       return () => {
         window.removeEventListener('keydown', handleKeep1);
+        window.removeEventListener('keydown', handleKeep2);
+        window.removeEventListener('keydown', handleKeep3);
+        window.removeEventListener('keydown', handleKeep4);
        
 
       };
