@@ -3,6 +3,7 @@ import Card from "./card";
 import {useEffect} from "react";
 import Timer from "../timer.jsx";
 import Bot from "./bot.js";
+import {updatedSettings} from "./settings.jsx";
 
 
 const SharedPoolSelection = ({
@@ -88,6 +89,29 @@ const SharedPoolSelection = ({
 if (!sharedPool.length && !isCurrentPlayer) {
   return <p>Waiting for other players...</p>;
 }
+
+useEffect(() => {
+    if (!isCurrentPlayer) return
+     
+      const handleKeep1 = (event) => {
+         if (event.key === (String(updatedSettings["TAKE_CARD_1"]))) {
+         
+          handleChoice(0);
+          
+        }
+      };
+      
+
+
+      window.addEventListener('keydown', handleKeep1);
+     
+  
+      return () => {
+        window.removeEventListener('keydown', handleKeep1);
+       
+
+      };
+    }, [isCurrentPlayer, updatedSettings, handleChoice]);
 
  return (
   <div>
