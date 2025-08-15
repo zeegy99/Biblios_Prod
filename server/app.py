@@ -194,6 +194,29 @@ def get_leaderboard():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
+@app.route("/api/check_email", methods=["POST", "OPTIONS"])
+def check_email():
+    print("asfdklsdjfslkfj")
+    if request.method == "OPTIONS":
+        return '', 200
+    
+    try:
+      print("hi im in the try")
+      conn = psycopg2.connect(DATABASE_URL)
+      cursor = conn.cursor()
+      data = request.json
+
+      sent_email = data.get("email")
+
+      cursor.execute("""SELECT * FROM users WHERE email = %s""", (sent_email,))
+
+      rows = cursor.fetchall()
+      print(rows)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    
 
     
 if __name__ == "__main__":

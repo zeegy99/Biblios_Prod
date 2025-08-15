@@ -71,7 +71,7 @@ const SigninPage = () => {
         </button>
 
         <div className="login-link">
-          <Link to="/forgot-password">Forgot Password?</Link>
+          <Link to="/forgot_password">Forgot Password?</Link>
         </div>
       </form>
 
