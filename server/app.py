@@ -238,7 +238,12 @@ def send_keybinds():
 
 
     data = request.json
-    print(data)
+    print("This should get more info?", data['updatedSettings'])
+
+    for i in data['updatedSettings'].keys():
+        print(i)
+
+    print("past the for loop")
 
     # cursor.execute("""INSERT """, ())
 
