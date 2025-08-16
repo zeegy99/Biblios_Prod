@@ -68,7 +68,7 @@ const Settings = () => {
     const res = await fetch("https://biblios-backend.onrender.com/api/send_keybinds", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ updatedSettings })
+        body: JSON.stringify({ name: savedName, settings: updatedSettings })
       })
 
     console.log("after the res")

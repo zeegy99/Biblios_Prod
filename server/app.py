@@ -233,17 +233,20 @@ def send_keybinds():
         return "", 200
     
     
-    # conn = psycopg2.connect(os.getenv("DATABASE_URL"))
-    # cursor = conn.cursor()
+    conn = psycopg2.connect(os.getenv("DATABASE_URL"))
+    cursor = conn.cursor()
+
+    concat_str = ''
+    # cursor.execute(f"""INSERT INTO keybinds (username, DONATE_CARD, DISCARD_CARD, KEEP_CARD, OPEN_CHAT, BID_INCREASE, BID_DECREASE, 
+    #                PASS_BID, TAKE_CARD_1, TAKE_CARD_2, TAKE_CARD_3, TAKE_CARD_4, PLACE_BID, UPDATE_DICE_1, UPDATE_DICE_2, 
+    #                UPDATE_DICE_3, UPDATE_DICE_4, UPDATE_DICE_5, UPDATE_DICE_6, INCREASE_DICE, DECREASE_DICE) 
+    #                VALUES ({concat_str})""")
 
     
 
 
     data = request.json
-    print("This should get more info?", data['updatedSettings'])
-
-    for i in data['updatedSettings'].keys():
-        print(i)
+    print("This is data", data)
 
     print("past the for loop")
 
