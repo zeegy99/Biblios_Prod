@@ -260,10 +260,17 @@ def check_email():
                 INSERT INTO password_resets (user_id, token_hash, expires_at, used)
                 VALUES (%s, %s, %s, FALSE);
             """, (user_id, token_hash, expiry))
+
+            cursor.execute("SELECT username FROM users WHERE LOWER(email) = LOWER(%s)", (sent_email,))
+            username_data = cursor.fetchone()
+            username = username_data[0]
+            print("HEY, THIS IS USERNAME?", username)
+            print("THIS IS ALL OF username_data", username_data)
             conn.commit()
             
             # Build link with the **raw** token (only sent by email)
             reset_link = f"https://biblios-game-frontend.onrender.com/reset-password/{reset_token}"
+            # playerName = 
 
             # Send the email [Functional]
             try:
@@ -277,7 +284,7 @@ def check_email():
                 msg["Subject"] = "Reset your Biblios password"
 
                 text_part = MIMEText(
-                    f"Click this link to reset your password. It expires in 1 hour:\n{reset_link}",
+                    f"Hello {playerName}, \nClick this link to reset your password. It expires in 1 hour:\n{reset_link}",
                     "plain",
                 )
                 html_part = MIMEText(

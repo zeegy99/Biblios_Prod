@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import RulesPage from "./rulespage";
 import "./leaderboard.css";
+import "./sign_in.css"; 
 
 const ResetPassword = () => {
   const login_info = localStorage.getItem("signin_username") || "none";
@@ -13,7 +14,23 @@ const ResetPassword = () => {
   const [rulesPage, setRulesPage] = useState(false);
   const [players, setPlayers] = useState([]);
   const [email, setEmail] = useState("");
+  const [changedPassword, setchangedPassword] = useState("");
+  const [confirmchangedPassword, setconfirmchangedPassword] = useState("")
 
+  const confirmPasswordChange = async () => {
+    if (changedPassword === confirmchangedPassword) {
+      console.log("done")
+      //send something to api pisser 
+      const res = await fetch ("https://biblios-backend.onrender.com/api/change_password", {
+
+      })
+    }
+    else {
+      alert("passwords don't match ")
+      // make this be a popup instead of an alert
+    }
+
+  }
   
   
 
@@ -99,9 +116,29 @@ const ResetPassword = () => {
         </div>
       </header>
 
-    Test line
-      
+    <label className="login-label">Password</label>
+        <input
+          type="password"
+          placeholder="Password"
+          
+          
+          className="login-input"
+          required
+        />
+
+        <label className="login-label">Confirm Password</label>
+        <input
+          type="password"
+          placeholder="Confirm Password"
+       
+          className="login-input"
+          required
+        />
+
+        <button onClick={confirmPasswordChange}>Confirm</button>
     </div>
+
+    
   );
 };
 
