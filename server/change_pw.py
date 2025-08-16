@@ -27,4 +27,3 @@ conn.commit()
 cursor.close()
 conn.close()
 
-print("✅ Passwords re-hashed")
