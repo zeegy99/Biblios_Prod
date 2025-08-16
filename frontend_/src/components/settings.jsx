@@ -249,6 +249,16 @@ const Settings = () => {
         Top Secret Easter Egg Button (DO NOT CLICK)
       </button>
 
+      <button 
+      onClick={() => {
+        const tick = new Audio(Fart);
+        tick.volume = (1);
+        tick.play();
+      }
+      }>
+        Test Button
+      </button>
+
     </div>
 
 
