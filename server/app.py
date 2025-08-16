@@ -261,11 +261,11 @@ def check_email():
                 VALUES (%s, %s, %s, FALSE);
             """, (user_id, token_hash, expiry))
             conn.commit()
-
+            
             # Build link with the **raw** token (only sent by email)
             reset_link = f"https://biblios-game-frontend.onrender.com/reset-password/{reset_token}"
 
-            # Send the email (errors are swallowed to preserve generic response)
+            # Send the email [Functional]
             try:
                 sender = "fred.yuan392@gmail.com"
                 rcpt = sent_email
@@ -305,7 +305,7 @@ def check_email():
         conn.close()
 
         # Always generic response
-        return jsonify({"message": "If that email exists, we sent a reset link."}), 200
+        return jsonify({"message": "If that email exists in our system, we sent a reset link."}), 200
 
     except Exception as e:
         # Still return 200 generic to avoid probing; log e server-side

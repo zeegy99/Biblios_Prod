@@ -10,6 +10,7 @@ import SignedIn from "./components/home_signedin.jsx";
 import LeaderBoard from "./components/leaderboard.jsx";
 import Settings from "./components/settings.jsx";
 import ForgotPassword from "./components/forgot_password.jsx";
+import ResetPassword from "./components/reset_password.jsx";
 // import 'bootstrap/dist/css/bootstrap.min.css';
 
 function App() {
@@ -30,6 +31,7 @@ function App() {
         <Route path="/leaderboard" element={<LeaderBoard/>} />
         <Route path="/settings" element={<Settings/>} />
         <Route path="/forgot_password" element={<ForgotPassword/>} />
+        <Route path="/reset-password/:resetToken" element={<ResetPassword/>} />
       </Routes>
     </Router>
   );
