@@ -71,11 +71,7 @@ const SigninPage = () => {
         </button>
 
         <div className="login-link">
-<<<<<<< HEAD
           <Link to="/forgot_password">Forgot Password?</Link>
-=======
-          <Link to="/forgot-password">Forgot Password?</Link>
->>>>>>> b3d372f (Added Volume Slider + Keybinds)
         </div>
       </form>
 
