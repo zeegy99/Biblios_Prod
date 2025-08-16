@@ -14,14 +14,20 @@ const ForgotPassword = () => {
   const [players, setPlayers] = useState([]);
   const [email, setEmail] = useState("");
 
-  const checkemail = () => {
-    console.log("what I am going")
-    fetch("https://biblios-backend.onrender.com/api/check_email", {
+  const checkemail = async () => {
+    const e = email.trim().toLowerCase();
+    if (!e) {
+      console.log("blocked")
+      return
+    }
+   
+    console.log("This is email", e)
+    const res = await fetch("https://biblios-backend.onrender.com/api/check_email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() })
+        body: JSON.stringify({ email: e })
       })
-    console.log("I finished running")
+    console.log("I finished running", res)
   };
 
   
@@ -131,7 +137,7 @@ const ForgotPassword = () => {
           required
         />
 
-    <button onClick={checkemail()}>
+    <button onClick={checkemail}>
         Send email {email}
     </button>
 

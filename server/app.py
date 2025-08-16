@@ -197,27 +197,29 @@ def get_leaderboard():
     
 @app.route("/api/check_email", methods=["POST", "OPTIONS"])
 def check_email():
-    print("asfdklsdjfslkfj")
-    if request.method == "OPTIONS":
-        return '', 200
     
+    if request.method == "OPTIONS":
+        return "", 200
+    
+    data = request.json
+    sent_email = data.get("email")
+
     try:
-      print("hi im in the try")
-      conn = psycopg2.connect(DATABASE_URL)
-      cursor = conn.cursor()
-      data = request.json
+        conn = psycopg2.connect(os.getenv("DATABASE_URL"))
+        cursor = conn.cursor()
 
-      sent_email = data.get("email")
+        cursor.execute("""SELECT email from users where email like %s""", (sent_email,))
 
-      cursor.execute("""SELECT * FROM users WHERE email = %s""", (sent_email,))
+        success = cursor.fetchone() is not None
+        cursor.close()
+        conn.close()
 
-      rows = cursor.fetchall()
-      print(rows)
+        return jsonify({"exists", success}), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-    
+
 
     
 if __name__ == "__main__":
