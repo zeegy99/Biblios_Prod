@@ -28,3 +28,7 @@ cursor.execute("""
     take_card_4_key  TEXT NOT NULL
     );
 """)
+
+conn.commit()
+cursor.close()
+conn.close()
