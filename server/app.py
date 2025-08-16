@@ -228,31 +228,85 @@ def check_email():
 
 @app.route("/api/send_keybinds", methods=["POST", "OPTIONS"])
 def send_keybinds():
-    print("I have been received at send_keybinds and will try to respond!")
     if request.method == "OPTIONS":
         return "", 200
     
+    conn = None  # Initialize conn to None
+    cursor = None
     
-    conn = psycopg2.connect(os.getenv("DATABASE_URL"))
-    cursor = conn.cursor()
+    try:
+        # Get the JSON data from the request body
+        data = request.json
+        print("Received keybinds data:", data)
 
-    concat_str = ''
-    # cursor.execute(f"""INSERT INTO keybinds (username, DONATE_CARD, DISCARD_CARD, KEEP_CARD, OPEN_CHAT, BID_INCREASE, BID_DECREASE, 
-    #                PASS_BID, TAKE_CARD_1, TAKE_CARD_2, TAKE_CARD_3, TAKE_CARD_4, PLACE_BID, UPDATE_DICE_1, UPDATE_DICE_2, 
-    #                UPDATE_DICE_3, UPDATE_DICE_4, UPDATE_DICE_5, UPDATE_DICE_6, INCREASE_DICE, DECREASE_DICE) 
-    #                VALUES ({concat_str})""")
+        # 1. Connect to the database inside the POST block
+        conn = psycopg2.connect(os.getenv("DATABASE_URL"))
+        cursor = conn.cursor()
+        
+        username = data.get('name')
+        if not username:
+            return jsonify({"error": "Username not provided"}), 400
 
-    
+        # 2. Check for existing user (use "=" instead of LIKE for exact match)
+        cursor.execute("SELECT username FROM keybinds WHERE username = %s", (username,))
+        user_exists = cursor.fetchone() is not None
 
+        if user_exists:
+            # 3. Use safe UPDATE logic
+            update_clauses = []
+            values_to_update = []
+            
+            # Build the dynamic SQL query safely
+            for key, value_list in data['settings'].items():
+                if len(value_list) > 0:
+                    # Append 'column = %s' and the value to lists
+                    update_clauses.append(f'"{key}" = %s')
+                    values_to_update.append(value_list[0]) # Get the first element of the list
+            
+            # Add the username to the end of the values list for the WHERE clause
+            values_to_update.append(username)
+            
+            # Construct the final query string
+            update_query = f"UPDATE keybinds SET {', '.join(update_clauses)} WHERE username = %s"
 
-    data = request.json
-    print("This is data", data)
+            # Execute the query with the safe parameters
+            cursor.execute(update_query, values_to_update)
+            print(f"Updated keybinds for user: {username}")
+        
+        else:
+            # 4. Use safe INSERT logic
+            column_names = ['username']
+            values_list = [username]
+            
+            for key, value_list in data['settings'].items():
+                column_names.append(f'"{key}"')
+                values_list.append(value_list[0]) # Get the first element of the list
+            
+            # Build the placeholders for the VALUES clause
+            placeholders = ', '.join(['%s'] * len(values_list))
 
-    print("past the for loop")
+            # Construct the final query string
+            insert_query = f"INSERT INTO keybinds ({', '.join(column_names)}) VALUES ({placeholders})"
+            
+            # Execute the query with the safe parameters
+            cursor.execute(insert_query, values_list)
+            print(f"Inserted new keybinds for user: {username}")
 
-    # cursor.execute("""INSERT """, ())
+        # 5. Commit the transaction
+        conn.commit()
 
-    return jsonify({"message": "good"}), 200
+        return jsonify({"message": "Keybinds updated successfully"}), 200
+
+    except (psycopg2.Error, Exception) as e:
+        print("An error occurred:", e)
+        return jsonify({"error": str(e)}), 500
+        
+    finally:
+        # 6. Always close the connection
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
     
     
