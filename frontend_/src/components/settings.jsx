@@ -10,7 +10,7 @@ export let updatedSettings = { ...DEFAULT_KEYBINDS };
 
 export function setUpdatedSettings(newMap) {
   updatedSettings = newMap;
-  // console.log("I have run, I am updatedSettings", updatedSettings)
+  console.log("I have run, I am updatedSettings", updatedSettings)
 }
 
 
@@ -38,6 +38,7 @@ const Settings = () => {
   const [takeCard3, settakeCard3] = useState(DEFAULT_KEYBINDS["TAKE_CARD_3"]);
   const [takeCard4, settakeCard4] = useState(DEFAULT_KEYBINDS["TAKE_CARD_4"]);
 
+
   const keybindStateMap = {
   KEEP_CARD: keepCard,
   DISCARD_CARD: discardCard,
@@ -50,7 +51,32 @@ const Settings = () => {
   TAKE_CARD_2: takeCard2,
   TAKE_CARD_3: takeCard3,
   TAKE_CARD_4: takeCard4,
+  DECREASE_DICE: DEFAULT_KEYBINDS["DECREASE_DICE"],
+  INCREASE_DICE: DEFAULT_KEYBINDS["INCREASE_DICE"],
+  PLACE_BID: DEFAULT_KEYBINDS["PLACE_BID"],
+  UPDATE_DICE_1: DEFAULT_KEYBINDS["UPDATE_DICE_1"], 
+  UPDATE_DICE_2: DEFAULT_KEYBINDS["UPDATE_DICE_2"], 
+  UPDATE_DICE_3: DEFAULT_KEYBINDS["UPDATE_DICE_3"],
+  UPDATE_DICE_4: DEFAULT_KEYBINDS["UPDATE_DICE_4"],
+  UPDATE_DICE_5: DEFAULT_KEYBINDS["UPDATE_DICE_5"],
+  UPDATE_DICE_6: DEFAULT_KEYBINDS["UPDATE_DICE_6"],
 };
+
+  const pushKeybinds = async () => {
+    console.log("YOOO")
+
+    const res = await fetch("https://biblios-backend.onrender.com/api/send_keybinds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updatedSettings })
+      })
+
+      if (res.ok) {
+        console.log("yay I am ok")
+      }
+
+    
+  }
 
 
 
@@ -68,15 +94,7 @@ const Settings = () => {
     }
   }, [isGuest, savedName]);
 
-  useEffect(() => {
-    console.log("I literally do nothing")
-    // console.log(DEFAULT_KEYBINDS)
-    for (let i = 0; i < Object.values(DEFAULT_KEYBINDS).length; i++) {
-      console.log(Object.keys(DEFAULT_KEYBINDS)[i], Object.values(DEFAULT_KEYBINDS)[i])
-    }
 
-   
-  }, [])
 
 
   
@@ -160,7 +178,7 @@ const Settings = () => {
       onChange={(e) => {
           localStorage.removeItem("keepCard")
           const value = e.target.value;
-          setKeepCard(value.slice(0, 1));
+          setKeepCard([value.slice(0, 1)]);
           localStorage.setItem("keepCard", value)
         }}
       />
@@ -171,7 +189,7 @@ const Settings = () => {
       value={discardCard}
       onChange={(e) => {
           const value2 = e.target.value;
-          setdiscardCard(value2.slice(0, 1));
+          setdiscardCard([value2.slice(0, 1)]);
         }}
       />
 
@@ -182,7 +200,7 @@ const Settings = () => {
       value={donateCard}
       onChange={(e) => {
           const value3 = e.target.value;
-          setdonateCard(value3.slice(0, 1));
+          setdonateCard([value3.slice(0, 1)]);
         }}
       />
 
@@ -193,7 +211,7 @@ const Settings = () => {
       value={openChat}
       onChange={(e) => {
           const value4 = e.target.value;
-          setopenChat(value4.slice(0, 1));
+          setopenChat([value4.slice(0, 1)]);
         }}
       />
 
@@ -204,7 +222,7 @@ const Settings = () => {
       value={bidIncrease}
       onChange={(e) => {
           const value5 = e.target.value;
-          setbidIncrease(value5.slice(0, 1));
+          setbidIncrease([value5.slice(0, 1)]);
         }}
       />
 
@@ -215,7 +233,7 @@ const Settings = () => {
       value={bidDecrease}
       onChange={(e) => {
           const value6 = e.target.value;
-          setbidDecrease(value6.slice(0, 1));
+          setbidDecrease([value6.slice(0, 1)]);
         }}
       />
 
@@ -226,7 +244,7 @@ const Settings = () => {
       value={passBid}
       onChange={(e) => {
           const value7 = e.target.value;
-          setpassBid(value7.slice(0, 1));
+          setpassBid([value7.slice(0, 1)]);
         }}
       />
 
@@ -237,7 +255,7 @@ const Settings = () => {
       value={takeCard1}
       onChange={(e) => {
           const value8 = e.target.value;
-          settakeCard1(value8.slice(0, 1));
+          settakeCard1([value8.slice(0, 1)]);
         }}
       />
 
@@ -248,7 +266,7 @@ const Settings = () => {
       value={takeCard2}
       onChange={(e) => {
           const value9 = e.target.value;
-          settakeCard2(value9.slice(0, 1));
+          settakeCard2([value9.slice(0, 1)]);
         }}
       />
 
@@ -259,7 +277,7 @@ const Settings = () => {
       value={takeCard3}
       onChange={(e) => {
           const value10 = e.target.value;
-          settakeCard3(value10.slice(0, 1));
+          settakeCard3([value10.slice(0, 1)]);
         }}
       />
 
@@ -270,7 +288,7 @@ const Settings = () => {
       value={takeCard4}
       onChange={(e) => {
           const value11 = e.target.value;
-          settakeCard4(value11.slice(0, 1));
+          settakeCard4([value11.slice(0, 1)]);
         }}
       />
 
@@ -284,6 +302,8 @@ const Settings = () => {
         console.log("run")
         setUpdatedSettings(updatedSet)
         console.log("not")
+
+        pushKeybinds()
 
       }
       

@@ -17,7 +17,13 @@ def hash_function(curr_pass):
     return (a.decode())
     
 # CORS setup for frontend
-CORS(app, resources={r"/api/*": {"origins": ["https://biblios-game-frontend.onrender.com", "http://localhost:5173"]}}, supports_credentials=True) #https://biblios-game-frontend.onrender.com
+
+
+CORS(app, resources={r"/api/*": {"origins": ["https://biblios-game-frontend.onrender.com", "http://localhost:5173"]}}, 
+     supports_credentials=True) 
+
+
+#https://biblios-game-frontend.onrender.com
 # CORS(app, resources={r"/api/*": {"origins": [
 #     "http://localhost:5173",
 #     "https://biblios-game-frontend.onrender.com"
@@ -214,11 +220,28 @@ def check_email():
         cursor.close()
         conn.close()
 
-        return jsonify({"exists", success}), 200
+        return jsonify({"exists": success}), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
 
+@app.route("/api/send_keybinds", methods=["POST", "OPTIONS"])
+def send_keybinds():
+    if request.method == "OPTIONS":
+        return "", 200
+    
+    try:
+       
+
+        data = request.json
+        print(data)
+
+        return jsonify({"message": "good"}), 200
+
+    
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
     
