@@ -214,9 +214,13 @@ def check_email():
         conn = psycopg2.connect(os.getenv("DATABASE_URL"))
         cursor = conn.cursor()
 
+        print("I am making it inside")
+
         cursor.execute("""SELECT email from users where email like %s""", (sent_email,))
 
         success = cursor.fetchone() is not None
+        print("this is what success is", success)
+        print("this is what email is", sent_email)
         cursor.close()
         conn.close()
 
