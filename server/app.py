@@ -6,7 +6,7 @@ import bcrypt
 from dotenv import load_dotenv
 load_dotenv()
 
-
+print("at the very start of app.py")
 app = Flask(__name__)
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = False
@@ -232,17 +232,20 @@ def send_keybinds():
     if request.method == "OPTIONS":
         return "", 200
     
-    try:
-       
+    
+    # conn = psycopg2.connect(os.getenv("DATABASE_URL"))
+    # cursor = conn.cursor()
 
-        data = request.json
-        print(data)
 
-        return jsonify({"message": "good"}), 200
+    data = request.json
+    print(data)
+
+    # cursor.execute("""INSERT """, ())
+
+    return jsonify({"message": "good"}), 200
 
     
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    
 
 
     
