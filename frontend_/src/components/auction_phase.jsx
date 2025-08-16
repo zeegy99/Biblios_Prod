@@ -2,10 +2,7 @@ import Card from "./card";
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import Timer from "../timer.jsx";
 import "./auction_phase_css.css";
-<<<<<<< HEAD
 import {updatedSettings} from "./settings.jsx";
-=======
->>>>>>> b3d372f (Added Volume Slider + Keybinds)
 
 const AuctionPhase = ({
   players,
@@ -46,12 +43,9 @@ const AuctionPhase = ({
   
 
 
-<<<<<<< HEAD
   
 
 
-=======
->>>>>>> b3d372f (Added Volume Slider + Keybinds)
   useEffect(() => 
   {
     if (activeBidders.length === 0) {
@@ -111,7 +105,6 @@ const AuctionPhase = ({
   const isCurrentPlayer = player.name === playerName;
   const increment = 485 //485 for df 
 
-<<<<<<< HEAD
 //Keybinds 
 
 useEffect(() => {
@@ -147,9 +140,7 @@ useEffect(() => {
   return () => window.removeEventListener("keydown", handleKey);
 
 }, [isCurrentPlayer, updatedSettings, bidInput]);
-=======
 
->>>>>>> b3d372f (Added Volume Slider + Keybinds)
 
   const hostResetAuction = () => 
   {
@@ -207,10 +198,7 @@ useEffect(() => {
 
   const handleBid = (amount) =>
   {
-<<<<<<< HEAD
     console.log("handlebid sent with this amount", amount)
-=======
->>>>>>> b3d372f (Added Volume Slider + Keybinds)
     if (isGold && amount > player.hand.length) return;
     if (!isGold && amount > player.gold) 
     {
@@ -223,10 +211,7 @@ useEffect(() => {
       return alert("Bid too low!");
     }
 
-<<<<<<< HEAD
     console.log("made it past everything", amount)
-=======
->>>>>>> b3d372f (Added Volume Slider + Keybinds)
     const updated = [...activeBidders];
     updated[activePlayerIndex] = true;
 

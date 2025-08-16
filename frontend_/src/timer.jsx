@@ -5,10 +5,6 @@ import Hikaru from "./sound/Hikaru_Music.wav";
 import Fart from "./sound/fart-5-228245.mp3";
 import clockTick from "./sound/clock-ticking-365218.mp3";
 import Boom from "./sound/vine-boom-162668.mp3";
-<<<<<<< HEAD
-=======
-
->>>>>>> b3d372f (Added Volume Slider + Keybinds)
 const Timer = ({duration, onTimeout, small_duration = false}) => {
 
     const [time, setTime] = useState(duration);
@@ -16,11 +12,7 @@ const Timer = ({duration, onTimeout, small_duration = false}) => {
     const audio = new Audio(rand ? Fart : Boom);
     const hasRunRef = useRef(false);
     const tickingRef = useRef(null);
-<<<<<<< HEAD
-    audio.volume = 0.3;
-=======
     audio.volume = (localStorage.getItem("Volume") / 100);
->>>>>>> b3d372f (Added Volume Slider + Keybinds)
     // console.log("small_duration", small_duration)
 
     useEffect(() => {
@@ -38,11 +30,7 @@ const Timer = ({duration, onTimeout, small_duration = false}) => {
             if (prev <= 6000 && !hasRunRef.current) {
                 hasRunRef.current = true; 
                 const tick = new Audio(clockTick);
-<<<<<<< HEAD
-                tick.volume = 0.3;
-=======
                 tick.volume = (localStorage.getItem("Volume") / 100);
->>>>>>> b3d372f (Added Volume Slider + Keybinds)
                 tick.play();
                 tickingRef.current = tick;
             }
