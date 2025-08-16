@@ -228,6 +228,7 @@ def check_email():
 
 @app.route("/api/send_keybinds", methods=["POST", "OPTIONS"])
 def send_keybinds():
+    print("I have been received at send_keybinds and will try to respond!")
     if request.method == "OPTIONS":
         return "", 200
     

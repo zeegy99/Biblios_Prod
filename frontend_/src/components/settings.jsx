@@ -63,13 +63,15 @@ const Settings = () => {
 };
 
   const pushKeybinds = async () => {
-    console.log("YOOO")
+    console.log("inside pushKeyBinds", updatedSettings)
 
     const res = await fetch("https://biblios-backend.onrender.com/api/send_keybinds", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ updatedSettings })
       })
+
+    console.log("after the res")
 
       if (res.ok) {
         console.log("yay I am ok")
