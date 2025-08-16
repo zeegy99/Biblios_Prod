@@ -284,7 +284,7 @@ def check_email():
                 msg["Subject"] = "Reset your Biblios password"
 
                 text_part = MIMEText(
-                    f"Hello {playerName}, \nClick this link to reset your password. It expires in 1 hour:\n{reset_link}",
+                    f"Hello playerName, \nClick this link to reset your password. It expires in 1 hour:\n{reset_link}",
                     "plain",
                 )
                 html_part = MIMEText(
