@@ -17,10 +17,12 @@ msg["Subject"] = "Forgot Password From Biblios"
 reset_token = secrets.token_urlsafe(32)
 expiry = datetime.datetime.utcnow() + datetime.timedelta(hours=1)
 
+
 print(reset_token, expiry)
 msg.attach(MIMEText(u'Click this link to reset your password to the legendary BIBLIOS GAME <a href="https://biblios-game-' \
-'frontend.onrender.com/{reset_token}"> Reset Link</a> This will expire in 1 hour. ','html'))
+'frontend.onrender.com/password_change/{reset_token}"> Reset Link</a> This link will expire in 1 hour. ','html'))
 
+#eed to create a token that goes i
 context = ssl.create_default_context()
 with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as s:
     s.set_debuglevel(1)             # see SMTP dialogue in console
