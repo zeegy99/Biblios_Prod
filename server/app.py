@@ -236,6 +236,8 @@ def send_keybinds():
     # conn = psycopg2.connect(os.getenv("DATABASE_URL"))
     # cursor = conn.cursor()
 
+    
+
 
     data = request.json
     print("This should get more info?", data['updatedSettings'])
