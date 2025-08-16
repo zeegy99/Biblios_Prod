@@ -3,7 +3,10 @@ import Card from "./card";
 import "./card.css";
 import Timer from "../timer.jsx";
 import Bot from "./bot.js";
+<<<<<<< HEAD
 import {updatedSettings} from "./settings.jsx";
+=======
+>>>>>>> b3d372f (Added Volume Slider + Keybinds)
 
 const DonationPhase = ({
   player,
@@ -55,7 +58,11 @@ const DonationPhase = ({
   {
  
 
+<<<<<<< HEAD
     
+=======
+    // Clone dice from localStorage
+>>>>>>> b3d372f (Added Volume Slider + Keybinds)
     const prevState = JSON.parse(localStorage.getItem("last_game_state"));
     const diceClone = prevState?.dice ? [...prevState.dice.map(d => ({ ...d }))] : [];
 
@@ -104,7 +111,11 @@ useEffect(() =>
   //For DrawingCards
 useEffect(() => 
 {
+<<<<<<< HEAD
   
+=======
+  // console.log(`📍 DRAW EFFECT: phase=${phase}, isCurrentPlayer=${isCurrentPlayer}, drawnCount=${drawnCount}, hasDrawn=${hasDrawn.current}`);
+>>>>>>> b3d372f (Added Volume Slider + Keybinds)
    if (phase !== "donation" || !isCurrentPlayer) {
 
     return;
@@ -130,7 +141,11 @@ useEffect(() =>
 
     if (card.isSpecial) 
     {
+<<<<<<< HEAD
       handledSpecialCards.current.add(card); 
+=======
+      handledSpecialCards.current.add(card); // ✅ Queue for later
+>>>>>>> b3d372f (Added Volume Slider + Keybinds)
       continue; 
     }
 
@@ -159,16 +174,24 @@ useEffect(() =>
 
 
 
+<<<<<<< HEAD
   //Card Actions
+=======
+
+>>>>>>> b3d372f (Added Volume Slider + Keybinds)
 
   const handleChoice = (card, action) => 
   {
     if (specialCardToPlay || diceSelectionCard || diceToModify) {
     console.warn("🛑 Cannot assign cards during special card resolution");
     return;
+<<<<<<< HEAD
     
     }
     console.log("keybind check")
+=======
+    }
+>>>>>>> b3d372f (Added Volume Slider + Keybinds)
     if (action === "keep") 
     {
       if (kept) return alert("You've already kept a card.");
@@ -280,6 +303,7 @@ useEffect(() =>
 
   const currentCard = cardsToProcess[0];
 
+<<<<<<< HEAD
   //Keybinds
   useEffect(() => {
   if (!isCurrentPlayer) return;
@@ -358,6 +382,8 @@ useEffect(() =>
 
 
 
+=======
+>>>>>>> b3d372f (Added Volume Slider + Keybinds)
   return (
   <div>
     <h3>{players[currentPlayerIndex]?.name}'s Donation Turn</h3>
@@ -494,8 +520,11 @@ useEffect(() =>
     Keep
   </button>
 
+<<<<<<< HEAD
 
 
+=======
+>>>>>>> b3d372f (Added Volume Slider + Keybinds)
   <button
     onClick={() => handleChoice(currentCard, "discard")}
     disabled={specialCardToPlay || diceSelectionCard || diceToModify}
@@ -579,7 +608,60 @@ useEffect(() =>
   onTimeout={() => {
     console.log(`${player.name} ran out of time!`);
 
+<<<<<<< HEAD
     
+=======
+    // const currentSpecial = specialCardRef.current;
+    // const cardsRemaining = [...cardsToProcess];
+    // const sharedCards = [...shared];
+    // let botKept = kept;
+    // let botDiscarded = discarded;
+
+    // const actions = [];
+    // console.log("i am here")
+
+    // console.log("cards remainig", cardsRemaining)
+
+    // while (cardsRemaining.length > 0) {
+    //   console.log("inside the while loop")
+    //   const currentCard = cardsRemaining[0];
+    //   const action = Bot.donation_phase({
+    //     currentCard,
+    //     specialCard: currentSpecial,
+    //     kept: botKept,
+    //     discarded: botDiscarded,
+    //     shared: sharedCards,
+    //     cardsToProcess: cardsRemaining,
+    //   });
+
+    //   console.log("🤖 Bot decided:", action, "on", currentCard);
+
+    //   if (!action || !["keep", "discard", "pool"].includes(action)) {
+    //     console.warn("❌ Invalid or missing bot action. Stopping loop.");
+    //     break;
+    //   }
+
+    //   actions.push({ card: currentCard, action });
+
+    //   // Update local simulated state
+    //   if (action === "keep") {
+    //     botKept = currentCard;
+    //   } else if (action === "discard") {
+    //     botDiscarded = currentCard;
+    //   } else if (action === "pool") {
+    //     sharedCards.push({ ...currentCard, pooledBy: player.name });
+    //   }
+
+    //   cardsRemaining.shift(); // move to next card
+    // }
+
+    // // Perform actions 1 by 1 with delay so React state has time to update
+    // actions.forEach(({ card, action }, idx) => {
+    //   setTimeout(() => {
+    //     handleChoice(card, action);
+    //   }, idx * 100); // staggered delay
+    // });
+>>>>>>> b3d372f (Added Volume Slider + Keybinds)
   }}
   small_duration={true}
 />

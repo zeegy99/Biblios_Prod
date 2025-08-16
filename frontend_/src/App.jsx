@@ -9,7 +9,10 @@ import socket from "./socket";
 import SignedIn from "./components/home_signedin.jsx";
 import LeaderBoard from "./components/leaderboard.jsx";
 import Settings from "./components/settings.jsx";
+<<<<<<< HEAD
 import ForgotPassword from "./components/forgot_password.jsx";
+=======
+>>>>>>> b3d372f (Added Volume Slider + Keybinds)
 // import 'bootstrap/dist/css/bootstrap.min.css';
 
 function App() {
@@ -29,7 +32,10 @@ function App() {
         <Route path="/signedin" element={<SignedIn />} />
         <Route path="/leaderboard" element={<LeaderBoard/>} />
         <Route path="/settings" element={<Settings/>} />
+<<<<<<< HEAD
         <Route path="/forgot_password" element={<ForgotPassword/>} />
+=======
+>>>>>>> b3d372f (Added Volume Slider + Keybinds)
       </Routes>
     </Router>
   );

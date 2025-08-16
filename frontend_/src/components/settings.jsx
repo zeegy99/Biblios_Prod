@@ -4,17 +4,21 @@ import RulesPage from "./rulespage";
 import "./leaderboard.css";
 import "./settings.css";
 import {DEFAULT_KEYBINDS} from "./keybinds_defaults.js";
+import Fart from "../sound/fart-5-228245.mp3";
+
 
 
 export let updatedSettings = { ...DEFAULT_KEYBINDS };
 
 export function setUpdatedSettings(newMap) {
   updatedSettings = newMap;
-  console.log("I have run, I am updatedSettings", updatedSettings)
+  // console.log("I have run, I am updatedSettings", updatedSettings)
 }
 
 
 const Settings = () => {
+  const [changingAction, setChangingAction] = useState(null);
+  const [volume, setVolume] = useState(50);
   const login_info = localStorage.getItem("signin_username") || "none";
   const savedName = localStorage.getItem("playerName");
   const [elo, setElo] = useState(null);
@@ -39,50 +43,6 @@ const Settings = () => {
   const [takeCard4, settakeCard4] = useState(DEFAULT_KEYBINDS["TAKE_CARD_4"]);
 
 
-  const keybindStateMap = {
-  KEEP_CARD: keepCard,
-  DISCARD_CARD: discardCard,
-  OPEN_CHAT: openChat,
-  BID_INCREASE: bidIncrease,
-  BID_DECREASE: bidDecrease,
-  PASS_BID: passBid,
-  DONATE_CARD: donateCard,
-  TAKE_CARD_1: takeCard1,
-  TAKE_CARD_2: takeCard2,
-  TAKE_CARD_3: takeCard3,
-  TAKE_CARD_4: takeCard4,
-  DECREASE_DICE: DEFAULT_KEYBINDS["DECREASE_DICE"],
-  INCREASE_DICE: DEFAULT_KEYBINDS["INCREASE_DICE"],
-  PLACE_BID: DEFAULT_KEYBINDS["PLACE_BID"],
-  UPDATE_DICE_1: DEFAULT_KEYBINDS["UPDATE_DICE_1"], 
-  UPDATE_DICE_2: DEFAULT_KEYBINDS["UPDATE_DICE_2"], 
-  UPDATE_DICE_3: DEFAULT_KEYBINDS["UPDATE_DICE_3"],
-  UPDATE_DICE_4: DEFAULT_KEYBINDS["UPDATE_DICE_4"],
-  UPDATE_DICE_5: DEFAULT_KEYBINDS["UPDATE_DICE_5"],
-  UPDATE_DICE_6: DEFAULT_KEYBINDS["UPDATE_DICE_6"],
-};
-
-  const pushKeybinds = async () => {
-    console.log("inside pushKeyBinds", updatedSettings)
-
-    const res = await fetch("https://biblios-backend.onrender.com/api/send_keybinds", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: savedName, settings: updatedSettings })
-      })
-
-    console.log("after the res")
-
-      if (res.ok) {
-        console.log("yay I am ok")
-      }
-
-    
-  }
-
-
-
-
   useEffect(() => {
     if (!isGuest && savedName) {
       fetch("https://biblios-backend.onrender.com/api/get_elo", {
@@ -96,7 +56,15 @@ const Settings = () => {
     }
   }, [isGuest, savedName]);
 
+  useEffect(() => {
+    console.log("I literally do nothing")
+    // console.log(DEFAULT_KEYBINDS)
+    for (let i = 0; i < Object.values(DEFAULT_KEYBINDS).length; i++) {
+      console.log(Object.keys(DEFAULT_KEYBINDS)[i], Object.values(DEFAULT_KEYBINDS)[i])
+    }
 
+   
+  }, [])
 
 
   
@@ -113,6 +81,49 @@ const Settings = () => {
     navigate(`/game/${roomCode}`);
   };
 
+
+
+  const handleRebind = (action) => {
+    setChangingAction(action);
+    const listener = (e) => {
+      e.preventDefault();
+      setKeybinds((prev) => ({
+        ...prev,
+        [action]: [e.key.length === 1 ? e.key.toUpperCase() : e.key], // normalize
+      }));
+      setChangingAction(null);
+      window.removeEventListener("keydown", listener);
+    };
+    window.addEventListener("keydown", listener);
+  }
+
+  const [keybindStateMap, setkeybindStateMap] = useState({
+    DONATE_CARD: donateCard,
+    DISCARD_CARD: discardCard,
+    KEEP_CARD: keepCard,
+    OPEN_CHAT: openChat,
+    BID_INCREASE: bidIncrease,
+    BID_DECREASE: bidDecrease,
+    PASS_BID: passBid,
+    TAKE_CARD_1: takeCard1,
+    TAKE_CARD_2: takeCard2,
+    TAKE_CARD_3: takeCard3,
+    TAKE_CARD_4: takeCard4,
+    DECREASE_DICE: DEFAULT_KEYBINDS["DECREASE_DICE"],
+    INCREASE_DICE: DEFAULT_KEYBINDS["INCREASE_DICE"],
+    PLACE_BID: DEFAULT_KEYBINDS["PLACE_BID"],
+    UPDATE_DICE_1: DEFAULT_KEYBINDS["UPDATE_DICE_1"], 
+    UPDATE_DICE_2: DEFAULT_KEYBINDS["UPDATE_DICE_2"], 
+    UPDATE_DICE_3: DEFAULT_KEYBINDS["UPDATE_DICE_3"],
+    UPDATE_DICE_4: DEFAULT_KEYBINDS["UPDATE_DICE_4"],
+    UPDATE_DICE_5: DEFAULT_KEYBINDS["UPDATE_DICE_5"],
+    UPDATE_DICE_6: DEFAULT_KEYBINDS["UPDATE_DICE_6"],
+  });
+
+  const restoreDefaults = () => {
+    setkeybindStateMap(DEFAULT_KEYBINDS);
+  };
+  
   return (
     <div className="leaderboard-page" style={{marginTop: "40px"}}>
       <header className="home-header">
@@ -170,153 +181,70 @@ const Settings = () => {
           
           <h1> WORK IN PROGRESS. IF ANYONE FINDS A GOOD SETTINGS PAGE ON GITHUB LMK</h1>
       <p>Current username: {login_info} edit png</p>
-      <p>Current email: fuck u{}</p>
-      <p>Volume: Unable to change</p>
-      <p>Keybinds: (Please Note, The changes currently do nothing)</p>
-      Keep: <input 
-      className="asdf" 
-      type="text" 
-      value={keepCard}
-      onChange={(e) => {
-          localStorage.removeItem("keepCard")
-          const value = e.target.value;
-          setKeepCard([value.slice(0, 1)]);
-          localStorage.setItem("keepCard", value)
-        }}
-      />
+      <p>Current email: ur the goat{}</p>
+      <p>Volume:  </p>
+      <div className="slidecontainer">
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={localStorage.getItem("Volume")}
+              onChange={(e) => {setVolume(e.target.value); localStorage.setItem("Volume",e.target.value)}} 
+              className="slider"
+              id="myRange"
+            />
+          <p>Volume: <span>{localStorage.getItem("Volume")}</span>%</p>
+        </div>
 
-      Discard: <input 
-      className="asdf" 
-      type="text" 
-      value={discardCard}
-      onChange={(e) => {
-          const value2 = e.target.value;
-          setdiscardCard([value2.slice(0, 1)]);
-        }}
-      />
-
-      Donate:  
-      <input 
-      className="asdf" 
-      type="text" 
-      value={donateCard}
-      onChange={(e) => {
-          const value3 = e.target.value;
-          setdonateCard([value3.slice(0, 1)]);
-        }}
-      />
-
-      Open Chat:  
-      <input 
-      className="asdf" 
-      type="text" 
-      value={openChat}
-      onChange={(e) => {
-          const value4 = e.target.value;
-          setopenChat([value4.slice(0, 1)]);
-        }}
-      />
-
-      Bid Increase:  
-      <input 
-      className="asdf" 
-      type="text" 
-      value={bidIncrease}
-      onChange={(e) => {
-          const value5 = e.target.value;
-          setbidIncrease([value5.slice(0, 1)]);
-        }}
-      />
-
-      Bid Decrease:  
-      <input 
-      className="asdf" 
-      type="text" 
-      value={bidDecrease}
-      onChange={(e) => {
-          const value6 = e.target.value;
-          setbidDecrease([value6.slice(0, 1)]);
-        }}
-      />
-
-      Pass Bid:  
-      <input 
-      className="asdf" 
-      type="text" 
-      value={passBid}
-      onChange={(e) => {
-          const value7 = e.target.value;
-          setpassBid([value7.slice(0, 1)]);
-        }}
-      />
-
-      Take Card 1:  
-      <input 
-      className="asdf" 
-      type="text" 
-      value={takeCard1}
-      onChange={(e) => {
-          const value8 = e.target.value;
-          settakeCard1([value8.slice(0, 1)]);
-        }}
-      />
-
-      Take Card 2:  
-      <input 
-      className="asdf" 
-      type="text" 
-      value={takeCard2}
-      onChange={(e) => {
-          const value9 = e.target.value;
-          settakeCard2([value9.slice(0, 1)]);
-        }}
-      />
-
-      Take Card 3:  
-      <input 
-      className="asdf" 
-      type="text" 
-      value={takeCard3}
-      onChange={(e) => {
-          const value10 = e.target.value;
-          settakeCard3([value10.slice(0, 1)]);
-        }}
-      />
-
-      Take Card 4:  
-      <input 
-      className="asdf" 
-      type="text" 
-      value={takeCard4}
-      onChange={(e) => {
-          const value11 = e.target.value;
-          settakeCard4([value11.slice(0, 1)]);
-        }}
-      />
-
-      <button onClick={() => {
-        let updatedSet = {};
-        for (const key in DEFAULT_KEYBINDS) {
-          // console.log("This is key", key)
-          updatedSet[key] = keybindStateMap[key]
-        }
-        // console.log("This is final updatedSet", updatedSet)
-        console.log("run")
-        setUpdatedSettings(updatedSet)
-        console.log("not")
-
-        pushKeybinds()
-
+      <button 
+      onClick={() => {
+        const tick = new Audio(Fart);
+        tick.volume = (localStorage.getItem("Volume") / 100);
+        tick.play();
       }
-      
-
       }>
-        Confirm keybinds
+        Test Volume
       </button>
 
 
+      <p>Keybinds: (Please Note, The changes currently do nothing, JK JEANS IS ON THE CASE)</p>
+    
+
+    <div className="p-6 max-w-md mx-auto">
+      <h2 className="text-xl font-bold mb-4">Keybind Settings</h2>
+
+      <div className="grid grid-cols-2 gap-4 mb-6">
+        {Object.entries(keybindStateMap).map(([action, key]) => (
+          <div
+            key={action}
+            className="flex items-center justify-between bg-gray-100 p-3 rounded-lg shadow-sm"
+          >
+            <span className="font-medium">{action}</span>
+            <button
+              onClick={() => handleRebind(action)}
+              className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition"
+            >
+              {changingAction === action ? "Changing..." : key.join(", ")}
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
+     
+      <button onClick={() => {
+          setkeybindStateMap(DEFAULT_KEYBINDS)
+          restoreDefaults()
+      }
+      }>
+        Reset Default Keybinds
+      </button>
+
+    </div>
+
+
   );
+
+  
 };
 
 export default Settings;

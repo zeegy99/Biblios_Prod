@@ -6,17 +6,25 @@ import bcrypt
 from dotenv import load_dotenv
 load_dotenv()
 
+<<<<<<< HEAD
 print("at the very start of app.py")
 app = Flask(__name__)
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = False
 app.secret_key = "dev_only_change_me_please_32chars_min"
+=======
+
+app = Flask(__name__)
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = False
+>>>>>>> b3d372f (Added Volume Slider + Keybinds)
 def hash_function(curr_pass):
     combined = curr_pass.encode()
     a = bcrypt.hashpw(combined, bcrypt.gensalt()) 
     return (a.decode())
     
 # CORS setup for frontend
+<<<<<<< HEAD
 
 
 CORS(app, resources={r"/api/*": {"origins": ["https://biblios-game-frontend.onrender.com", "http://localhost:5173"]}}, 
@@ -24,6 +32,9 @@ CORS(app, resources={r"/api/*": {"origins": ["https://biblios-game-frontend.onre
 
 
 #https://biblios-game-frontend.onrender.com
+=======
+CORS(app, resources={r"/api/*": {"origins": ["https://biblios-game-frontend.onrender.com", "http://localhost:5173"]}}, supports_credentials=True) #https://biblios-game-frontend.onrender.com
+>>>>>>> b3d372f (Added Volume Slider + Keybinds)
 # CORS(app, resources={r"/api/*": {"origins": [
 #     "http://localhost:5173",
 #     "https://biblios-game-frontend.onrender.com"
@@ -201,6 +212,7 @@ def get_leaderboard():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
+<<<<<<< HEAD
 @app.route("/api/check_email", methods=["POST", "OPTIONS"])
 def check_email():
     
@@ -305,6 +317,8 @@ def send_keybinds():
     
     
 
+=======
+>>>>>>> b3d372f (Added Volume Slider + Keybinds)
 
     
 if __name__ == "__main__":

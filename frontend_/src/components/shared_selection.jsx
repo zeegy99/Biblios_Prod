@@ -3,7 +3,10 @@ import Card from "./card";
 import {useEffect} from "react";
 import Timer from "../timer.jsx";
 import Bot from "./bot.js";
+<<<<<<< HEAD
 import {updatedSettings} from "./settings.jsx";
+=======
+>>>>>>> b3d372f (Added Volume Slider + Keybinds)
 
 
 const SharedPoolSelection = ({
@@ -36,11 +39,14 @@ const SharedPoolSelection = ({
     return;
   }
 
+<<<<<<< HEAD
   if (choiceIdx > players.length - 2) {
     alert("That card does not exist")
     return;
   }
 
+=======
+>>>>>>> b3d372f (Added Volume Slider + Keybinds)
   const chosenCard = sharedPool[choiceIdx];
   if (!chosenCard) {
     console.warn("❌ Card already taken or stale click");
@@ -95,6 +101,7 @@ if (!sharedPool.length && !isCurrentPlayer) {
   return <p>Waiting for other players...</p>;
 }
 
+<<<<<<< HEAD
 //Keybinds
 useEffect(() => {
     if (!isCurrentPlayer) return
@@ -145,6 +152,8 @@ useEffect(() => {
       };
     }, [isCurrentPlayer, updatedSettings, handleChoice]);
 
+=======
+>>>>>>> b3d372f (Added Volume Slider + Keybinds)
  return (
   <div>
     <h3>

@@ -1,5 +1,8 @@
+<<<<<<< HEAD
 #Because originally passwords were stored in plain-text, ran this one time to change all passwords into encrypted passwords.
 
+=======
+>>>>>>> b3d372f (Added Volume Slider + Keybinds)
 import psycopg2
 import bcrypt
 import os
@@ -27,3 +30,7 @@ conn.commit()
 cursor.close()
 conn.close()
 
+<<<<<<< HEAD
+=======
+print("✅ Passwords re-hashed")
+>>>>>>> b3d372f (Added Volume Slider + Keybinds)
