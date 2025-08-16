@@ -87,7 +87,7 @@ const Settings = () => {
     setChangingAction(action);
     const listener = (e) => {
       e.preventDefault();
-      setKeybinds((prev) => ({
+      setkeybindStateMap((prev) => ({
         ...prev,
         [action]: [e.key.length === 1 ? e.key.toUpperCase() : e.key], // normalize
       }));
@@ -109,8 +109,6 @@ const Settings = () => {
     TAKE_CARD_2: takeCard2,
     TAKE_CARD_3: takeCard3,
     TAKE_CARD_4: takeCard4,
-    DECREASE_DICE: DEFAULT_KEYBINDS["DECREASE_DICE"],
-    INCREASE_DICE: DEFAULT_KEYBINDS["INCREASE_DICE"],
     PLACE_BID: DEFAULT_KEYBINDS["PLACE_BID"],
     UPDATE_DICE_1: DEFAULT_KEYBINDS["UPDATE_DICE_1"], 
     UPDATE_DICE_2: DEFAULT_KEYBINDS["UPDATE_DICE_2"], 
@@ -118,6 +116,8 @@ const Settings = () => {
     UPDATE_DICE_4: DEFAULT_KEYBINDS["UPDATE_DICE_4"],
     UPDATE_DICE_5: DEFAULT_KEYBINDS["UPDATE_DICE_5"],
     UPDATE_DICE_6: DEFAULT_KEYBINDS["UPDATE_DICE_6"],
+    INCREASE_DICE: DEFAULT_KEYBINDS["INCREASE_DICE"],
+    DECREASE_DICE: DEFAULT_KEYBINDS["DECREASE_DICE"],
   });
 
   const restoreDefaults = () => {
