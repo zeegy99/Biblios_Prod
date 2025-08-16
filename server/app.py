@@ -8,8 +8,9 @@ load_dotenv()
 
 
 app = Flask(__name__)
-# app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-# app.config["SESSION_COOKIE_SECURE"] = False
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = False
+app.secret_key = "dev_only_change_me_please_32chars_min"
 def hash_function(curr_pass):
     combined = curr_pass.encode()
     a = bcrypt.hashpw(combined, bcrypt.gensalt()) 
