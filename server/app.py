@@ -208,7 +208,7 @@ def check_email():
         return "", 200
     
     data = request.json
-    sent_email = data.get("email")
+    sent_email = data.get("email").strip()
 
     try:
         conn = psycopg2.connect(os.getenv("DATABASE_URL"))
@@ -219,6 +219,9 @@ def check_email():
         cursor.execute("""SELECT email from users where email like %s""", (sent_email,))
 
         success = cursor.fetchone() is not None
+        if success:
+            pass
+
         print("this is what success is", success)
         print("this is what email is", sent_email)
         cursor.close()

@@ -1,13 +1,32 @@
-#Need to create keybinds that are stored
+import os, smtplib, ssl
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from dotenv import load_dotenv
+import secrets, datetime
 
-data = {'name': 'zeegy', 'settings': {'DONATE_CARD': ['Q'], 'DISCARD_CARD': ['W'], 'KEEP_CARD': ['E'], 'OPEN_CHAT': ['Enter'], 'BID_INCREASE': ['R'], 'BID_DECREASE': ['T'], 'PASS_BID': ['A'], 'TAKE_CARD_1': ['1'], 'TAKE_CARD_2': ['2'], 'TAKE_CARD_3': ['3'], 'TAKE_CARD_4': ['4'], 'PLACE_BID': ['S'], 'UPDATE_DICE_1': ['1'], 'UPDATE_DICE_2': ['2'], 'UPDATE_DICE_3': ['3'], 'UPDATE_DICE_4': ['4'], 'UPDATE_DICE_5': ['5'], 'UPDATE_DICE_6': ['6'], 'INCREASE_DICE': ['I'], 'DECREASE_DICE': ['O']}}
+load_dotenv()
+sender = "fred.yuan392@gmail.com"
+rcpt = "ferdisapotat@gmail.com"
+pwd = os.getenv("APP_PASSWORD", "").replace(" ", "").strip()  # app pw
 
-concat_str = ''
-concat_str += data['name']
-concat_str += ', '
+msg = MIMEMultipart()
+msg["From"] = sender
+msg["To"] = rcpt
+msg["Subject"] = "Forgot Password From Biblios"
 
-for i in data['settings'].values():
-    concat_str += str(i[0]).lower()
-    concat_str += ', '
+reset_token = secrets.token_urlsafe(32)
+expiry = datetime.datetime.utcnow() + datetime.timedelta(hours=1)
 
-print(concat_str)
+print(reset_token, expiry)
+msg.attach(MIMEText(u'Click this link to reset your password to the legendary BIBLIOS GAME <a href="https://biblios-game-' \
+'frontend.onrender.com/{reset_token}"> Reset Link</a> This will expire in 1 hour. ','html'))
+
+context = ssl.create_default_context()
+with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as s:
+    s.set_debuglevel(1)             # see SMTP dialogue in console
+    s.ehlo()
+    s.starttls(context=context)
+    s.ehlo()
+    s.login(sender, pwd)
+    s.sendmail(sender, rcpt, msg.as_string())
+print("sent")
