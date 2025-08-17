@@ -84,25 +84,26 @@ const Settings = () => {
 
 
   const handleRebind = (action) => {
-  const listener = (e) => {
-    e.preventDefault();
-    const newKey = e.key.length === 1 ? e.key.toUpperCase() : e.key;
-    setkeybindStateMap((prev) => {
-      const updated = { ...prev };
-      const existingAction = Object.entries(prev).find(
-        ([a, k]) => Array.isArray(k) && k[0] === newKey && a !== action
-      );
-      if (existingAction) {
-        updated[existingAction[0]] = null;
-      }
-      updated[action] = [newKey];
-      return updated;
-    });
-    setChangingAction(null);
-    window.removeEventListener("keydown", listener);
+    setChangingAction(action);
+    const listener = (e) => {
+      e.preventDefault();
+      const newKey = e.key.length === 1 ? e.key.toUpperCase() : e.key;
+      setkeybindStateMap((prev) => {
+        const updated = { ...prev };
+        const existingAction = Object.entries(prev).find(
+          ([a, k]) => Array.isArray(k) && k[0] === newKey && a !== action
+        );
+        if (existingAction) {
+          updated[existingAction[0]] = null;
+        }
+        updated[action] = [newKey];
+        return updated;
+      });
+      setChangingAction(null);
+      window.removeEventListener("keydown", listener);
+    };
+    window.addEventListener("keydown", listener);
   };
-  window.addEventListener("keydown", listener);
-};
 
   const [keybindStateMap, setkeybindStateMap] = useState({
     DONATE_CARD: donateCard,

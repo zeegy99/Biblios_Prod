@@ -27,7 +27,7 @@ const Home = ({ setPlayerName }) => {
 
   useEffect(() => {
     const localStorageVol = localStorage.getItem("Volume") || 50;
-    localStorage.setItem(localStorageVol)
+    localStorage.setItem("Volume", localStorageVol)
   
   const name = localStorage.getItem("playerName");
   const isGuest = localStorage.getItem("isGuest") === "true";
