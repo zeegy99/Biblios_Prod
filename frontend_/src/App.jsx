@@ -31,7 +31,7 @@ function App() {
         <Route path="/leaderboard" element={<LeaderBoard/>} />
         <Route path="/settings" element={<Settings/>} />
         <Route path="/forgot_password" element={<ForgotPassword/>} />
-        <Route path="/reset-password/:secretKey" element={<ResetPassword/>} />
+        <Route path="/reset-password" element={<ResetPassword/>} />
       </Routes>
     </Router>
   );
