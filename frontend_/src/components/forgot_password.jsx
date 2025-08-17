@@ -46,31 +46,7 @@ const ForgotPassword = () => {
     }
   }, [isGuest, savedName]);
 
-  useEffect(() => {
-    fetch("https://biblios-backend.onrender.com/api/get_leaderboard")
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) {
-          setPlayers(data);
-        } else {
-          console.error("Unexpected leaderboard data:", data);
-        }
-      })
-      .catch(err => console.error("Failed to load leaderboard:", err));
-  }, []);
-
-  const handleRejoin = () => {
-    const playerId = localStorage.getItem("playerId");
-    const playerName = localStorage.getItem("playerName");
-    const roomCode = localStorage.getItem("roomCode");
-
-    if (!playerId || !playerName || !roomCode) {
-      alert("No game to rejoin.");
-      return;
-    }
-    socket.emit("rejoin_game", { room: roomCode, playerId, playerName });
-    navigate(`/game/${roomCode}`);
-  };
+ 
 
   return (
     <div className="leaderboard-page" style={{marginTop: "40px"}}>

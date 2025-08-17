@@ -27,15 +27,17 @@ const ResetPassword = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password: changedPassword, code: code })
       })
+
+      if (res.ok) {
+        console.log("res was ok")
+      }
     }
     else {
       alert("passwords don't match ")
       // make this be a popup instead of an alert
     }
 
-    if (res.ok) {
-      print("yay")
-    }
+    
 
   }
   
@@ -127,7 +129,7 @@ const ResetPassword = () => {
         <input
           type="password"
           placeholder="Password"
-          onChange = {(e) => setconfirmchangedPassword(e.target.value)}
+          onChange = {(e) => setchangedPassword(e.target.value)}
           className="login-input"
           required
         />
@@ -152,6 +154,9 @@ const ResetPassword = () => {
         />
 
         <button onClick={confirmPasswordChange}>Confirm</button>
+
+        <p>This is changedpassword: {changedPassword}</p>
+         <p>This is confirmchangedpassword: {confirmchangedPassword}</p>
 
         
     </div>
