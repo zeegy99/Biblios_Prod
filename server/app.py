@@ -288,7 +288,7 @@ def check_email():
                     "plain",
                 )
                 html_part = MIMEText(
-                    f'Click this link to reset your password (expires in 1 hour):  this is username {username}, this is username_data, {username_data} '
+                    f'Click this link to reset your password {username} (expires in 1 hour):'
                     f'<a href="{reset_link}">Reset Password</a>',
                     "html",
                 )
@@ -304,7 +304,7 @@ def check_email():
                     s.login(sender, pwd)
                     s.sendmail(sender, rcpt, msg.as_string())
             except Exception:
-                # Log internally if you want, but don't change the API response
+                # Log internally if you awant, but don't change the API response
                 pass
 
         # Clean up
