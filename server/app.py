@@ -8,11 +8,6 @@ import os, smtplib, ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import hashlib
-
-
-def sha256(s: str) -> str:
-    """Return a SHA-256 hex digest for the given string."""
-    return hashlib.sha256(s.encode("utf-8")).hexdigest()
 load_dotenv()
 
 print("at the very start of app.py")
@@ -221,93 +216,116 @@ def check_email():
 
     try:
         data = request.get_json(force=True) or {}
-        sent_email = (data.get("email") or "").strip().lower()
+        sent_email = (data.get("email") or "").strip()
         if not sent_email:
-            return jsonify({"message": "If that email exists, we sent a reset code."}), 200
+            return jsonify({"message": "If that email exists, we sent a reset link."}), 200
 
+        # DB conn
         conn = psycopg2.connect(os.getenv("DATABASE_URL"))
-        cur = conn.cursor()
+        cursor = conn.cursor()
 
-        # Find user (keep response generic either way)
-        cur.execute("SELECT id, username FROM users WHERE LOWER(email) = %s", (sent_email,))
-        row = cur.fetchone()
+        
+        cursor.execute("SELECT id FROM users WHERE LOWER(email) = LOWER(%s)", (sent_email,))
+        row = cursor.fetchone()
 
-        # Create table to store codes (hash only)
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS password_reset_codes (
-                id BIGSERIAL PRIMARY KEY,
-                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                code_hash TEXT NOT NULL,
-                expires_at TIMESTAMPTZ NOT NULL,
-                used_at TIMESTAMPTZ,
-                attempts INT NOT NULL DEFAULT 0,
-                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-            );
-        """)
+      
+        reset_token = secrets.token_urlsafe(32)
+        token_hash = hashlib.sha256(reset_token.encode()).hexdigest()
+        expiry = datetime.datetime.utcnow() + datetime.timedelta(hours=1)
 
         if row:
-            user_id, username = row
+            user_id = row[0]
 
-            # Optional: invalidate any active codes for this user
-            cur.execute("""
-                UPDATE password_reset_codes
-                SET used_at = NOW()
-                WHERE user_id = %s AND used_at IS NULL AND expires_at > NOW()
+            # Ensure table exists once (ideally run this in a migration)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS password_resets (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    token_hash TEXT NOT NULL,
+                    expires_at TIMESTAMPTZ NOT NULL,
+                    used BOOLEAN NOT NULL DEFAULT FALSE,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+            """)
+
+            # Invalidate older tokens for this user (optional but nice)
+            cursor.execute("""
+                UPDATE password_resets
+                SET used = TRUE
+                WHERE user_id = %s AND used = FALSE;
             """, (user_id,))
 
-            # Generate a 6-digit code and store its hash with 1h expiry
-            code = str(secrets.randbelow(1_000_000)).zfill(6)
-            code_hash = sha256(code)
-            expiry = datetime.datetime.utcnow() + datetime.timedelta(hours=1)
+            # Save the new reset token (store the hash only)
+            cursor.execute("""
+                INSERT INTO password_resets (user_id, token_hash, expires_at, used)
+                VALUES (%s, %s, %s, FALSE);
+            """, (user_id, token_hash, expiry))
 
-            cur.execute("""
-                INSERT INTO password_reset_codes (user_id, code_hash, expires_at)
-                VALUES (%s, %s, %s)
-            """, (user_id, code_hash, expiry))
+            cursor.execute("SELECT username FROM users WHERE LOWER(email) = LOWER(%s)", (sent_email,))
+            username_data = cursor.fetchone()
+            username = username_data[0]
+           
             conn.commit()
+            
+            # Build link with the **raw** token (only sent by email)
+            reset_link = f"https://biblios-game-frontend.onrender.com/reset-password/{reset_token}"
+            # playerName = 
 
-            # Email the code and a link to your reset page (no token in URL)
+            # Send the email [Functional]
             try:
                 sender = "fred.yuan392@gmail.com"
                 rcpt = sent_email
                 pwd = (os.getenv("APP_PASSWORD") or "").strip()
-                reset_link = "https://biblios-game-frontend.onrender.com/reset-password"
 
                 msg = MIMEMultipart("alternative")
                 msg["From"] = sender
                 msg["To"] = rcpt
-                msg["Subject"] = "Your Biblios password reset code"
+                msg["Subject"] = "Reset your Biblios password"
 
-                txt = (
-                    f"Hi {username},\n\n"
-                    f"Your password reset code is: {code}\n"
-                    f"It expires in 1 hour.\n\n"
-                    f"Go to: {reset_link}"
+                text_part = MIMEText(
+                    f"Hello playerName,\nClick this link to reset your password. It expires in 1 hour:\n{reset_link}",
+                    "plain",
                 )
-                html = (
-                    f"<p>Hi {username},</p>"
-                    f"<p>Your password reset code is <b>{code}</b> (expires in 1 hour).</p>"
-                    f'<p>Go here to reset: <a href="{reset_link}">Reset Password</a></p>'
-                )
-                msg.attach(MIMEText(txt, "plain"))
-                msg.attach(MIMEText(html, "html"))
+                html_part = MIMEText(f"""
+<p>
+  Click this link to reset your password for <b>{username}</b> 
+  (expires in <span style="color:red;">1 hour</span>):
+</p>
+<p>
+  <a href="{reset_link}" 
+     style="display: inline-block; padding: 10px 18px; 
+            background-color: #007BFF; color: #ffffff; 
+            text-decoration: none; border-radius: 5px; 
+            font-weight: bold;">
+    Reset Password
+  </a>
+</p>
+""", "html")
+                msg.attach(text_part)
+                msg.attach(html_part)
 
                 context = ssl.create_default_context()
                 with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as s:
-                    s.ehlo(); s.starttls(context=context); s.ehlo()
+                    # s.set_debuglevel(1)  # enable only while debugging locally
+                    s.ehlo()
+                    s.starttls(context=context)
+                    s.ehlo()
                     s.login(sender, pwd)
                     s.sendmail(sender, rcpt, msg.as_string())
             except Exception:
-                # Don’t alter API response; optionally log server-side
+                # Log internally if you want, but don't change the API response
                 pass
 
-        cur.close(); conn.close()
-        return jsonify({"message": "If that email exists, we sent a reset code."}), 200
+        # Clean up
+        cursor.close()
+        conn.close()
 
-    except Exception:
-        # Keep response generic
-        return jsonify({"message": "If that email exists, we sent a reset code."}), 200
+        # Always generic response
+        return jsonify({"message": "If that email exists in our system, we sent a reset link."}), 200
 
+    except Exception as e:
+        # Still return 200 generic to avoid probing; log e server-side
+        return jsonify({"message": "If that email exists, we sent a reset link."}), 200
 
 
 @app.route("/api/send_keybinds", methods=["POST", "OPTIONS"])
@@ -315,7 +333,7 @@ def send_keybinds():
     if request.method == "OPTIONS":
         return "", 200
     
-    conn = None  
+    conn = None  # Initialize conn to None
     cursor = None
     
     try:
