@@ -270,6 +270,8 @@ def check_email():
             # Build link with the **raw** token (only sent by email)
             reset_link = f"https://biblios-game-frontend.onrender.com/reset-password/{reset_token}"
             # playerName = pisser mcdoodle
+            print("change1")
+            # playerName = 
 
             # Send the email [Functional]
             try:
