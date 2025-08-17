@@ -3,6 +3,7 @@ import Card from "./card";
 import "./card.css";
 import Timer from "../timer.jsx";
 import Bot from "./bot.js";
+import {updatedSettings} from "./settings.jsx";
 
 const DonationPhase = ({
   player,
@@ -54,7 +55,7 @@ const DonationPhase = ({
   {
  
 
-    // Clone dice from localStorage
+    
     const prevState = JSON.parse(localStorage.getItem("last_game_state"));
     const diceClone = prevState?.dice ? [...prevState.dice.map(d => ({ ...d }))] : [];
 
@@ -103,7 +104,7 @@ useEffect(() =>
   //For DrawingCards
 useEffect(() => 
 {
-  // console.log(`📍 DRAW EFFECT: phase=${phase}, isCurrentPlayer=${isCurrentPlayer}, drawnCount=${drawnCount}, hasDrawn=${hasDrawn.current}`);
+  
    if (phase !== "donation" || !isCurrentPlayer) {
 
     return;
@@ -129,7 +130,7 @@ useEffect(() =>
 
     if (card.isSpecial) 
     {
-      handledSpecialCards.current.add(card); // ✅ Queue for later
+      handledSpecialCards.current.add(card); 
       continue; 
     }
 
@@ -158,14 +159,16 @@ useEffect(() =>
 
 
 
-
+  //Card Actions
 
   const handleChoice = (card, action) => 
   {
     if (specialCardToPlay || diceSelectionCard || diceToModify) {
     console.warn("🛑 Cannot assign cards during special card resolution");
     return;
+    
     }
+    console.log("keybind check")
     if (action === "keep") 
     {
       if (kept) return alert("You've already kept a card.");
@@ -276,6 +279,84 @@ useEffect(() =>
 };
 
   const currentCard = cardsToProcess[0];
+
+  //Keybinds
+  useEffect(() => {
+  if (!isCurrentPlayer) return;
+
+ 
+  if (diceToModify && diceSelectionCard) {
+    console.log("I am in here")
+    const handleDiceKey = (event) => {
+      
+      const keyIndex = parseInt(event.key, 10) - 1;
+      console.log("I am keyIndex", keyIndex)
+
+      // Check if the key is a valid number and corresponds to an existing die
+      if (
+        !isNaN(keyIndex) &&
+        keyIndex >= 0 &&
+        keyIndex < diceToModify.length
+      ) {
+        // Find the dice button and simulate a click
+        const diceButton = document.querySelector(
+          `button[data-dice-index='${keyIndex}']`
+        );
+        if (diceButton) {
+          diceButton.click();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleDiceKey);
+
+    return () => {
+      window.removeEventListener("keydown", handleDiceKey);
+    };
+  }
+  // Keybinds for card choices
+  else if (currentCard) {
+    const handleKeep = (event) => {
+      if (
+        event.key === String(updatedSettings["KEEP_CARD"]).toLowerCase()
+      ) {
+        handleChoice(currentCard, "keep");
+      }
+    };
+    const handleDiscard = (event) => {
+      if (
+        event.key ===
+        String(updatedSettings["DISCARD_CARD"]).toLowerCase()
+      ) {
+        handleChoice(currentCard, "discard");
+      }
+    };
+    const handlePool = (event) => {
+      if (
+        event.key ===
+        String(updatedSettings["DONATE_CARD"]).toLowerCase()
+      ) {
+        handleChoice(currentCard, "pool");
+      }
+    };
+
+    window.addEventListener("keydown", handleKeep);
+    window.addEventListener("keydown", handleDiscard);
+    window.addEventListener("keydown", handlePool);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeep);
+      window.removeEventListener("keydown", handleDiscard);
+      window.removeEventListener("keydown", handlePool);
+    };
+  }
+}, [isCurrentPlayer, updatedSettings, handleChoice, currentCard, diceToModify, diceSelectionCard]);
+
+
+ 
+
+
+
 
   return (
   <div>
@@ -413,6 +494,8 @@ useEffect(() =>
     Keep
   </button>
 
+
+
   <button
     onClick={() => handleChoice(currentCard, "discard")}
     disabled={specialCardToPlay || diceSelectionCard || diceToModify}
@@ -496,56 +579,7 @@ useEffect(() =>
   onTimeout={() => {
     console.log(`${player.name} ran out of time!`);
 
-    // const currentSpecial = specialCardRef.current;
-    // const cardsRemaining = [...cardsToProcess];
-    // const sharedCards = [...shared];
-    // let botKept = kept;
-    // let botDiscarded = discarded;
-
-    // const actions = [];
-    // console.log("i am here")
-
-    // console.log("cards remainig", cardsRemaining)
-
-    // while (cardsRemaining.length > 0) {
-    //   console.log("inside the while loop")
-    //   const currentCard = cardsRemaining[0];
-    //   const action = Bot.donation_phase({
-    //     currentCard,
-    //     specialCard: currentSpecial,
-    //     kept: botKept,
-    //     discarded: botDiscarded,
-    //     shared: sharedCards,
-    //     cardsToProcess: cardsRemaining,
-    //   });
-
-    //   console.log("🤖 Bot decided:", action, "on", currentCard);
-
-    //   if (!action || !["keep", "discard", "pool"].includes(action)) {
-    //     console.warn("❌ Invalid or missing bot action. Stopping loop.");
-    //     break;
-    //   }
-
-    //   actions.push({ card: currentCard, action });
-
-    //   // Update local simulated state
-    //   if (action === "keep") {
-    //     botKept = currentCard;
-    //   } else if (action === "discard") {
-    //     botDiscarded = currentCard;
-    //   } else if (action === "pool") {
-    //     sharedCards.push({ ...currentCard, pooledBy: player.name });
-    //   }
-
-    //   cardsRemaining.shift(); // move to next card
-    // }
-
-    // // Perform actions 1 by 1 with delay so React state has time to update
-    // actions.forEach(({ card, action }, idx) => {
-    //   setTimeout(() => {
-    //     handleChoice(card, action);
-    //   }, idx * 100); // staggered delay
-    // });
+    
   }}
   small_duration={true}
 />

@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+
 import "./sign_in.css";
 import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
@@ -6,7 +7,10 @@ import { Link } from "react-router-dom";
 const SigninPage = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+
   const navigate = useNavigate();
+
+
 
   const handleSignin = async (e) => {
     e.preventDefault();
@@ -23,6 +27,8 @@ const SigninPage = () => {
       const data = await res.json();
 
       if (res.ok) {
+        
+
         localStorage.setItem("playerName", username);
         localStorage.setItem("elo", data.elo)
         localStorage.setItem("isGuest", "false")
@@ -65,7 +71,7 @@ const SigninPage = () => {
         </button>
 
         <div className="login-link">
-          <Link to="/forgot-password">Forgot Password?</Link>
+          <Link to="/forgot_password">Forgot Password?</Link>
         </div>
       </form>
 

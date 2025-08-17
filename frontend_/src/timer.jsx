@@ -12,7 +12,7 @@ const Timer = ({duration, onTimeout, small_duration = false}) => {
     const audio = new Audio(rand ? Fart : Boom);
     const hasRunRef = useRef(false);
     const tickingRef = useRef(null);
-    audio.volume = 0.3;
+    audio.volume = (localStorage.getItem("Volume") / 100);
     // console.log("small_duration", small_duration)
 
     useEffect(() => {
@@ -30,7 +30,7 @@ const Timer = ({duration, onTimeout, small_duration = false}) => {
             if (prev <= 6000 && !hasRunRef.current) {
                 hasRunRef.current = true; 
                 const tick = new Audio(clockTick);
-                tick.volume = 0.3;
+                tick.volume = (localStorage.getItem("Volume") / 100);
                 tick.play();
                 tickingRef.current = tick;
             }

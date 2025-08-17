@@ -49,6 +49,19 @@ const handleJoin = (e) => {
 };
 
 useEffect(() => {
+    const handleEsc = (event) => {
+       if (event.key === 'Escape') {
+        console.log('Close')
+      }
+    };
+    window.addEventListener('keydown', handleEsc);
+
+    return () => {
+      window.removeEventListener('keydown', handleEsc);
+    };
+  }, []);
+
+useEffect(() => {
   const username = localStorage.getItem("signin_username");
 
   console.log("username", username)
