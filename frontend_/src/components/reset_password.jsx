@@ -16,18 +16,25 @@ const ResetPassword = () => {
   const [email, setEmail] = useState("");
   const [changedPassword, setchangedPassword] = useState("");
   const [confirmchangedPassword, setconfirmchangedPassword] = useState("")
+  const [code, setCode] = useState("")
 
   const confirmPasswordChange = async () => {
     if (changedPassword === confirmchangedPassword) {
       console.log("done")
       //send something to api pisser 
       const res = await fetch ("https://biblios-backend.onrender.com/api/change_password", {
-
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: changedPassword, code: code })
       })
     }
     else {
       alert("passwords don't match ")
       // make this be a popup instead of an alert
+    }
+
+    if (res.ok) {
+      print("yay")
     }
 
   }
@@ -120,8 +127,7 @@ const ResetPassword = () => {
         <input
           type="password"
           placeholder="Password"
-          
-          
+          onChange = {(e) => setconfirmchangedPassword(e.target.value)}
           className="login-input"
           required
         />
@@ -130,13 +136,27 @@ const ResetPassword = () => {
         <input
           type="password"
           placeholder="Confirm Password"
+          onChange = {(e) => setconfirmchangedPassword(e.target.value)}
+          className="login-input"
+          required
+        />
+
+         <label className="login-label">Enter the code received</label>
+        <input
+          type="password"
+          placeholder="Code"
+          onChange = {(e) => setCode(e.target.value)}
        
           className="login-input"
           required
         />
 
         <button onClick={confirmPasswordChange}>Confirm</button>
+
+        
     </div>
+
+    
 
     
   );

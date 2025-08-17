@@ -268,7 +268,7 @@ def check_email():
                 sender = "fred.yuan392@gmail.com"
                 rcpt = sent_email
                 pwd = (os.getenv("APP_PASSWORD") or "").strip()
-                reset_link = "https://biblios-game-frontend.onrender.com/reset-password/"
+                reset_link = "https://biblios-game-frontend.onrender.com/reset-password"
 
                 msg = MIMEMultipart("alternative")
                 msg["From"] = sender
@@ -295,7 +295,7 @@ def check_email():
                     s.login(sender, pwd)
                     s.sendmail(sender, rcpt, msg.as_string())
             except Exception:
-                # Don’t alter API response; optionally log server-side
+              
                 pass
 
         cur.close(); conn.close()
@@ -305,6 +305,35 @@ def check_email():
         # Keep response generic
         return jsonify({"message": "If that email exists, we sent a reset code."}), 200
 
+
+@app.route("/api/change_password", methods=["POST", "OPTIONS"])
+def change_password():
+    if request.method == "OPTIONS":
+        return "", 200
+
+    try:
+        conn = None  
+        cursor = None
+
+        data = request.json
+        code_hash = data.get("code")
+
+        #First check if there is something in the database to warrant a change.
+        conn = psycopg2.connect(os.getenv("DATABASE_URL"))
+        cursor = conn.cursor()
+
+        cursor.execute("""select code_hash from password_reset_codes where code_hash like %s""" (code_hash,))
+
+        row = cursor.fetchone()
+
+        print("This is row", row)
+
+        if row:
+            return jsonify({"yay": str(e)}), 200
+            #That means it matches, so now we have to find the user_id
+            cursor.execute("""select """)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/send_keybinds", methods=["POST", "OPTIONS"])
