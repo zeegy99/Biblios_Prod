@@ -310,30 +310,47 @@ def check_email():
 def change_password():
     if request.method == "OPTIONS":
         return "", 200
-
+    conn = None
+    cursor = None
     try:
-        conn = None  
-        cursor = None
-
         data = request.json
-        code_hash = data.get("code")
+        raw_hash = data.get("code")
+        code_hash = sha256(raw_hash)
+        sent_password = data.get("password")
+        hashed_password = hash_function(sent_password)
+
+        if not code_hash or not sent_password:
+            return jsonify({"error": "Missing code or password"}), 400
 
         #First check if there is something in the database to warrant a change.
         conn = psycopg2.connect(os.getenv("DATABASE_URL"))
         cursor = conn.cursor()
 
-        cursor.execute("""select code_hash from password_reset_codes where code_hash like %s""" (code_hash,))
+        cursor.execute("""select user_id from password_reset_codes where code_hash like %s""", (code_hash,))
 
         row = cursor.fetchone()
+
+        if not row:
+            return jsonify({"error": "Invalid or expired code"}), 400
 
         print("This is row", row)
 
         if row:
-            return jsonify({"yay": str(e)}), 200
-            #That means it matches, so now we have to find the user_id
-            cursor.execute("""select """)
+            cursor.execute("""UPDATE users set password_hash = %s where id = %s""", (hashed_password,row[0]))
+            cursor.execute(
+            "DELETE FROM password_reset_codes WHERE code_hash = %s",
+            (code_hash,),
+        )
+            conn.commit()
+            return '', 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 
 @app.route("/api/send_keybinds", methods=["POST", "OPTIONS"])
