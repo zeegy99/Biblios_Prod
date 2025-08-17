@@ -17,6 +17,7 @@ const Home = ({ setPlayerName }) => {
 
 
   const elo = localStorage.getItem("elo") || "-10";
+
   const [nameInput, setNameInput] = useState(savedName);
   const [roomInput, setRoomInput] = useState("");
   const [showBox, setShowBox] = useState(false);
@@ -25,6 +26,9 @@ const Home = ({ setPlayerName }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    const localStorageVol = localStorage.getItem("Volume") || 50;
+    localStorage.setItem(localStorageVol)
+  
   const name = localStorage.getItem("playerName");
   const isGuest = localStorage.getItem("isGuest") === "true";
 
