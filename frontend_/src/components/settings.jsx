@@ -270,6 +270,8 @@ const Settings = () => {
         Top Secret Easter Egg Button (DO NOT CLICK)
       </button>
 
+      <button onClick={sendKeybinds()}>Confirm keybinds</button>
+
     </div>
 
 
