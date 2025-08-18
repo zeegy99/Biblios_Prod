@@ -31,14 +31,9 @@ CORS(app, resources={r"/api/*": {"origins": ["https://biblios-game-frontend.onre
      supports_credentials=True) 
 
 
-#https://biblios-game-frontend.onrender.com
-# CORS(app, resources={r"/api/*": {"origins": ["https://biblios-game-frontend.onrender.com", "http://localhost:5173"]}}, supports_credentials=True) #https://biblios-game-frontend.onrender.com
-# CORS(app, resources={r"/api/*": {"origins": [
-#     "http://localhost:5173",
-#     "https://biblios-game-frontend.onrender.com"
-# ]}}, supports_credentials=True)
 
-# Use DATABASE_URL from environment
+
+
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 @app.route("/api/register", methods=["POST", "OPTIONS"])
@@ -91,24 +86,43 @@ def signin():
         cursor = conn.cursor()
 
         cursor.execute("""
-            SELECT password_hash FROM users WHERE username = %s
+            SELECT password_hash, id FROM users WHERE username = %s
         """, (username,))
         row = cursor.fetchone()
 
         if row:
             stored_hash = row[0]
+            user_id = row[1]
             is_valid = bcrypt.checkpw(password.encode(), stored_hash.encode())
 
             if is_valid:
 
-                session["username"] = username
+                #Add a token into table sessions
+                raw_token = secrets.token_urlsafe(32)
+                print("this is what raw_token is", raw_token)
+                time = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)
+                cursor.execute("""insert into sessions (session_id, user_id, expires_at) values (%s, %s, %s)""", (raw_token, user_id, time))
+                conn.commit()
+
                 cursor.execute("SELECT elo_score FROM elo WHERE username = %s", (username,))
                 elo_row = cursor.fetchone()
                 elo = elo_row[0] if elo_row else 1000
 
                 cursor.close()
                 conn.close()
-                return jsonify({"message": "Login successful", "elo": elo}), 200
+
+                resp = make_response(jsonify({"message": "Login successful", "elo": elo}))
+
+                resp.set_cookie(
+                    "sid", raw_token,
+                    httponly=True,
+                    secure=True,       # set True in production (HTTPS)
+                    samesite="None",     # use "None" if your frontend is on a different site
+                    max_age=7*24*3600,
+                    path="/",
+                )
+                return resp
+                
 
             else:
                 return jsonify({"error": "Invalid username or password"}), 401
