@@ -53,7 +53,7 @@ const LeaderBoard = () => {
   };
 
   return (
-    <div className="leaderboard-page" style={{marginTop: "40px"}}>
+    <div className="leaderboard-page" >
       <header className="home-header">
         <div className="logo">BIBLIOS</div>
         <div className="nav-buttons">
