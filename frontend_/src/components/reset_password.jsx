@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import RulesPage from "./rulespage";
 import "./leaderboard.css";
 import "./sign_in.css"; 
+import "./overall_css.css"
 
 const ResetPassword = () => {
   const login_info = localStorage.getItem("signin_username") || "none";
@@ -15,8 +16,9 @@ const ResetPassword = () => {
   const [players, setPlayers] = useState([]);
   const [email, setEmail] = useState("");
   const [changedPassword, setchangedPassword] = useState("");
-  const [confirmchangedPassword, setconfirmchangedPassword] = useState("")
-  const [code, setCode] = useState("")
+  const [confirmchangedPassword, setconfirmchangedPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [display, setdisplay] = useState(false);
 
   const confirmPasswordChange = async () => {
     if (changedPassword === confirmchangedPassword) {
@@ -29,7 +31,7 @@ const ResetPassword = () => {
       })
 
       if (res.ok) {
-        console.log("res was ok")
+        setdisplay(true)
       }
     }
     else {
@@ -155,11 +157,21 @@ const ResetPassword = () => {
 
         <button onClick={confirmPasswordChange}>Confirm</button>
 
-        <p>This is changedpassword: {changedPassword}</p>
-         <p>This is confirmchangedpassword: {confirmchangedPassword}</p>
 
-        
+         {display && (
+         
+          <div className="popup">
+            <h2>Successful</h2>
+            <p> Your password is now changed</p>
+          </div>
+          
+          
+         )}
+
+
     </div>
+
+    
 
     
 

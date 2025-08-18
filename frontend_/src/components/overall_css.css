@@ -1,0 +1,18 @@
+
+
+.popup {
+    width: 400px;
+    background: #e6ffed; /* light green background */
+    border: 2px solid #4caf50; /* green border */
+    border-radius: 8px;
+    position: fixed; /* fixed keeps it in place even if you scroll */
+    top: 80%; 
+    left: 80%;
+    transform: translate(-50%, -50%); /* centers it */
+    text-align: center;
+    padding: 20px 30px;
+    color: #155724; /* dark green text */
+    font-family: Arial, sans-serif;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    z-index: 9999; /* makes sure it’s on top */
+}
