@@ -56,6 +56,16 @@ const Settings = () => {
     }
   }, [isGuest, savedName]);
 
+  const sendKeybinds = () => {
+    fetch("https://biblios-backend.onrender.com/api/send_keybinds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: login_info, settings: updatedSettings})
+      })
+
+      console.log("finished the sendKeybinds")
+  }
+
   useEffect(() => {
     console.log("I literally do nothing")
     // console.log(DEFAULT_KEYBINDS)
