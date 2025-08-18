@@ -27,6 +27,8 @@ const SigninPage = () => {
       const data = await res.json();
 
       if (res.ok) {
+
+        // I am going to rehaul this so that we don't need signin_usrename in localstorage. 
         
 
         localStorage.setItem("playerName", username);
