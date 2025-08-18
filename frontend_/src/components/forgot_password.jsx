@@ -56,7 +56,7 @@ const ForgotPassword = () => {
           <button
             className="login-header"
             style={{ backgroundColor: "#e53935", color: "white" }}
-            onClick={handleRejoin}
+            
           >
             Rejoin
           </button>
