@@ -260,15 +260,6 @@ const Settings = () => {
         Reset Default Keybinds
       </button>
 
-      <button 
-      onClick={() => {
-        const tick = new Audio(Fart);
-        tick.volume = (1);
-        tick.play();
-      }
-      }>
-        Top Secret Easter Egg Button (DO NOT CLICK)
-      </button>
 
       <button onClick={sendKeybinds()}>Confirm keybinds</button>
 
