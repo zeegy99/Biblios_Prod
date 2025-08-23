@@ -95,7 +95,7 @@ def current_user():
                         from sessions s
                        join users u
                        ON s.user_id = u.id
-                       where s.session_id like '%s' and s.expires_at > NOW()
+                       where s.session_id = %s and s.expires_at > NOW()
                        """, (sid,))
         
         row = cursor.fetchone()

@@ -17,6 +17,7 @@ function App() {
   const [playerName, setPlayerName] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [playerList, setPlayerList] = useState([]);
+  const [loading, setLoading] = useState(false);
   
   useEffect(() => {
     fetch('/api/current-user', {
