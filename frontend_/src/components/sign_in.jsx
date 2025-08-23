@@ -29,7 +29,15 @@ const SigninPage = () => {
       if (res.ok) {
 
         // I am going to rehaul this so that we don't need signin_usrename in localstorage. 
-        
+        const userResponse = await fetch('/api/current-user', {
+        credentials: 'include'
+      });
+
+      if (userResponse.ok) {
+      const userData = await userResponse.json();
+      setPlayerName(userData.username);  
+      setIsAuthenticated(true);
+    }
 
         localStorage.setItem("playerName", username);
         localStorage.setItem("elo", data.elo)

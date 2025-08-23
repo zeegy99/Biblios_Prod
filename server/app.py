@@ -78,6 +78,49 @@ def register():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route("/api/current-user", methods=["GET", "OPTIONS"])
+def current_user():
+    if request.method == "OPTIONS":
+        return '', 200
+    
+    sid = request.cookies.get('sid')
+    if not sid:
+        return jsonify({"error": "Not authenticated"}), 401
+    
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor()
+
+        cursor.execute("""SELECT s.user_id, u.username
+                        from sesesions s
+                       join users u
+                       ON s.user_id = u.id
+                       where s.session_id like '%s' and s.expires_at > NOW()
+                       """, (sid,))
+        
+        row = cursor.fetchone()
+
+        if row:
+            user_id, username = row
+            cursor.close()
+            conn.close()
+            return jsonify({
+                "username": username,
+                "user_id": user_id,
+                "authenticated": True
+            }), 200
+        else:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Session expired or invalid"}), 401
+
+    except Exception as e:
+        if 'cursor' in locals():
+            cursor.close()
+        if 'conn' in locals():
+            conn.close()
+        return jsonify({"error": str(e)}), 500  
+    
 
 @app.route("/api/signin", methods=["POST", "OPTIONS"])
 def signin():

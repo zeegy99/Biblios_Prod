@@ -14,10 +14,32 @@ import ResetPassword from "./components/reset_password.jsx";
 // import 'bootstrap/dist/css/bootstrap.min.css';
 
 function App() {
-  const [playerName, setPlayerName] = useState(() => {
-  return localStorage.getItem("playerName") || "";
-});
+  const [playerName, setPlayerName] = useState("");
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [playerList, setPlayerList] = useState([]);
+  
+  useEffect(() => {
+    fetch('/api/current-user', {
+      credentials: 'include'
+    })
+    .then(response => {
+      if (response.ok) {
+        return response.json();
+      }
+      throw new Error('Not authenticated');
+    })
+    .then(data => {
+      setPlayerName(data.username);
+      setIsAuthenticated(true);
+    })
+    .catch(error => {
+      setIsAuthenticated(false);
+      setPlayerName("");
+    })
+    .finally(() => {
+      setLoading(false);
+    });
+  }, []);
 
   return (
     <Router>
