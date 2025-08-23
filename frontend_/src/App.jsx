@@ -48,7 +48,9 @@ function App() {
         <Route path="/" element={<Home setPlayerName={setPlayerName} />} />
        <Route path="/lobby" element={<Lobby playerName={playerName} setPlayerName={setPlayerName} setPlayerList={setPlayerList} />} />
         <Route path="/game/:room" element={<Play playerName={playerName} playerList={playerList} />} />
-        <Route path="/signin" element={<SigninPage />} />
+        <Route path="/signin" element={<SigninPage 
+        setPlayerName={setPlayerName}
+        setIsAuthenticated={setIsAuthenticated}/>} />
         <Route path="/signup" element={<Signup/>} />
         <Route path="/signedin" element={<SignedIn />} />
         <Route path="/leaderboard" element={<LeaderBoard/>} />

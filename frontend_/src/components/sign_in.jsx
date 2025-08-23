@@ -4,7 +4,7 @@ import "./sign_in.css";
 import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
 
-const SigninPage = () => {
+const SigninPage = (setPlayerName, setIsAuthenticated) => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
