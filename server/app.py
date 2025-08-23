@@ -92,7 +92,7 @@ def current_user():
         cursor = conn.cursor()
 
         cursor.execute("""SELECT s.user_id, u.username
-                        from sesesions s
+                        from sessions s
                        join users u
                        ON s.user_id = u.id
                        where s.session_id like '%s' and s.expires_at > NOW()
