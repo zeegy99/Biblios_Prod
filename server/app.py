@@ -1,5 +1,4 @@
 from flask import Flask, request, jsonify, session, make_response, redirect
-from flask_session import Session
 from flask_cors import CORS
 import psycopg2
 import secrets, datetime
@@ -17,7 +16,6 @@ app = Flask(__name__)
 app.config["SESSION_PERMANENT"] = False
 app.config["SESSION_TYPE"] = "filesystem"
 app.config["SECRET_KEY"]=os.getenv("SECRET_KEY")
-Session(app)
 
 REGISTRANTS = {}
 
