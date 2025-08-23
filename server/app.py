@@ -1,4 +1,5 @@
-from flask import Flask, request, jsonify, session, make_response
+from flask import Flask, request, jsonify, session, make_response, redirect
+from flask_session import Session
 from flask_cors import CORS
 import psycopg2
 import secrets, datetime
@@ -12,6 +13,14 @@ load_dotenv()
 
 print("at the very start of app.py")
 app = Flask(__name__)
+
+app.config["SESSION_PERMANENT"] = False
+app.config["SESSION_TYPE"] = "filesystem"
+app.config["SECRET_KEY"]=os.getenv("SECRET_KEY")
+Session(app)
+
+REGISTRANTS = {}
+
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = False
 app.secret_key = "dev_only_change_me_please_32chars_min"
@@ -28,7 +37,7 @@ def hash_function(curr_pass):
 
 
 CORS(app, resources={r"/api/*": {"origins": ["https://biblios-game-frontend.onrender.com", "http://localhost:5173"]}}, 
-     supports_credentials=True) 
+     supports_credentials=True, allow_headers=["Content-Type"], methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]) 
 
 
 
@@ -120,6 +129,7 @@ def signin():
                     samesite="None",     # use "None" if your frontend is on a different site
                     max_age=7*24*3600,
                     path="/",
+                    domain=None,
                 )
                 return resp
                 

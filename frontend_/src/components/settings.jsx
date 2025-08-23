@@ -63,7 +63,7 @@ const Settings = () => {
         body: JSON.stringify({ name: login_info, settings: updatedSettings})
       })
 
-      console.log("finished the sendKeybinds")
+      console.log("finished the sendKeybinds", updatedSettings)
   }
 
   useEffect(() => {
@@ -198,7 +198,7 @@ const Settings = () => {
       </header>
           
           <h1> WORK IN PROGRESS. IF ANYONE FINDS A GOOD SETTINGS PAGE ON GITHUB LMK</h1>
-      <p>Current username: {login_info} edit png</p>
+      <p>Current username: {login_info} </p>
       <p>Current email: ur the goat{}</p>
       <p>Volume:  </p>
       <div className="slidecontainer">
