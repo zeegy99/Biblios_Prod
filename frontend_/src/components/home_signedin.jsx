@@ -5,9 +5,9 @@ import RulesPage from "./rulespage";
 import socket from "../socket";
 
 
-const SignedIn = () => {
-  const login_info = localStorage.getItem("signin_username") || "none";
-  const savedName = localStorage.getItem("playerName");
+const SignedIn = ({playerName}) => {
+  const login_info = playerName || "none";
+  const savedName = localStorage.getItem("playerName") || login_info;
   const [elo, setElo] = useState(null);
   const isGuest = localStorage.getItem("isGuest") === "true";
   const navigate = useNavigate();

@@ -4,7 +4,8 @@ import "./sign_in.css";
 import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
 
-const SigninPage = (setPlayerName, setIsAuthenticated) => {
+const SigninPage = ({setPlayerName, setIsAuthenticated}) => {
+  console.log("Props received", setPlayerName, setIsAuthenticated)
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
@@ -14,6 +15,7 @@ const SigninPage = (setPlayerName, setIsAuthenticated) => {
 
   const handleSignin = async (e) => {
     e.preventDefault();
+    console.log("1 starting login process")
     try {
       const res = await fetch("https://biblios-backend.onrender.com/api/signin", {
         method: "POST",
@@ -23,24 +25,28 @@ const SigninPage = (setPlayerName, setIsAuthenticated) => {
         body: JSON.stringify({ username, password }),
         credentials: "include"
       });
-
+       console.log("2. Login response status:", res.status);
       const data = await res.json();
+       console.log("3. Login response data:", data);
 
       if (res.ok) {
-
+        console.log("4. Res is ok")
         // I am going to rehaul this so that we don't need signin_usrename in localstorage. 
         const userResponse = await fetch('https://biblios-backend.onrender.com/api/current-user', {
         credentials: 'include'
       });
 
+      console.log("5 userResponse", userResponse)
       if (userResponse.ok) {
+        console.log("userResponse is ok")
       const userData = await userResponse.json();
+      console.log("6 userData", userData)
       setPlayerName(userData.username);  
+      console.log("7. SetPlayerName Issues")
       setIsAuthenticated(true);
     }
 
         localStorage.setItem("playerName", username);
-        localStorage.setItem("elo", data.elo)
         localStorage.setItem("isGuest", "false")
         localStorage.setItem("signin_username", username)
         navigate("/signedin");  

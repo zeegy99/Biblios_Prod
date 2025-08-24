@@ -17,10 +17,11 @@ function App() {
   const [playerName, setPlayerName] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [playerList, setPlayerList] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   
   useEffect(() => {
-    fetch('/api/current-user', {
+    console.log("8. Hey I'm in the useeffect and I'm running ")
+    fetch('https://biblios-backend.onrender.com/api/current-user', {
       credentials: 'include'
     })
     .then(response => {
@@ -51,8 +52,12 @@ function App() {
         <Route path="/signin" element={<SigninPage 
         setPlayerName={setPlayerName}
         setIsAuthenticated={setIsAuthenticated}/>} />
+
         <Route path="/signup" element={<Signup/>} />
-        <Route path="/signedin" element={<SignedIn />} />
+
+        <Route path="/signedin" element={<SignedIn 
+        playerName={playerName}/>} />
+
         <Route path="/leaderboard" element={<LeaderBoard/>} />
         <Route path="/settings" element={<Settings/>} />
         <Route path="/forgot_password" element={<ForgotPassword/>} />
