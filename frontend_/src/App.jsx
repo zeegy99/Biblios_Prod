@@ -41,6 +41,7 @@ function App() {
     .finally(() => {
       setLoading(false);
     });
+    console.log("9. IN App.jsx")
   }, []);
 
   return (

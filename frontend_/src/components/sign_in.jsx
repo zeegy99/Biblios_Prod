@@ -28,14 +28,19 @@ const SigninPage = ({setPlayerName, setIsAuthenticated}) => {
        console.log("2. Login response status:", res.status);
       const data = await res.json();
        console.log("3. Login response data:", data);
+       console.log("3.1 Document cookies after login:", document.cookie);
 
       if (res.ok) {
         console.log("4. Res is ok")
         // I am going to rehaul this so that we don't need signin_usrename in localstorage. 
         const userResponse = await fetch('https://biblios-backend.onrender.com/api/current-user', {
-        credentials: 'include'
+          method: "GET",
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          }
       });
-
+      console.log("4.1 Cookies being sent:", document.cookie); // Add this line
       console.log("5 userResponse", userResponse)
       if (userResponse.ok) {
         console.log("userResponse is ok")
