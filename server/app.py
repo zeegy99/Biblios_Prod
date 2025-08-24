@@ -172,7 +172,7 @@ def signin():
 
                 resp.set_cookie(
                     "sid", raw_token,
-                    httponly=True,
+                    httponly=False,
                     secure=not is_local,       # set True in production (HTTPS)
                     samesite="Lax" if is_local else "None",     # use "None" if your frontend is on a different site
                     max_age=7*24*3600,
