@@ -6,6 +6,8 @@ import socket from "../socket";
 
 
 const SignedIn = ({playerName}) => {
+  const [username, setUsername] = useState(null);
+  const [loading, setLoading] = useState(true);
   const login_info = playerName || "none";
   const savedName = localStorage.getItem("playerName") || login_info;
   const [elo, setElo] = useState(null);
@@ -41,6 +43,32 @@ const handleRejoin = () => {
   navigate(`/game/${roomCode}`);
 };
 
+useEffect(() => {
+  const getCurrentUser = async () => {
+    try {
+      const response = await fetch('https://biblios-backend.onrender.com/api/current-user', {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const userData = await response.json();
+        setUsername(userData.username);
+      } else {
+        setUsername(null); // User not logged in
+      }
+    } catch (error) {
+      console.error('Error getting current user:', error);
+      setUsername(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  getCurrentUser();
+}, []);
+
+if (loading) return <div>Loading...</div>;
+
 const handleJoin = (e) => {
   e.preventDefault();
   if (!roomInput) return;
@@ -62,7 +90,6 @@ useEffect(() => {
   }, []);
 
 useEffect(() => {
-  const username = localStorage.getItem("signin_username");
 
   console.log("username", username)
 

@@ -53,7 +53,6 @@ const SigninPage = ({setPlayerName, setIsAuthenticated}) => {
 
         localStorage.setItem("playerName", username);
         localStorage.setItem("isGuest", "false")
-        localStorage.setItem("signin_username", username)
         navigate("/signedin");  
       } else {
         alert("❌ Login failed: " + data.error);
