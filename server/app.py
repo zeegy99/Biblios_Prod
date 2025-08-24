@@ -162,12 +162,19 @@ def signin():
                 conn.close()
 
                 resp = make_response(jsonify({"message": "Login successful", "elo": elo}))
+                
+                print(f"=== COOKIE DEBUG ===")
+                print(f"Token to set: {raw_token}")
+                print(f"Request origin: {request.headers.get('Origin')}")
+                print(f"Request host: {request.headers.get('Host')}")
+
+                is_local = 'localhost' in request.host or '127.0.0.1' in request.host
 
                 resp.set_cookie(
                     "sid", raw_token,
                     httponly=True,
-                    secure=True,       # set True in production (HTTPS)
-                    samesite="None",     # use "None" if your frontend is on a different site
+                    secure=not is_local,       # set True in production (HTTPS)
+                    samesite="Lax" if is_local else "None",     # use "None" if your frontend is on a different site
                     max_age=7*24*3600,
                     path="/",
                     domain=None,
