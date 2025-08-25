@@ -3,12 +3,35 @@ import React, { useEffect, useState } from "react";
 const ScoringPhase = ({ players, dice, setFinalResults, goToResults, isHost }) => {
   const [log, setLog] = useState([]);
   const username = localStorage.getItem("playerName") || "none";
-  const login_info = localStorage.getItem("signin_username") || "none";
+  const [login_info, setLoginInfo] = localStorage.getItem("signin_username") || "none";
   const [currentDieIndex, setCurrentDieIndex] = useState(0);
   const [scoredPlayers, setScoredPlayers] = useState(() =>
     players.map((p) => ({ ...p, points: 0 }))
   );
   const [isDone, setIsDone] = useState(false);
+  useEffect (() => {
+    const fetchUsername = async () => {
+      try {
+        const response = await fetch ("https://biblios-backend.onrender.com/api/current-user", {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+        credentials: 'include'
+        })
+
+        const data = response.json();
+        if (response.ok) {
+          setLoginInfo(data['username'])
+        }
+
+      }
+      catch {
+
+      }
+    }
+
+    fetchUsername();
+  }, []);
+
 
   const handleScoreNextDie = () => {
     const die = dice[currentDieIndex];
