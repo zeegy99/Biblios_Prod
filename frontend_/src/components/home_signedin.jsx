@@ -6,7 +6,7 @@ import socket from "../socket";
 
 
 const SignedIn = ({playerName}) => {
-  const login_info = playerName || "none";
+  const [login_info, setLoginInfo] = useState(playerName || "none");
   const savedName = localStorage.getItem("playerName") || login_info;
   const [elo, setElo] = useState(null);
   const isGuest = localStorage.getItem("isGuest") === "true";
@@ -48,6 +48,34 @@ const handleJoin = (e) => {
   localStorage.setItem("roomCode", roomInput.toUpperCase());
   navigate("/lobby");
 };
+
+useEffect (() => {
+    console.log("inside inside inside")
+    const fetchUsername = async () => {
+      try {
+        const response = await fetch ("https://biblios-backend.onrender.com/api/current-user", {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+        credentials: 'include'
+        })
+
+        const data = await response.json();
+        if (response.ok) {
+          setLoginInfo(data['username'])
+          console.log("This is setLoginInfo going", login_info)
+        }
+        else {
+          console.log("I was in the else")
+        }
+
+      }
+      catch (error){
+        console.log("This is error", error)
+      }
+    }
+
+    fetchUsername();
+  }, []);
 
 useEffect(() => {
     const handleEsc = (event) => {
@@ -230,7 +258,7 @@ const handleCreateRoom = () => {
 
       <main className="home-main">
   <div className="home-card left-card">
-     <h2 className="home-title">Welcome back, {savedName}!</h2>
+     <h2 className="home-title">Welcome back, {login_info}!</h2>
     <h2>Join or Create a Room</h2>
 
     <input

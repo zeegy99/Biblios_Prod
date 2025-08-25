@@ -14,6 +14,7 @@ const ResultsScreen = ({ players, onRestart }) => {
     
     localStorage.removeItem("roomCode");
     localStorage.removeItem("start_game_payload");
+    socket.emit("leave_game", {room: room, playerId: playerId})
     navigate("/");
   }
 
