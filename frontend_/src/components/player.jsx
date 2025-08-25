@@ -1,4 +1,4 @@
-// src/components/PlayerBoard.jsx
+// src/components/PlayerBoard.jsx //
 import React from "react";
 import Card from "./card";
 
