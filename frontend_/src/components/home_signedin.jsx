@@ -14,6 +14,7 @@ const SignedIn = ({playerName}) => {
   const [showBox, setShowBox] = useState(false);
   const [rulesPage, setRulesPage] = useState(false);
   const [roomInput, setRoomInput] = useState("");
+  const [temp, setTemp] = useState("");
 
 const handleRejoin = () => {
   const signin_username = localStorage.getItem("signin_username");
@@ -60,33 +61,63 @@ useEffect(() => {
       window.removeEventListener('keydown', handleEsc);
     };
   }, []);
+useEffect(() => {
+  console.log("temp updated to:", temp);
+}, [temp]);
 
 useEffect(() => {
-  const username = localStorage.getItem("signin_username");
-
-  console.log("username", username)
-
-  if (username) {
-    const cleanUsername = username.trim();
-    fetch("https://biblios-backend.onrender.com/api/get_elo", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: cleanUsername })
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (data.elo !== undefined) {
-          setElo(data.elo);
-        } else {
-          console.warn("No elo found:", data);
-          setElo("N/A");
-        }
+  
+  const fetchUsername = async () => {
+    try {
+      const response = await fetch ("https://biblios-backend.onrender.com/api/current-user", {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+        credentials: 'include'
       })
-      .catch(err => {
-        console.error("Failed to fetch elo:", err);
-        setElo("Error");
-      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        console.log ("this is data", data)
+        setTemp(data['username'])
+        const username = data['username'];
+        console.log("username", username)
+
+        if (username) {
+          const cleanUsername = username.trim();
+          fetch("https://biblios-backend.onrender.com/api/get_elo", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username: cleanUsername })
+          })
+            .then(res => res.json())
+            .then(data => {
+              if (data.elo !== undefined) {
+                setElo(data.elo);
+              } else {
+                console.warn("No elo found:", data);
+                setElo("N/A");
+              }
+            })
+            .catch(err => {
+              console.error("Failed to fetch elo:", err);
+              setElo("Error");
+            });
+        }
+      }
+      else {
+        console.log("response was not ok")
+      }
+    }
+    catch (error) {
+      console.log("This is error", error)
+    }
   }
+
+  fetchUsername();
+
+  
+  
 }, []);
 
 const handleCreateRoom = () => {
