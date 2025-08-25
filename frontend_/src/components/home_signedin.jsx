@@ -218,7 +218,7 @@ const handleCreateRoom = () => {
           
 
           <button className={'naming-button'} onClick={toggleDropDown}>
-          {savedName}
+          {login_info}
           </button>
 
           {showBox && (

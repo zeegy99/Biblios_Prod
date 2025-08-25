@@ -41,6 +41,12 @@ const Home = ({ setPlayerName }) => {
     setShowBox((prev) => !prev);
   };
 
+  const toggleRulesPage = () => {
+    setRulesPage((prev) => {
+    return !prev;
+  });
+  }
+
   const updateName = () => {
     if (tempName.trim()) {
       localStorage.setItem("playerName", tempName);
@@ -82,9 +88,25 @@ const Home = ({ setPlayerName }) => {
   <header className="home-header">
     <div className="logo">BIBLIOS</div>
     <div className="nav-buttons">
+
+      
   
   <button className="play-now-header" onClick={handleCreateRoom}>Play Now</button>
-  <button className="login-header" onClick={toSigninPage}>Log In</button>
+  <button
+    className="login-header"
+    onClick={() => navigate("/leaderboard")}
+    style={{ backgroundColor: "#9694FF", color: "white" }}
+  >
+            Leaderboard
+  </button>
+
+  <button className="login-header" onClick={toggleRulesPage}
+    style={{ backgroundColor: "#9694FF", color: "white" }}>
+    Rules
+  </button>
+
+        
+  <button className={'naming-button'} onClick={toSigninPage}>Log In</button>
 </div>
 
   </header>
@@ -122,7 +144,9 @@ const Home = ({ setPlayerName }) => {
         🎲 Create Random Room
       </button>
 
-      {!savedName && (
+      
+
+      {!savedName && ( //here
         <button className="secondary-button" onClick={toSigninPage}>
           Go to Sign In Page
         </button>
