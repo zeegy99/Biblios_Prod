@@ -6,7 +6,7 @@ ToDo
 
 1. Migrate everything from client-side to server side.
 ~~2. Secure logins //~~~ Done 8/26 with cookies and sessions verifying logins
-3. Cards drawing twice as fast for [specifically] 2 players
+3. Cards drawing twice as fast for [specifically] 2 players --> Actually maybe this is fine -- Otherwise the game takes too long?
 4. Chat does not store broadcast messages if the chat is closed.
 5. Rejoin Game Bugs
 
@@ -59,6 +59,8 @@ Misc.
 2. Tiebreakers in category will be split evenly
 3. There are no refunds in Auctioning. If you only have a gold 3 card and win the bid for only 2, you must spend all 3 gold. 
 
+Changes:
+9/10 --> Hosted on different website. [Need to optimize SEO for this website now]
 
 
 
