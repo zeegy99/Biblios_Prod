@@ -34,7 +34,7 @@ def hash_function(curr_pass):
 # CORS setup for frontend
 
 
-CORS(app, resources={r"/api/*": {"origins": ["https://biblios-game-frontend.onrender.com", "http://localhost:5173"]}}, 
+CORS(app, resources={r"/api/*": {"origins": ["https://biblios-game-frontend.onrender.com", "http://localhost:5173", "https://playbiblios.com/"]}}, 
      supports_credentials=True, allow_headers=["Content-Type"], methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]) 
 
 

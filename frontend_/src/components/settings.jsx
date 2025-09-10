@@ -67,10 +67,10 @@ const Settings = () => {
   }
 
   useEffect(() => {
-    console.log("I literally do nothing")
+    // console.log("I literally do nothing")
     // console.log(DEFAULT_KEYBINDS)
     for (let i = 0; i < Object.values(DEFAULT_KEYBINDS).length; i++) {
-      console.log(Object.keys(DEFAULT_KEYBINDS)[i], Object.values(DEFAULT_KEYBINDS)[i])
+      // console.log(Object.keys(DEFAULT_KEYBINDS)[i], Object.values(DEFAULT_KEYBINDS)[i])
     }
 
    
@@ -253,7 +253,9 @@ const Settings = () => {
     </div>
      
       <button onClick={() => {
+          console.log("You have reset keybinds and this was old keybinds", keybindStateMap)
           setkeybindStateMap(DEFAULT_KEYBINDS)
+          console.log("We have reset the keybinds", keybindStateMap)
           restoreDefaults()
       }
       }>
@@ -261,7 +263,7 @@ const Settings = () => {
       </button>
 
 
-      <button onClick={sendKeybinds()}>Confirm keybinds</button>
+      <button onClick={sendKeybinds}>Confirm keybinds</button>
 
     </div>
 

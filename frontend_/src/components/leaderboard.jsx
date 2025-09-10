@@ -110,7 +110,7 @@ const LeaderBoard = () => {
       {/* Leaderboard content */}
       <div className="leaderboard-container">
         <div className="leaderboard-header">
-          <h2>📜 Leaderboard</h2>
+          <h2> Leaderboard</h2>
         </div>
         <table className="leaderboard-table">
           <thead>
