@@ -1,6 +1,6 @@
 Welcome to Biblios. I played this game in China and didn't find any online version so I built it here. If you enjoy strategy games like Catan, I think this game will suit you.
 
-## Rules 
+
 
 ToDo
 
@@ -26,7 +26,7 @@ Cool to implement:
 5. Spectator Mode
 6. Replay System
 
-#rules 
+## Rules 
 
 Objective:
 There are 5 categories for dice. The objective is to win as many dice points as possible.
