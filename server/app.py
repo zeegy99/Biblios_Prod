@@ -119,7 +119,7 @@ def current_user():
             conn.close()
         return jsonify({"error": str(e)}), 500  
     
-
+#Finished UnitTests
 @app.route("/api/signin", methods=["POST", "OPTIONS"])
 def signin():
     if request.method == "OPTIONS":
