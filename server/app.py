@@ -10,7 +10,6 @@ from email.mime.multipart import MIMEMultipart
 import hashlib
 load_dotenv()
 
-print("at the very start of app.py")
 app = Flask(__name__)
 
 app.config["SESSION_PERMANENT"] = False
@@ -31,7 +30,6 @@ def hash_function(curr_pass):
     a = bcrypt.hashpw(combined, bcrypt.gensalt()) 
     return (a.decode())
     
-# CORS setup for frontend
 
 
 CORS(app, resources={r"/api/*": {"origins": ["https://biblios-game-frontend.onrender.com", "http://localhost:5173", "https://playbiblios.com"]}}, 

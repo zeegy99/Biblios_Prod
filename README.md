@@ -5,6 +5,7 @@ Welcome to Biblios. I played this game in China and didn't find any online versi
 ToDo
 
 1. Migrate everything from client-side to server side.
+    1.01: Refactor logic from frontend towards backend routes and add tests
 ~~2. Secure logins //~~~ Done 8/26 with cookies and sessions verifying logins
 3. Cards drawing twice as fast for [specifically] 2 players --> Actually maybe this is fine -- Otherwise the game takes too long?
 4. Chat does not store broadcast messages if the chat is closed.
