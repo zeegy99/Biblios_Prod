@@ -119,7 +119,7 @@ def current_user():
             conn.close()
         return jsonify({"error": str(e)}), 500  
     
-#Finished UnitTests
+
 @app.route("/api/signin", methods=["POST", "OPTIONS"])
 def signin():
     if request.method == "OPTIONS":
@@ -193,15 +193,12 @@ def signin():
 def update_elo():
     if request.method == "OPTIONS":
         return '', 200
-    print("I have been received in updateelo")
     data = request.json
     username = data.get("username", "").strip()
     elo_change = data.get("eloChange")
 
-    print("I am username", username, "I am elo_change", elo_change)
-
     if username == "none":
-        return jsonify({"message": "No username associated with this account"}), 400
+        return jsonify({"message": "No username associated with this account"}), 400    
 
     try:
         

@@ -11,6 +11,54 @@ def client():
 def test_app_exists():
     assert app is not None
 
+class Test_register:
+    def test_register_username_or_email_in_use(self, client, mocker):
+        conn = mocker.MagicMock()
+        cursor = mocker.MagicMock()
+
+        cursor.fetchone.return_value = (1, )
+        conn.cursor.return_value = cursor
+
+        mocker.patch("app.psycopg2.connect", return_value = conn)
+        resp = client.post("/api/register", json={"email": "testemail@gmail.com", "username": "testusername", "password": "testpassword"})
+
+        assert resp.status_code == 400
+        assert resp.get_json()['error'] == "Email or username already in use"
+
+    def test_register_success(self, client, mocker):
+        conn = mocker.MagicMock()
+        cursor = mocker.MagicMock()
+
+        cursor.fetchone.return_value = (0, )
+        conn.cursor.return_value = cursor
+        mocker.patch("app.psycopg2.connect", return_value = conn)
+        
+
+        resp = client.post("/api/register", json={"email": "a@gmail.com", 'username': 'a', 'password': 'a'})
+
+        
+  
+        assert resp.status_code == 200
+        assert resp.get_json()['message'] == "User registered successfully"
+
+    def test_calls_into_db_are_correct(self, client, mocker):
+        conn = mocker.MagicMock()
+        cursor = mocker.MagicMock()
+
+        cursor.fetchone.return_value = (0, )
+        conn.cursor.return_value = cursor
+        mocker.patch("app.psycopg2.connect", return_value = conn)
+        mocker.patch("app.hash_function", return_value="fixed")
+        resp = client.post("/api/register", json={"email": "a@gmail.com", 'username': 'a', 'password': 'a'})
+
+        cursor.execute.assert_any_call("INSERT INTO users (email, username, password_hash) VALUES (%s, %s, %s)",
+            ("a@gmail.com", "a", "fixed"))
+        cursor.execute.assert_any_call("SELECT COUNT(*) FROM users WHERE email = %s OR username = %s", ('a@gmail.com', 'a'))
+        cursor.execute.assert_any_call("INSERT INTO elo (username, elo_score) VALUES (%s, %s)", ('a', 1000))
+        conn.commit.assert_called_once()
+
+class Test_current_user:
+    pass
 class Test_signin:
     def test_signin_options_preflight(self, client):
         resp = client.open("/api/signin", method="OPTIONS")
@@ -56,7 +104,25 @@ class Test_signin:
 
         assert resp.get_json()['message'] == "Login successful"
         
-# class Test_update_elo
+class Test_update_elo:
+    def test_username_is_none(self, client):
+
+        resp = client.post("/api/update_elo", json={'username': 'none', 'eloChange': 10})
+        assert resp.json['message'] == "No username associated with this account"
+        assert resp.status_code == 400
+
+    def test_changing_elo(self, client, mocker):
+        conn = mocker.MagicMock()
+        cursor = mocker.MagicMock()
 
 
+        conn.cursor.return_value = cursor
+        mocker.patch("app.psycopg2.connect", return_value=conn)
+        resp = client.post("/api/update_elo", json={'username': 'abc', 'eloChange': 10})
+
+        assert resp.status_code == 200
+        assert resp.json['message'] == "Elo updated"
+
+# class Test_get_leaderboard:
+#     def test_
 
