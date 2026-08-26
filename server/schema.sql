@@ -6,6 +6,6 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 CREATE TABLE IF NOT EXISTS elo (
-    username TEXT PRIMARY KEY,
+    username TEXT PRIMARY KEY REFERENCES users(username),
     elo_score INTEGER NOT NULL DEFAULT 1000
 );
