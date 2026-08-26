@@ -1,0 +1,30 @@
+name: CI pipeline
+
+on:
+    push:
+        branches: [main, develop]
+    pull_request:
+        branches: [main, develop]
+
+jobs:
+    test:
+        name: Run Integration Tests
+        runs-on: ubuntu-latest
+
+        steps:
+            #Check Out Code
+            - uses: actions/checkout@v4
+
+            #Install Python
+            - uses: actions/setup-python@v5
+              with:
+                python-version: 3.11
+            
+            #Install Requirements.txt
+            - working-directory: server
+              run: |
+                pip install -r requirements.txt
+                pip install -r requirements_test.txt
+
+
+
