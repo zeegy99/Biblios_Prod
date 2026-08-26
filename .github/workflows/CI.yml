@@ -26,5 +26,24 @@ jobs:
                 pip install -r requirements.txt
                 pip install -r requirements_test.txt
 
+            - name: Create postgres & load schemas
+              env: 
+                PGPASSWORD: test
+              run: psql -h localhost -U postgres -d biblios_database_dev -f server/schema.sq
+
+            - name: Run tests
+
+              working-directory: server
+              env:
+                DATABASE_URL: postgresql://postgres:test@localhost:5432/biblios_database_dev
+                SECRET_KEY: test-secret-key-doesnt-matter-for-this-test
+              run: 
+                pytest tests/ -v
+
+
+            
+
+
+
 
 
