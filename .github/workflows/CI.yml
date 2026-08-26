@@ -29,7 +29,7 @@ jobs:
             - name: Create postgres & load schemas
               env: 
                 PGPASSWORD: test
-              run: psql -h localhost -U postgres -d biblios_database_dev -f server/schema.sq
+              run: psql -h localhost -U postgres -d biblios_database_dev -f server/schema.sql
 
             - name: Run tests
 
