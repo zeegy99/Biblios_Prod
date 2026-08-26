@@ -41,6 +41,7 @@ CORS(app, resources={r"/api/*": {"origins": ["https://biblios-game-frontend.onre
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+#Fully unittested and integration tested
 @app.route("/api/register", methods=["POST", "OPTIONS"])
 def register():
     if request.method == "OPTIONS":

@@ -1,7 +1,11 @@
 # test_app.py
-from app import app
-import pytest
 
+import pytest
+import sys, os
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from app import app
 @pytest.fixture
 def client():
     app.config["TESTING"] = True
@@ -123,6 +127,6 @@ class Test_update_elo:
         assert resp.status_code == 200
         assert resp.json['message'] == "Elo updated"
 
-# class Test_get_leaderboard:
-#     def test_
+#Adding More Unit-Tests In the Future
+
 
