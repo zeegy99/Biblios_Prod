@@ -2,6 +2,10 @@ Welcome to Biblios. I played this game in China and didn't find any online versi
 
 
 
+Update Log:
+9/10 --> Hosted on different website. [Need to optimize SEO for this website now]
+8/28 --> Migrated off of Render to AWS (EC2, RDS)
+8/31 --> Added CI/CD pipeline, automating deployment to AWS EC2 via Github Actions on merge to main branch. 
 ToDo
 
 1. Migrate everything from client-side to server side.
@@ -60,8 +64,6 @@ Misc.
 2. Tiebreakers in category will be split evenly
 3. There are no refunds in Auctioning. If you only have a gold 3 card and win the bid for only 2, you must spend all 3 gold. 
 
-Changes:
-9/10 --> Hosted on different website. [Need to optimize SEO for this website now]
 
 
 
