@@ -26,15 +26,23 @@ const io = new Server(server, {
 });
 
 const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
-});
 
+function startServer(port) {
+  server.listen(port, () => {
+    console.log(`Server listening on port ${PORT}`)
+  });
+}
+
+module.exports = { app, server, io, startServer };
+if (require.main === module) {
+  startServer(PORT);
+}
 
 
 const DEV_MODE = true; 
 
 const playersInRoom = {};
+const currentGameState = {};
 
 io.on("connection", (socket) => {
 
@@ -42,30 +50,30 @@ io.on("connection", (socket) => {
 
   socket.on("join_game", ({ room, playerName, playerId}) => {
 
+      if (!playersInRoom[room]) {
+        playersInRoom[room] = [];
+      }
 
-    if (!playersInRoom[room]) {
-      playersInRoom[room] = [];
-    }
+      const alreadyJoined = playersInRoom[room].some(p => p.playerId === playerId);
+      /* Making sure someone isn't joining the room twice*/
 
-    const alreadyJoined = playersInRoom[room].some(p => p.playerId === playerId);
+      if (!alreadyJoined) {
+        playersInRoom[room].push({ id: socket.id, playerId, name: playerName });
+      } 
 
-    if (!alreadyJoined) {
-      playersInRoom[room].push({ id: socket.id, playerId, name: playerName });
-      console.log(`This is what I am pushing into my list: id ${socket.id}, playerId ${playerId}, name ${playerName}`);
-    } 
-    socket.join(room);
-    console.log("📋 Emitting player list for room", room, playersInRoom[room]);
-    io.to(room).emit("player_list", playersInRoom[room]);
-  });
+      socket.join(room);
+      console.log("Emitting player list for room", room, playersInRoom[room]);
+      io.to(room).emit("player_list", playersInRoom[room]);
+    });
 
   socket.on("update_name", ({ room, newName }) => {
-  if (!playersInRoom[room]) return;
-  const player = playersInRoom[room].find(p => p.id === socket.id);
-  if (player) {
-    player.name = newName;
-    io.to(room).emit("player_list", playersInRoom[room]);
-  }
-});
+    if (!playersInRoom[room]) return;
+    const player = playersInRoom[room].find(p => p.id === socket.id);
+    if (player) {
+      player.name = newName;
+      io.to(room).emit("player_list", playersInRoom[room]);
+    }
+  });
 
   socket.on("start_game", ({ room, deckSettings }) => {
 
@@ -73,7 +81,7 @@ io.on("connection", (socket) => {
 
   const players = playersInRoom[room] || [];
   io.to(room).emit("start_game", { players, deckSettings });
-});
+  });
 
   socket.on("cursor_position", ({ room, playerName, x, y }) => 
     {
@@ -86,7 +94,8 @@ io.on("connection", (socket) => {
 
 
   socket.on("sync_game_state", ({ room, gameState }) => {
-  io.to(room).emit("sync_game_state", gameState);
+    currentGameState[room] = gameState;
+    io.to(room).emit("sync_game_state", gameState);
 });
 
   function removePlayerFromRoom(room, predicate) {
@@ -98,8 +107,8 @@ io.on("connection", (socket) => {
   if (!roomHasSockets || roomHasSockets.size === 0 || playersInRoom[room].length === 0) {
     delete playersInRoom[room];
     delete deckSettingsInRoom[room];
-    // delete currentGameState[room]; // if you have this
-    console.log(`🧹 Room ${room} cleaned up.`);
+   
+    console.log(`Room ${room} cleaned up.`);
   } else {
     io.to(room).emit("player_list", playersInRoom[room]);
   }
@@ -112,7 +121,7 @@ socket.on("leave_game", ({ room, playerId }) => {
     socket.leave(room);
     // drop by playerId (stable across reconnects)
     removePlayerFromRoom(room, (p) => p.playerId === playerId || p.id === socket.id);
-    console.log(`👋 ${playerId} left ${room}`);
+    console.log(`${playerId} left ${room}`);
   } catch (e) {
     console.error("leave_game error:", e);
   }
@@ -126,7 +135,7 @@ socket.on("leave_game", ({ room, playerId }) => {
 
     if (playersInRoom[room].length === 0) {
       delete playersInRoom[room];
-      console.log(`🧹 Room ${room} is now empty and deleted.`);
+      console.log(`Room ${room} is now empty and deleted.`);
     } else {
       io.to(room).emit("player_list", playersInRoom[room]);
     }
@@ -138,7 +147,7 @@ socket.on("leave_game", ({ room, playerId }) => {
 
   //Rejoining
   socket.on("rejoin_game", ({ room, signin_username, playerName }) => {
-  console.log(`🔄 ${playerName} attempting to rejoin ${room}`);
+  console.log(`${playerName} attempting to rejoin ${room}`);
 
   socket.emit("add_playerlist", ({ playerName }))
   console.log("I did the add_playerlist", playerName)
@@ -158,7 +167,7 @@ socket.on("leave_game", ({ room, playerId }) => {
     const gameState = currentGameState[room];
     if (gameState) {
       socket.emit("sync_game_state", gameState);
-      console.log(`✅ ${playerName} rejoined and synced`);
+      console.log(`${playerName} rejoined and synced`);
     }
   }
 });
