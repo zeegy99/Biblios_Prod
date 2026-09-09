@@ -1,6 +1,7 @@
 import { io } from "socket.io-client";
 
 const socket = io("https://playbiblios.com", {
+  withCredentials: true,
   transports: ["websocket"],
   path: "/socket.io",
 });

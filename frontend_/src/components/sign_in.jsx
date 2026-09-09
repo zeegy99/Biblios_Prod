@@ -12,7 +12,7 @@ const SigninPage = ({setPlayerName, setIsAuthenticated}) => {
   const navigate = useNavigate();
 
 
-
+//Handling Login-Information. As of 9/8/26 Looks Good
   const handleSignin = async (e) => {
     e.preventDefault();
     console.log("1 starting login process")
@@ -23,16 +23,16 @@ const SigninPage = ({setPlayerName, setIsAuthenticated}) => {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({ username, password }),
-        credentials: "include"
+        credentials: "include" 
       });
-       console.log("2. Login response status:", res.status);
+      console.log("2. Login response status:", res.status);
       const data = await res.json();
-       console.log("3. Login response data:", data);
-       console.log("3.1 Document cookies after login:", document.cookie);
+      console.log("3. Login response data:", data);
+      console.log("3.1 Document cookies after login:", document.cookie);
 
       if (res.ok) {
         console.log("4. Res is ok")
-        // I am going to rehaul this so that we don't need signin_usrename in localstorage. 
+        
         const userResponse = await fetch('/api/current-user', {
           method: "GET",
           credentials: 'include',
@@ -40,25 +40,24 @@ const SigninPage = ({setPlayerName, setIsAuthenticated}) => {
             'Content-Type': 'application/json',
           }
       });
-      console.log("4.1 Cookies being sent:", document.cookie); // Add this line
-      console.log("5 userResponse", userResponse)
+      
       if (userResponse.ok) {
         console.log("userResponse is ok")
-      const userData = await userResponse.json();
-      console.log("6 userData", userData)
-      setPlayerName(userData.username);  
-      console.log("7. SetPlayerName Issues")
-      setIsAuthenticated(true);
+        const userData = await userResponse.json();
+        console.log("6 userData", userData)
+        setPlayerName(userData.username);  
+        console.log("7. SetPlayerName Issues")
+        setIsAuthenticated(true);
     }
 
         localStorage.setItem("playerName", username);
         localStorage.setItem("isGuest", "false")
         navigate("/signedin");  
       } else {
-        alert("❌ Login failed: " + data.error);
+        alert("Login failed: " + data.error);
       }
     } catch (err) {
-      console.error("❌ Network error:", err);
+      console.error("Network error:", err);
       alert("Something went wrong.");
     }
   };

@@ -20,7 +20,6 @@ function App() {
   const [loading, setLoading] = useState(true);
   
   useEffect(() => {
-    console.log("8. Hey I'm in the useeffect and I'm running ")
     fetch('/api/current-user', {
       credentials: 'include'
     })

@@ -171,7 +171,7 @@ def signin():
 
                 resp.set_cookie(
                     "sid", raw_token,
-                    httponly=False,
+                    httponly=True,
                     secure=not is_local,       # set True in production (HTTPS)
                     samesite="Lax" if is_local else "None",     # use "None" if your frontend is on a different site
                     max_age=7*24*3600,
@@ -336,7 +336,7 @@ def check_email():
                 sender = "fred.yuan392@gmail.com"
                 rcpt = sent_email
                 pwd = (os.getenv("APP_PASSWORD") or "").strip()
-                reset_link = "https://biblios-game-frontend.onrender.com/reset-password"
+                reset_link = "https://playbiblios.com/reset-password"
 
                 msg = MIMEMultipart("alternative")
                 msg["From"] = sender
