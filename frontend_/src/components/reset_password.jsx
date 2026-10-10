@@ -1,15 +1,17 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../auth/auth_context";
+import socket from "../socket";
 import RulesPage from "./rulespage";
 import "./leaderboard.css";
 import "./sign_in.css"; 
 import "./overall_css.css"
 
 const ResetPassword = () => {
-  const login_info = localStorage.getItem("signin_username") || "none";
+  const { username } = useAuth();
+  const login_info = username || "none";
   const savedName = localStorage.getItem("playerName");
   const [elo, setElo] = useState(null);
-  const isGuest = localStorage.getItem("isGuest") === "true";
   const navigate = useNavigate();
   const [showBox, setShowBox] = useState(false);
   const [rulesPage, setRulesPage] = useState(false);
@@ -46,29 +48,28 @@ const ResetPassword = () => {
   
 
   useEffect(() => {
-    if (!isGuest && savedName) {
+    if (username) {
       fetch("/api/get_elo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: savedName.trim() })
+        body: JSON.stringify({ username: username.trim() })
       })
         .then(res => res.json())
         .then(data => setElo(data.elo ?? "N/A"))
         .catch(() => setElo("Error"));
     }
-  }, [isGuest, savedName]);
+  }, [username]);
 
   
   const handleRejoin = () => {
-    const playerId = localStorage.getItem("playerId");
     const playerName = localStorage.getItem("playerName");
     const roomCode = localStorage.getItem("roomCode");
 
-    if (!playerId || !playerName || !roomCode) {
+    if (!playerName || !roomCode) {
       alert("No game to rejoin.");
       return;
     }
-    socket.emit("rejoin_game", { room: roomCode, playerId, playerName });
+    socket.emit("rejoin_game", { room: roomCode, playerName });
     navigate(`/game/${roomCode}`);
   };
 
@@ -107,7 +108,7 @@ const ResetPassword = () => {
             {savedName}
           </button>
 
-          {showBox && (
+          {showBox && username && (
             <div className="profile-dropdown">
               <p className="profile-label" style={{marginLeft: "50px"}}>You are logged in as:</p>
               <h3 className="profile-name">{login_info}</h3>

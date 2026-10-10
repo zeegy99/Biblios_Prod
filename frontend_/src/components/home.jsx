@@ -2,7 +2,8 @@ import React, { useState, useEffect } from "react";
 import { Navigate, useNavigate } from "react-router-dom";import { getOrCreatePlayerId } from "../utils/playerId";
 import Timer from "../timer.jsx";
 import "./lobby.css";
-import RulesPage from "./rulespage"; 
+import RulesPage from "./rulespage";
+import { useAuth } from "../auth/auth_context";
 
 
 const generateRoomCode = () =>
@@ -24,18 +25,18 @@ const Home = ({ setPlayerName }) => {
   const [tempName, setTempName] = useState(localStorage.getItem("playerName") || "");
   const [rulesPage, setRulesPage] = useState(false);
   const navigate = useNavigate();
+  const { isSignedIn } = useAuth();
 
   useEffect(() => {
     const localStorageVol = localStorage.getItem("Volume") || 50;
     localStorage.setItem("Volume", localStorageVol)
-  
-  const name = localStorage.getItem("playerName");
-  const isGuest = localStorage.getItem("isGuest") === "true";
+  }, []);
 
-  if (name && !isGuest) {
-    navigate("/signedin");
-  }
-}, []);
+  useEffect(() => {
+    if (isSignedIn) {
+      navigate("/signedin");
+    }
+  }, [isSignedIn, navigate]);
 
   const toggleDropDown = () => {
     setShowBox((prev) => !prev);
@@ -61,7 +62,6 @@ const Home = ({ setPlayerName }) => {
     if (!nameInput || !roomInput) return;
     localStorage.setItem("playerName", nameInput);
     localStorage.setItem("roomCode", roomInput.toUpperCase());
-    localStorage.setItem("isGuest", "true")
     setPlayerName(nameInput);
     navigate("/lobby");
   };
@@ -72,7 +72,6 @@ const Home = ({ setPlayerName }) => {
     console.log(newRoom)
     localStorage.setItem("playerName", nameInput);
     localStorage.setItem("roomCode", newRoom);
-    localStorage.setItem("isGuest", "true")
     setPlayerName(nameInput);
     navigate("/lobby");
   };

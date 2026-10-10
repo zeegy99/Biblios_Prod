@@ -1,42 +1,15 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
+import { useAuth } from "../auth/auth_context";
 
 const ScoringPhase = ({ players, dice, setFinalResults, goToResults, isHost }) => {
   const [log, setLog] = useState([]);
   const username = localStorage.getItem("playerName") || "none";
-  const [login_info, setLoginInfo] = useState(localStorage.getItem("signin_username") || "none");
+  const { username: login_info } = useAuth();
   const [currentDieIndex, setCurrentDieIndex] = useState(0);
   const [scoredPlayers, setScoredPlayers] = useState(() =>
     players.map((p) => ({ ...p, points: 0 }))
   );
   const [isDone, setIsDone] = useState(false);
-  useEffect (() => {
-    console.log("inside inside inside")
-    const fetchUsername = async () => {
-      try {
-        const response = await fetch ("/api/current-user", {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-        credentials: 'include'
-        })
-
-        const data = await response.json();
-        if (response.ok) {
-          setLoginInfo(data['username'])
-          console.log("This is setLoginInfo going", login_info)
-        }
-        else {
-          console.log("I was in the else")
-        }
-
-      }
-      catch (error){
-        console.log("This is error", error)
-      }
-    }
-
-    fetchUsername();
-  }, []);
-
 
   const handleScoreNextDie = () => {
     const die = dice[currentDieIndex];
@@ -165,7 +138,8 @@ const ScoringPhase = ({ players, dice, setFinalResults, goToResults, isHost }) =
         player.elo = -step * (i - medianIndex + (isOdd ? 0 : 1));
       }
 
-      if (player.name === username) {
+      // Guests have no Elo to update.
+      if (player.name === username && login_info) {
         fetch("/api/update_elo", {
           method: "POST",
           headers: { "Content-Type": "application/json" },

@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../auth/auth_context";
+import socket from "../socket";
 import RulesPage from "./rulespage";
 import "./leaderboard.css";
 import "./settings.css";
@@ -19,10 +21,10 @@ export function setUpdatedSettings(newMap) {
 const Settings = () => {
   const [changingAction, setChangingAction] = useState(null);
   const [volume, setVolume] = useState(50);
-  const login_info = localStorage.getItem("signin_username") || "none";
+  const { username } = useAuth();
+  const login_info = username || "none";
   const savedName = localStorage.getItem("playerName");
   const [elo, setElo] = useState(null);
-  const isGuest = localStorage.getItem("isGuest") === "true";
   const navigate = useNavigate();
   const [showBox, setShowBox] = useState(false);
   const [rulesPage, setRulesPage] = useState(false);
@@ -44,17 +46,17 @@ const Settings = () => {
 
 
   useEffect(() => {
-    if (!isGuest && savedName) {
+    if (username) {
       fetch("/api/get_elo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: savedName.trim() })
+        body: JSON.stringify({ username: username.trim() })
       })
         .then(res => res.json())
         .then(data => setElo(data.elo ?? "N/A"))
         .catch(() => setElo("Error"));
     }
-  }, [isGuest, savedName]);
+  }, [username]);
 
   const sendKeybinds = () => {
     fetch("/api/send_keybinds", {
@@ -79,15 +81,14 @@ const Settings = () => {
 
   
   const handleRejoin = () => {
-    const playerId = localStorage.getItem("playerId");
     const playerName = localStorage.getItem("playerName");
     const roomCode = localStorage.getItem("roomCode");
 
-    if (!playerId || !playerName || !roomCode) {
+    if (!playerName || !roomCode) {
       alert("No game to rejoin.");
       return;
     }
-    socket.emit("rejoin_game", { room: roomCode, playerId, playerName });
+    socket.emit("rejoin_game", { room: roomCode, playerName });
     navigate(`/game/${roomCode}`);
   };
 
@@ -177,7 +178,7 @@ const Settings = () => {
             {savedName}
           </button>
 
-          {showBox && (
+          {showBox && username && (
             <div className="profile-dropdown">
               <p className="profile-label" style={{marginLeft: "50px"}}>You are logged in as:</p>
               <h3 className="profile-name">{login_info}</h3>
@@ -263,7 +264,7 @@ const Settings = () => {
       </button>
 
 
-      <button onClick={sendKeybinds}>Confirm keybinds</button>
+      {username && <button onClick={sendKeybinds}>Confirm keybinds</button>}
 
     </div>
 
