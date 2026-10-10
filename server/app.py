@@ -112,22 +112,37 @@ def get_session_account(sid):
         return None
     return SessionAccount(*row)
 
+def require_session_account():
+    """The Session gate for endpoints that need a Signed-in Player.
+
+    Returns (account, None) when the request's sid cookie names a valid Session, or
+    (None, error_response) otherwise; the caller returns error_response as-is:
+      - no sid cookie                  -> 401 "Not authenticated"
+      - the lookup raises              -> 500 with the error message
+      - sid unknown or expired         -> 401 "Session expired or invalid"
+    """
+    sid = request.cookies.get('sid')
+    if not sid:
+        return None, (jsonify({"error": "Not authenticated"}), 401)
+
+    try:
+        account = get_session_account(sid)
+    except Exception as e:
+        return None, (jsonify({"error": str(e)}), 500)
+
+    if not account:
+        return None, (jsonify({"error": "Session expired or invalid"}), 401)
+
+    return account, None
+
 @app.route("/api/current-user", methods=["GET", "OPTIONS"])
 def current_user():
     if request.method == "OPTIONS":
         return '', 200
 
-    sid = request.cookies.get('sid')
-    if not sid:
-        return jsonify({"error": "Not authenticated"}), 401
-
-    try:
-        account = get_session_account(sid)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-    if not account:
-        return jsonify({"error": "Session expired or invalid"}), 401
+    account, error = require_session_account()
+    if error:
+        return error
 
     return jsonify({
         "username": account.username,
@@ -244,17 +259,9 @@ def update_elo():
         return '', 200
 
     # The account always comes from the Session; any username in the body is ignored
-    sid = request.cookies.get('sid')
-    if not sid:
-        return jsonify({"error": "Not authenticated"}), 401
-
-    try:
-        account = get_session_account(sid)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-    if not account:
-        return jsonify({"error": "Session expired or invalid"}), 401
+    account, error = require_session_account()
+    if error:
+        return error
 
     data = request.json
     username = account.username
@@ -485,17 +492,9 @@ def send_keybinds():
     if request.method == "OPTIONS":
         return "", 200
 
-    sid = request.cookies.get('sid')
-    if not sid:
-        return jsonify({"error": "Not authenticated"}), 401
-
-    try:
-        account = get_session_account(sid)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-    if not account:
-        return jsonify({"error": "Session expired or invalid"}), 401
+    account, error = require_session_account()
+    if error:
+        return error
 
     # The account comes from the Session; any "name" in the body is ignored.
     username = account.username
@@ -507,7 +506,7 @@ def send_keybinds():
         data = request.json
         print("Received keybinds data:", data)
 
-        conn = psycopg2.connect(os.getenv("DATABASE_URL"))
+        conn = psycopg2.connect(DATABASE_URL)
         cursor = conn.cursor()
 
         cursor.execute("SELECT username FROM keybinds WHERE username = %s", (username,))
