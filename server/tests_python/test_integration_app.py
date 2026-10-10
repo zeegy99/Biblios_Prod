@@ -376,3 +376,23 @@ class Test_signout:
         assert resp.status_code == 200
         assert client.get_cookie("sid") is None
         assert session_ids_of(signin_user["user_id"]) == set()
+
+class Test_public_reads_without_session:
+    def test_get_elo_works_without_session(self, client, existing_user):
+        assert client.get_cookie("sid") is None
+
+        resp = client.post("/api/get_elo", json={"username": "test_1"})
+
+        assert resp.status_code == 200
+        assert resp.get_json() == {"elo": 900}
+
+    def test_get_leaderboard_works_without_session(self, client, existing_user, signin_user):
+        assert client.get_cookie("sid") is None
+
+        resp = client.get("/api/get_leaderboard")
+
+        assert resp.status_code == 200
+        assert resp.get_json() == [
+            {"username": "signin_user", "elo": 1000},
+            {"username": "test_1", "elo": 900},
+        ]
