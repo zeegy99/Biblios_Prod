@@ -13,6 +13,9 @@ export const AuthContext = createContext(null);
 //                the Session (sign-in, Sign-out). Resolves to the new username, or
 //                null when the server answers 401 (Guest). Rejects on a network
 //                error or any other non-OK answer, leaving username unchanged.
+//                When the answer is a different player than before, the shared
+//                socket reconnects so its Player Identity follows the Session
+//                (not on the app-load check, nor when the refresh fails).
 //   signOut()  - Sign-out: POSTs /api/signout (which ends this Session and clears
 //                the sid cookie), then calls refresh(). Resolves to refresh()'s
 //                answer (null once signed out). Rejects, leaving username unchanged,
