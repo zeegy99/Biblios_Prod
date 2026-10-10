@@ -42,6 +42,18 @@ const AuthProvider = ({ children }) => {
     }
   }, []);
 
+  // Sign-out: ends this Session on the server, then asks who we are again.
+  const signOut = useCallback(async () => {
+    const response = await fetch("/api/signout", {
+      method: "POST",
+      credentials: "include",
+    });
+    if (!response.ok) {
+      throw new Error(`/api/signout answered ${response.status}`);
+    }
+    return refresh();
+  }, [refresh]);
+
   useEffect(() => {
     refresh().catch((error) => {
       console.error("Could not ask /api/current-user:", error);
@@ -49,8 +61,8 @@ const AuthProvider = ({ children }) => {
   }, [refresh]);
 
   const value = useMemo(
-    () => ({ username, isSignedIn: username !== null, loading, refresh }),
-    [username, loading, refresh]
+    () => ({ username, isSignedIn: username !== null, loading, refresh, signOut }),
+    [username, loading, refresh, signOut]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

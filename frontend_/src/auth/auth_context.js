@@ -3,7 +3,7 @@ import { createContext, useContext } from "react";
 // Who the player is, as the server's Session says. Provided by <AuthProvider>.
 export const AuthContext = createContext(null);
 
-// Returns { username, isSignedIn, loading, refresh }.
+// Returns { username, isSignedIn, loading, refresh, signOut }.
 //   username   - the Signed-in Player's account username, or null for a Guest.
 //                It only changes when the server's answer changes, so it is the
 //                signal to watch for "who the player is" changing.
@@ -13,6 +13,12 @@ export const AuthContext = createContext(null);
 //                the Session (sign-in, Sign-out). Resolves to the new username, or
 //                null when the server answers 401 (Guest). Rejects on a network
 //                error or any other non-OK answer, leaving username unchanged.
+//   signOut()  - Sign-out: POSTs /api/signout (which ends this Session and clears
+//                the sid cookie), then calls refresh(). Resolves to refresh()'s
+//                answer (null once signed out). Rejects, leaving username unchanged,
+//                when /api/signout fails or answers non-OK (the Session may still be
+//                valid), or when the follow-up refresh() rejects. Local storage
+//                (Volume, Display Name, ...) is left alone.
 export function useAuth() {
   const auth = useContext(AuthContext);
   if (!auth) {

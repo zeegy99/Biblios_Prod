@@ -319,3 +319,60 @@ class Test_send_keybinds:
 
         assert resp.status_code == 401
         assert self._saved_keybinds() == []
+
+def session_ids_of(user_id):
+    conn = psycopg2.connect(os.environ["DATABASE_URL"])
+    cur = conn.cursor()
+    cur.execute("SELECT session_id FROM sessions WHERE user_id = %s", (user_id,))
+    rows = {row[0] for row in cur.fetchall()}
+    cur.close()
+    conn.close()
+    return rows
+
+class Test_signout:
+    def test_ends_this_session_and_leaves_the_accounts_other_session(self, client, signin_user):
+        other_sid = sign_in(client, signin_user)
+        sid = sign_in(client, signin_user)
+
+        resp = client.post("/api/signout")
+
+        assert resp.status_code == 200
+        assert client.get_cookie("sid") is None
+        assert session_ids_of(signin_user["user_id"]) == {other_sid}
+
+        client.set_cookie("sid", sid)
+        assert client.get("/api/current-user").status_code == 401
+
+        client.set_cookie("sid", other_sid)
+        resp = client.get("/api/current-user")
+        assert resp.status_code == 200
+        assert resp.get_json()["username"] == "signin_user"
+
+    def test_without_session_succeeds(self, client, signin_user):
+        other_sid = sign_in(client, signin_user)
+        client.delete_cookie("sid")
+
+        resp = client.post("/api/signout")
+
+        assert resp.status_code == 200
+        assert session_ids_of(signin_user["user_id"]) == {other_sid}
+
+    def test_with_unknown_sid_succeeds_and_clears_cookie(self, client, signin_user):
+        other_sid = sign_in(client, signin_user)
+        client.set_cookie("sid", "not-a-real-session")
+
+        resp = client.post("/api/signout")
+
+        assert resp.status_code == 200
+        assert client.get_cookie("sid") is None
+        assert session_ids_of(signin_user["user_id"]) == {other_sid}
+
+    def test_with_expired_session_succeeds_and_deletes_its_row(self, client, signin_user):
+        sid = sign_in(client, signin_user)
+        expire_session(sid)
+
+        resp = client.post("/api/signout")
+
+        assert resp.status_code == 200
+        assert client.get_cookie("sid") is None
+        assert session_ids_of(signin_user["user_id"]) == set()
