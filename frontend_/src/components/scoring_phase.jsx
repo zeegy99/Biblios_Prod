@@ -4,7 +4,7 @@ import { useAuth } from "../auth/auth_context";
 const ScoringPhase = ({ players, dice, setFinalResults, goToResults, isHost }) => {
   const [log, setLog] = useState([]);
   const displayName = localStorage.getItem("playerName") || "none";
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, refresh } = useAuth();
   const [currentDieIndex, setCurrentDieIndex] = useState(0);
   const [scoredPlayers, setScoredPlayers] = useState(() =>
     players.map((p) => ({ ...p, points: 0 }))
@@ -147,7 +147,12 @@ const ScoringPhase = ({ players, dice, setFinalResults, goToResults, isHost }) =
           credentials: 'include',
           body: JSON.stringify({ eloChange: player.elo })
         }).then((response) => {
-          if (response.status === 401) setEloNotRecorded(true);
+          if (response.status === 401) {
+            // The Session has expired: say the Elo change wasn't recorded, and let
+            // the auth provider drop us to Guest. A failed refresh() is harmless.
+            setEloNotRecorded(true);
+            refresh().catch(() => {});
+          }
         });
       }
     });
