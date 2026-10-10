@@ -19,11 +19,17 @@ function App() {
   const [playerName, setPlayerName] = useState("");
   const [playerList, setPlayerList] = useState([]);
 
-  // A Signed-in Player's Display Name defaults to their account username.
+  // A Signed-in Player's Display Name defaults to their account username, but only
+  // when no Display Name is saved yet: a chosen alias survives sign-in. This is the
+  // one place that sets that default.
   useEffect(() => {
-    if (username) {
-      setPlayerName(username);
+    if (!username) return;
+    let displayName = localStorage.getItem("playerName");
+    if (!displayName) {
+      displayName = username;
+      localStorage.setItem("playerName", displayName);
     }
+    setPlayerName(displayName);
   }, [username]);
 
   return (

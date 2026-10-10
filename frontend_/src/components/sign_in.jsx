@@ -39,9 +39,9 @@ const SigninPage = () => {
         console.log("4. Res is ok")
 
         // The new Session is now set; let the auth provider ask who we are.
+        // App defaults the Display Name to the username if none is saved yet.
         await refresh();
 
-        localStorage.setItem("playerName", username);
         navigate("/signedin");
       } else {
         alert("Login failed: " + data.error);
