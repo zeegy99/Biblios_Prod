@@ -11,37 +11,26 @@ import LeaderBoard from "./components/leaderboard.jsx";
 import Settings from "./components/settings.jsx";
 import ForgotPassword from "./components/forgot_password.jsx";
 import ResetPassword from "./components/reset_password.jsx";
+import { useAuth } from "./auth/auth_context";
 // import 'bootstrap/dist/css/bootstrap.min.css';
 
 function App() {
+  const { username } = useAuth();
   const [playerName, setPlayerName] = useState("");
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [playerList, setPlayerList] = useState([]);
-  const [loading, setLoading] = useState(true);
-  
+
+  // A Signed-in Player's Display Name defaults to their account username, but only
+  // when no Display Name is saved yet: a chosen alias survives sign-in. This is the
+  // one place that sets that default.
   useEffect(() => {
-    fetch('/api/current-user', {
-      credentials: 'include'
-    })
-    .then(response => {
-      if (response.ok) {
-        return response.json();
-      }
-      throw new Error('Not authenticated');
-    })
-    .then(data => {
-      setPlayerName(data.username);
-      setIsAuthenticated(true);
-    })
-    .catch(error => {
-      setIsAuthenticated(false);
-      setPlayerName("");
-    })
-    .finally(() => {
-      setLoading(false);
-    });
-    console.log("9. IN App.jsx")
-  }, []);
+    if (!username) return;
+    let displayName = localStorage.getItem("playerName");
+    if (!displayName) {
+      displayName = username;
+      localStorage.setItem("playerName", displayName);
+    }
+    setPlayerName(displayName);
+  }, [username]);
 
   return (
     <Router>
@@ -49,14 +38,11 @@ function App() {
         <Route path="/" element={<Home setPlayerName={setPlayerName} />} />
        <Route path="/lobby" element={<Lobby playerName={playerName} setPlayerName={setPlayerName} setPlayerList={setPlayerList} />} />
         <Route path="/game/:room" element={<Play playerName={playerName} playerList={playerList} />} />
-        <Route path="/signin" element={<SigninPage 
-        setPlayerName={setPlayerName}
-        setIsAuthenticated={setIsAuthenticated}/>} />
+        <Route path="/signin" element={<SigninPage/>} />
 
         <Route path="/signup" element={<Signup/>} />
 
-        <Route path="/signedin" element={<SignedIn 
-        playerName={playerName}/>} />
+        <Route path="/signedin" element={<SignedIn/>} />
 
         <Route path="/leaderboard" element={<LeaderBoard/>} />
         <Route path="/settings" element={<Settings/>} />

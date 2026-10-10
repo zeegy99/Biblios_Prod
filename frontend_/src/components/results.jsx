@@ -10,11 +10,10 @@ const ResultsScreen = ({ players, onRestart }) => {
 
   const goToHome = () => {
     const room = localStorage.getItem("roomCode");
-    const playerId = localStorage.getItem("playerId");
     
     localStorage.removeItem("roomCode");
     localStorage.removeItem("start_game_payload");
-    socket.emit("leave_game", {room: room, playerId: playerId})
+    socket.emit("leave_game", {room: room})
     navigate("/");
   }
 
