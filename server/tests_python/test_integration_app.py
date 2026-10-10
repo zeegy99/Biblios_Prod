@@ -258,3 +258,64 @@ class Test_signin_expired_session_cleanup:
         conn.close()
 
         assert alice_sessions == {"alice_expired"}
+
+class Test_send_keybinds:
+    SETTINGS = {"DONATE_CARD": ["Z"], "KEEP_CARD": ["X"]}
+
+    def _seed_other_user(self):
+        conn = psycopg2.connect(os.environ["DATABASE_URL"])
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO users (email, username, password_hash) VALUES (%s, %s, %s)",
+            ("other@gmail.com", "other_user", "some_password")
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+
+    def _saved_keybinds(self):
+        conn = psycopg2.connect(os.environ["DATABASE_URL"])
+        cur = conn.cursor()
+        cur.execute("SELECT username, donate_card, keep_card FROM keybinds ORDER BY username")
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return rows
+
+    def test_saves_under_session_username_when_body_names_another_account(self, client, signin_user):
+        self._seed_other_user()
+        sign_in(client, signin_user)
+
+        resp = client.post("/api/send_keybinds", json={"name": "other_user", "settings": self.SETTINGS})
+
+        assert resp.status_code == 200
+        assert self._saved_keybinds() == [("signin_user", "Z", "X")]
+
+    def test_updates_existing_keybinds_for_session_username(self, client, signin_user):
+        sign_in(client, signin_user)
+        client.post("/api/send_keybinds", json={"settings": self.SETTINGS})
+
+        resp = client.post("/api/send_keybinds", json={"settings": {"DONATE_CARD": ["Y"]}})
+
+        assert resp.status_code == 200
+        assert self._saved_keybinds() == [("signin_user", "Y", "X")]
+
+    def test_no_session_returns_401_and_saves_nothing(self, client, signin_user):
+        resp = client.post("/api/send_keybinds", json={"name": "signin_user", "settings": self.SETTINGS})
+
+        assert resp.status_code == 401
+        assert self._saved_keybinds() == []
+
+    def test_expired_session_returns_401_and_saves_nothing(self, client, signin_user):
+        sid = sign_in(client, signin_user)
+        conn = psycopg2.connect(os.environ["DATABASE_URL"])
+        cur = conn.cursor()
+        cur.execute("UPDATE sessions SET expires_at = NOW() - INTERVAL '1 minute' WHERE session_id = %s", (sid,))
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        resp = client.post("/api/send_keybinds", json={"name": "signin_user", "settings": self.SETTINGS})
+
+        assert resp.status_code == 401
+        assert self._saved_keybinds() == []

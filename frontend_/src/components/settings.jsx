@@ -60,7 +60,8 @@ const Settings = () => {
     fetch("/api/send_keybinds", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: username, settings: updatedSettings})
+        credentials: 'include',
+        body: JSON.stringify({ settings: updatedSettings })
       })
 
       console.log("finished the sendKeybinds", updatedSettings)

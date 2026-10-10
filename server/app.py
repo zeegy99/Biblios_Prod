@@ -453,20 +453,31 @@ def change_password():
 def send_keybinds():
     if request.method == "OPTIONS":
         return "", 200
-    
+
+    sid = request.cookies.get('sid')
+    if not sid:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    try:
+        account = get_session_account(sid)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    if not account:
+        return jsonify({"error": "Session expired or invalid"}), 401
+
+    # The account comes from the Session; any "name" in the body is ignored.
+    username = account.username
+
     conn = None  # Initialize conn to None
     cursor = None
-    
+
     try:
         data = request.json
         print("Received keybinds data:", data)
 
         conn = psycopg2.connect(os.getenv("DATABASE_URL"))
         cursor = conn.cursor()
-        
-        username = data.get('name')
-        if not username:
-            return jsonify({"error": "Username not provided"}), 400
 
         cursor.execute("SELECT username FROM keybinds WHERE username = %s", (username,))
         user_exists = cursor.fetchone() is not None
