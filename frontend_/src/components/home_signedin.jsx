@@ -7,8 +7,8 @@ import { useAuth } from "../auth/auth_context";
 
 
 const SignedIn = () => {
-  const { username: login_info, loading } = useAuth();
-  const savedName = localStorage.getItem("playerName") || login_info;
+  const { username, isSignedIn, loading } = useAuth();
+  const savedName = localStorage.getItem("playerName") || username;
   const [elo, setElo] = useState(null);
   const navigate = useNavigate();
   const [showBox, setShowBox] = useState(false);
@@ -16,12 +16,12 @@ const SignedIn = () => {
   const [roomInput, setRoomInput] = useState("");
 
 const handleRejoin = () => {
-  const playerName = localStorage.getItem("playerName") || login_info;
+  const playerName = localStorage.getItem("playerName") || username;
   const prevRoomCode = localStorage.getItem("prevRoomCode")
   const roomCode = localStorage.getItem("roomCode") || prevRoomCode;
   
 
-  if (!login_info || !playerName || !roomCode) {
+  if (!isSignedIn || !playerName || !roomCode) {
     alert("No game to rejoin.");
     return;
   }
@@ -30,7 +30,7 @@ const handleRejoin = () => {
   // Emit rejoin request
   socket.emit("rejoin_game", {
     room: roomCode,
-    signin_username: login_info,
+    signin_username: username,
     playerName: playerName,
   });
 
@@ -60,12 +60,12 @@ useEffect(() => {
     };
   }, []);
 useEffect(() => {
-  if (!login_info) return;
+  if (!isSignedIn) return;
 
   fetch("/api/get_elo", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username: login_info.trim() })
+    body: JSON.stringify({ username: username.trim() })
   })
     .then(res => res.json())
     .then(data => {
@@ -80,7 +80,7 @@ useEffect(() => {
       console.error("Failed to fetch elo:", err);
       setElo("Error");
     });
-}, [login_info]);
+}, [isSignedIn, username]);
 
 const handleCreateRoom = () => {
   const newRoom = Math.random().toString(36).substring(2, 7).toUpperCase();
@@ -92,7 +92,7 @@ const handleCreateRoom = () => {
   if (loading) {
     return null;
   }
-  if (!login_info) {
+  if (!isSignedIn) {
     return <Navigate to="/" replace />; // redirect guests to home
   }
   const toggleDropDown = () => {
@@ -154,13 +154,13 @@ const handleCreateRoom = () => {
           
 
           <button className={'naming-button'} onClick={toggleDropDown}>
-          {login_info}
+          {username}
           </button>
 
           {showBox && (
             <div className="profile-dropdown">
               <p className="profile-label">You are logged in as:</p>
-              <h3 className="profile-name">{login_info} 
+              <h3 className="profile-name">{username} 
 
                 
               </h3>
@@ -194,7 +194,7 @@ const handleCreateRoom = () => {
 
       <main className="home-main">
   <div className="home-card left-card">
-     <h2 className="home-title">Welcome back, {login_info}!</h2>
+     <h2 className="home-title">Welcome back, {username}!</h2>
     <h2>Join or Create a Room</h2>
 
     <input

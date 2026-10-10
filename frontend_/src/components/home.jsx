@@ -25,7 +25,7 @@ const Home = ({ setPlayerName }) => {
   const [tempName, setTempName] = useState(localStorage.getItem("playerName") || "");
   const [rulesPage, setRulesPage] = useState(false);
   const navigate = useNavigate();
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, loading } = useAuth();
 
   useEffect(() => {
     const localStorageVol = localStorage.getItem("Volume") || 50;
@@ -81,6 +81,12 @@ const Home = ({ setPlayerName }) => {
   }
 
 
+
+  // Wait for the auth provider before showing the Guest form, and show nothing
+  // while a Signed-in Player is being redirected to /signedin.
+  if (loading || isSignedIn) {
+    return null;
+  }
 
   return (
     <div className="home-container">

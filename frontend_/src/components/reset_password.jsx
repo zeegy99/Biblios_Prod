@@ -1,15 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/auth_context";
-import socket from "../socket";
 import RulesPage from "./rulespage";
 import "./leaderboard.css";
 import "./sign_in.css"; 
 import "./overall_css.css"
 
 const ResetPassword = () => {
-  const { username } = useAuth();
-  const login_info = username || "none";
+  const { username, isSignedIn } = useAuth();
   const savedName = localStorage.getItem("playerName");
   const [elo, setElo] = useState(null);
   const navigate = useNavigate();
@@ -48,7 +46,7 @@ const ResetPassword = () => {
   
 
   useEffect(() => {
-    if (username) {
+    if (isSignedIn) {
       fetch("/api/get_elo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -58,19 +56,12 @@ const ResetPassword = () => {
         .then(data => setElo(data.elo ?? "N/A"))
         .catch(() => setElo("Error"));
     }
-  }, [username]);
+  }, [isSignedIn, username]);
 
   
+  // Rejoin is not supported from this page yet.
   const handleRejoin = () => {
-    const playerName = localStorage.getItem("playerName");
-    const roomCode = localStorage.getItem("roomCode");
-
-    if (!playerName || !roomCode) {
-      alert("No game to rejoin.");
-      return;
-    }
-    socket.emit("rejoin_game", { room: roomCode, playerName });
-    navigate(`/game/${roomCode}`);
+    alert("No game to rejoin.");
   };
 
   return (
@@ -108,10 +99,10 @@ const ResetPassword = () => {
             {savedName}
           </button>
 
-          {showBox && username && (
+          {showBox && isSignedIn && (
             <div className="profile-dropdown">
               <p className="profile-label" style={{marginLeft: "50px"}}>You are logged in as:</p>
-              <h3 className="profile-name">{login_info}</h3>
+              <h3 className="profile-name">{username}</h3>
               
               <hr className="profile-divider" />
               <button

@@ -1,13 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/auth_context";
-import socket from "../socket";
 import RulesPage from "./rulespage";
 import "./leaderboard.css";
 
 const LeaderBoard = () => {
-  const { username } = useAuth();
-  const login_info = username || "none";
+  const { username, isSignedIn } = useAuth();
   const savedName = localStorage.getItem("playerName");
   const [elo, setElo] = useState(null);
   const navigate = useNavigate();
@@ -16,7 +14,7 @@ const LeaderBoard = () => {
   const [players, setPlayers] = useState([]);
 
   useEffect(() => {
-    if (username) {
+    if (isSignedIn) {
       fetch("/api/get_elo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -26,7 +24,7 @@ const LeaderBoard = () => {
         .then(data => setElo(data.elo ?? "N/A"))
         .catch(() => setElo("Error"));
     }
-  }, [username]);
+  }, [isSignedIn, username]);
 
   useEffect(() => {
     fetch("/api/get_leaderboard")
@@ -41,16 +39,9 @@ const LeaderBoard = () => {
       .catch(err => console.error("Failed to load leaderboard:", err));
   }, []);
 
+  // Rejoin is not supported from this page yet.
   const handleRejoin = () => {
-    const playerName = localStorage.getItem("playerName");
-    const roomCode = localStorage.getItem("roomCode");
-
-    if (!playerName || !roomCode) {
-      alert("No game to rejoin.");
-      return;
-    }
-    socket.emit("rejoin_game", { room: roomCode, playerName });
-    navigate(`/game/${roomCode}`);
+    alert("No game to rejoin.");
   };
 
   return (
@@ -88,10 +79,10 @@ const LeaderBoard = () => {
             {savedName}
           </button>
 
-          {showBox && username && (
+          {showBox && isSignedIn && (
             <div className="profile-dropdown">
               <p className="profile-label" style={{marginLeft: "50px"}}>You are logged in as:</p>
-              <h3 className="profile-name">{login_info}</h3>
+              <h3 className="profile-name">{username}</h3>
               
               <hr className="profile-divider" />
               <button

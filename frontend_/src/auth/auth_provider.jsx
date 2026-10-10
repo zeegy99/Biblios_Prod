@@ -2,14 +2,19 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AuthContext } from "./auth_context";
 
 // The only place in the frontend that asks the server who the player is.
-// A missing, unknown or expired Session answers 401, which means Guest.
+// Resolves to the username, or null when the server answers 401 (no, unknown
+// or expired Session: a Guest). Throws on anything else (network error, 5xx),
+// because then we don't know who the player is.
 async function fetchCurrentUsername() {
   const response = await fetch("/api/current-user", {
     method: "GET",
     credentials: "include",
   });
-  if (!response.ok) {
+  if (response.status === 401) {
     return null;
+  }
+  if (!response.ok) {
+    throw new Error(`/api/current-user answered ${response.status}`);
   }
   const data = await response.json();
   return data.username || null;
@@ -22,23 +27,25 @@ const AuthProvider = ({ children }) => {
 
   const refresh = useCallback(async () => {
     const requestId = ++latestRequest.current;
-    let nextUsername = null;
     try {
-      nextUsername = await fetchCurrentUsername();
-    } catch (error) {
-      console.error("Could not ask /api/current-user, treating as Guest:", error);
+      const nextUsername = await fetchCurrentUsername();
+      // Only the most recent request may update state, so an older, slower answer
+      // can't overwrite a newer one (e.g. the app-load check finishing after sign-in).
+      if (requestId === latestRequest.current) {
+        setUsername(nextUsername);
+      }
+      return nextUsername;
+    } finally {
+      if (requestId === latestRequest.current) {
+        setLoading(false);
+      }
     }
-    // Only the most recent request may update state, so an older, slower answer
-    // can't overwrite a newer one (e.g. the app-load check finishing after sign-in).
-    if (requestId === latestRequest.current) {
-      setUsername(nextUsername);
-      setLoading(false);
-    }
-    return nextUsername;
   }, []);
 
   useEffect(() => {
-    refresh();
+    refresh().catch((error) => {
+      console.error("Could not ask /api/current-user:", error);
+    });
   }, [refresh]);
 
   const value = useMemo(

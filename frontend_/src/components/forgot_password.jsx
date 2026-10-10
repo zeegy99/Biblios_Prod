@@ -5,8 +5,7 @@ import RulesPage from "./rulespage";
 import "./leaderboard.css";
 
 const ForgotPassword = () => {
-  const { username } = useAuth();
-  const login_info = username || "none";
+  const { username, isSignedIn } = useAuth();
   const savedName = localStorage.getItem("playerName");
   const [elo, setElo] = useState(null);
   const navigate = useNavigate();
@@ -35,7 +34,7 @@ const ForgotPassword = () => {
   
 
   useEffect(() => {
-    if (username) {
+    if (isSignedIn) {
       fetch("/api/get_elo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -45,7 +44,7 @@ const ForgotPassword = () => {
         .then(data => setElo(data.elo ?? "N/A"))
         .catch(() => setElo("Error"));
     }
-  }, [username]);
+  }, [isSignedIn, username]);
 
  
 
@@ -84,10 +83,10 @@ const ForgotPassword = () => {
             {savedName}
           </button>
 
-          {showBox && username && (
+          {showBox && isSignedIn && (
             <div className="profile-dropdown">
               <p className="profile-label" style={{marginLeft: "50px"}}>You are logged in as:</p>
-              <h3 className="profile-name">{login_info}</h3>
+              <h3 className="profile-name">{username}</h3>
               
               <hr className="profile-divider" />
               <button

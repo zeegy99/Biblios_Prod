@@ -3,8 +3,8 @@ import { useAuth } from "../auth/auth_context";
 
 const ScoringPhase = ({ players, dice, setFinalResults, goToResults, isHost }) => {
   const [log, setLog] = useState([]);
-  const username = localStorage.getItem("playerName") || "none";
-  const { username: login_info } = useAuth();
+  const displayName = localStorage.getItem("playerName") || "none";
+  const { username, isSignedIn } = useAuth();
   const [currentDieIndex, setCurrentDieIndex] = useState(0);
   const [scoredPlayers, setScoredPlayers] = useState(() =>
     players.map((p) => ({ ...p, points: 0 }))
@@ -139,11 +139,11 @@ const ScoringPhase = ({ players, dice, setFinalResults, goToResults, isHost }) =
       }
 
       // Guests have no Elo to update.
-      if (player.name === username && login_info) {
+      if (player.name === displayName && isSignedIn) {
         fetch("/api/update_elo", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username: login_info, eloChange: player.elo })
+          body: JSON.stringify({ username: username, eloChange: player.elo })
         });
       }
     });

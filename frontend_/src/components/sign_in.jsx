@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth/auth_context";
 
-const SigninPage = ({setPlayerName}) => {
+const SigninPage = () => {
   const { refresh } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -35,10 +35,7 @@ const SigninPage = ({setPlayerName}) => {
         console.log("4. Res is ok")
 
         // The new Session is now set; let the auth provider ask who we are.
-        const signedInUsername = await refresh();
-        if (signedInUsername) {
-          setPlayerName(signedInUsername);
-        }
+        await refresh();
 
         localStorage.setItem("playerName", username);
         navigate("/signedin");
