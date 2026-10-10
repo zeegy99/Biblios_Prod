@@ -215,4 +215,48 @@ class Test_update_elo:
 
 #Adding More Unit-Tests In the Future
 
+class Test_send_keybinds:
+    def test_send_keybinds_options_preflight(self, client):
+        resp = client.options("/api/send_keybinds")
+        assert resp.status_code == 200
+
+    def test_send_keybinds_no_sid_returns_401(self, client, mocker):
+        connect = mocker.patch("app.psycopg2.connect")
+
+        resp = client.post("/api/send_keybinds", json={"name": "alice", "settings": {"KEEP_CARD": ["E"]}})
+
+        assert resp.status_code == 401
+        assert resp.get_json() == {"error": "Not authenticated"}
+        connect.assert_not_called()
+
+    def test_send_keybinds_invalid_session_returns_401(self, client, mocker):
+        mocker.patch("app.get_session_account", return_value=None)
+        client.set_cookie("sid", "stale-sid")
+
+        resp = client.post("/api/send_keybinds", json={"name": "alice", "settings": {"KEEP_CARD": ["E"]}})
+
+        assert resp.status_code == 401
+        assert resp.get_json() == {"error": "Session expired or invalid"}
+
+    def test_send_keybinds_session_lookup_error_returns_500(self, client, mocker):
+        mocker.patch("app.get_session_account", side_effect=Exception("db down"))
+        client.set_cookie("sid", "good-sid")
+
+        resp = client.post("/api/send_keybinds", json={"settings": {"KEEP_CARD": ["E"]}})
+
+        assert resp.status_code == 500
+        assert resp.get_json() == {"error": "db down"}
+
+    def test_send_keybinds_uses_session_username_not_body_name(self, client, mocker, db):
+        _, cursor = db
+        cursor.fetchone.return_value = None
+        mocker.patch("app.get_session_account", return_value=SessionAccount(user_id=7, username="alice"))
+        client.set_cookie("sid", "good-sid")
+
+        resp = client.post("/api/send_keybinds", json={"name": "mallory", "settings": {"KEEP_CARD": ["E"]}})
+
+        assert resp.status_code == 200
+        cursor.execute.assert_any_call("SELECT username FROM keybinds WHERE username = %s", ("alice",))
+        cursor.execute.assert_any_call("INSERT INTO keybinds (username, keep_card) VALUES (%s, %s)", ["alice", "E"])
+
 
