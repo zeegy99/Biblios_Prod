@@ -211,12 +211,23 @@ def signin():
 def update_elo():
     if request.method == "OPTIONS":
         return '', 200
-    data = request.json
-    username = data.get("username", "").strip()
-    elo_change = data.get("eloChange")
 
-    if username == "none":
-        return jsonify({"message": "No username associated with this account"}), 400    
+    # The account always comes from the Session; any username in the body is ignored
+    sid = request.cookies.get('sid')
+    if not sid:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    try:
+        account = get_session_account(sid)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    if not account:
+        return jsonify({"error": "Session expired or invalid"}), 401
+
+    data = request.json
+    username = account.username
+    elo_change = data.get("eloChange")
 
     try:
         

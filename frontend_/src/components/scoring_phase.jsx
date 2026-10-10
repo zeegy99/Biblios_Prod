@@ -9,6 +9,7 @@ const ScoringPhase = ({ players, dice, setFinalResults, goToResults, isHost }) =
     players.map((p) => ({ ...p, points: 0 }))
   );
   const [isDone, setIsDone] = useState(false);
+  const [eloNotRecorded, setEloNotRecorded] = useState(false);
   useEffect (() => {
     console.log("inside inside inside")
     const fetchUsername = async () => {
@@ -169,7 +170,10 @@ const ScoringPhase = ({ players, dice, setFinalResults, goToResults, isHost }) =
         fetch("/api/update_elo", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username: login_info, eloChange: player.elo })
+          credentials: 'include',
+          body: JSON.stringify({ eloChange: player.elo })
+        }).then((response) => {
+          if (response.status === 401) setEloNotRecorded(true);
         });
       }
     });
@@ -196,6 +200,9 @@ const ScoringPhase = ({ players, dice, setFinalResults, goToResults, isHost }) =
       {isDone && (
         <>
           <p>✅ Scoring complete!</p>
+          {eloNotRecorded && (
+            <p>You're signed out, so your Elo change wasn't recorded.</p>
+          )}
           {isHost && (
             <button onClick={goToResults} style={{ marginTop: "20px" }}>
               ➡️ Continue to Results
