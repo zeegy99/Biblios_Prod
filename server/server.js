@@ -17,10 +17,14 @@ app.get("/", (req, res) => {
 
 const server = http.createServer(app);
 const deckSettingsInRoom = {};
+const allowedOrigins = process.env.NODE_ENV === "production"
+  ? ["https://playbiblios.com"]
+  : ["http://localhost:5173"];
+
 
 const io = new Server(server, {
   cors: {
-    origin: "*", 
+    origin: allowedOrigins, 
     methods: ["GET", "POST"]
   }
 });
@@ -38,8 +42,6 @@ if (require.main === module) {
   startServer(PORT);
 }
 
-
-const DEV_MODE = true; 
 
 const playersInRoom = {};
 const currentGameState = {};
