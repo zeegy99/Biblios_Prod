@@ -1,11 +1,12 @@
 import pytest
 import psycopg2
+import bcrypt
 import sys, os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
-os.environ["DATABASE_URL"] = "postgresql://postgres:test@localhost:5432/biblios_database_dev"
+os.environ.setdefault("DATABASE_URL", "postgresql://postgres:test@localhost:5432/biblios_database_dev")
 os.environ["SECRET_KEY"] = "test-secret-key-doesnt-matter-for-this-test"
 
 from app import app  
@@ -77,6 +78,71 @@ class Test_register:
 class Test_signin:
      def no_username(self, client, existing_user):
           pass
+
+@pytest.fixture
+def signin_user(client):
+    """Seeds a user with a real password hash so tests can sign in through /api/signin."""
+    conn = psycopg2.connect(os.environ["DATABASE_URL"])
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO users (email, username, password_hash) VALUES (%s, %s, %s) RETURNING id",
+        ("signin@gmail.com", "signin_user", bcrypt.hashpw(b"signin_password", bcrypt.gensalt()).decode())
+    )
+    user_id = cur.fetchone()[0]
+    cur.execute("INSERT INTO elo (username, elo_score) VALUES (%s, %s)", ("signin_user", 1000))
+    conn.commit()
+    cur.close()
+    conn.close()
+    yield {"username": "signin_user", "password": "signin_password", "user_id": user_id}
+
+def sign_in(client, user):
+    resp = client.post("/api/signin", json={"username": user["username"], "password": user["password"]})
+    assert resp.status_code == 200
+    return client.get_cookie("sid").value
+
+class Test_current_user:
+    def test_valid_session_returns_username_and_user_id(self, client, signin_user):
+        sign_in(client, signin_user)
+
+        resp = client.get("/api/current-user")
+
+        assert resp.status_code == 200
+        assert resp.get_json() == {
+            "username": "signin_user",
+            "user_id": signin_user["user_id"],
+            "authenticated": True,
+        }
+
+    def test_expired_session_returns_401(self, client, signin_user):
+        sid = sign_in(client, signin_user)
+        conn = psycopg2.connect(os.environ["DATABASE_URL"])
+        cur = conn.cursor()
+        cur.execute("UPDATE sessions SET expires_at = NOW() - INTERVAL '1 minute' WHERE session_id = %s", (sid,))
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        resp = client.get("/api/current-user")
+
+        assert resp.status_code == 401
+        assert resp.get_json() == {"error": "Session expired or invalid"}
+
+    def test_unknown_sid_returns_401(self, client, signin_user):
+        client.set_cookie("sid", "not-a-real-session")
+
+        resp = client.get("/api/current-user")
+
+        assert resp.status_code == 401
+        assert resp.get_json() == {"error": "Session expired or invalid"}
+
+    def test_no_sid_cookie_returns_401(self, client, signin_user):
+        sign_in(client, signin_user)
+        client.delete_cookie("sid")
+
+        resp = client.get("/api/current-user")
+
+        assert resp.status_code == 401
+        assert resp.get_json() == {"error": "Not authenticated"}
 
     
 

@@ -77,48 +77,54 @@ def register():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route("/api/current-user", methods=["GET", "OPTIONS"])
-def current_user():
-    if request.method == "OPTIONS":
-        return '', 200
-    
-    sid = request.cookies.get('sid')
+def get_session_user(sid):
+    """Looks up the Session for a sid. Returns (user_id, username) for a valid Session,
+    or None when the sid is missing, unknown or expired. Database errors propagate."""
     if not sid:
-        return jsonify({"error": "Not authenticated"}), 401
-    
-    try:
-        conn = psycopg2.connect(DATABASE_URL)
-        cursor = conn.cursor()
+        return None
 
+    conn = psycopg2.connect(DATABASE_URL)
+    try:
+        cursor = conn.cursor()
         cursor.execute("""SELECT s.user_id, u.username
                         from sessions s
                        join users u
                        ON s.user_id = u.id
                        where s.session_id = %s and s.expires_at > NOW()
                        """, (sid,))
-        
         row = cursor.fetchone()
+        cursor.close()
+    finally:
+        conn.close()
 
-        if row:
-            user_id, username = row
-            cursor.close()
-            conn.close()
-            return jsonify({
-                "username": username,
-                "user_id": user_id,
-                "authenticated": True
-            }), 200
-        else:
-            cursor.close()
-            conn.close()
-            return jsonify({"error": "Session expired or invalid"}), 401
+    if not row:
+        return None
+    user_id, username = row
+    return user_id, username
 
+@app.route("/api/current-user", methods=["GET", "OPTIONS"])
+def current_user():
+    if request.method == "OPTIONS":
+        return '', 200
+
+    sid = request.cookies.get('sid')
+    if not sid:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    try:
+        session_user = get_session_user(sid)
     except Exception as e:
-        if 'cursor' in locals():
-            cursor.close()
-        if 'conn' in locals():
-            conn.close()
-        return jsonify({"error": str(e)}), 500  
+        return jsonify({"error": str(e)}), 500
+
+    if not session_user:
+        return jsonify({"error": "Session expired or invalid"}), 401
+
+    user_id, username = session_user
+    return jsonify({
+        "username": username,
+        "user_id": user_id,
+        "authenticated": True
+    }), 200
     
 
 @app.route("/api/signin", methods=["POST", "OPTIONS"])
