@@ -8,6 +8,7 @@ import os, smtplib, ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import hashlib
+from typing import NamedTuple
 load_dotenv()
 
 app = Flask(__name__)
@@ -77,30 +78,39 @@ def register():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-def get_session_user(sid):
-    """Looks up the Session for a sid. Returns (user_id, username) for a valid Session,
-    or None when the sid is missing, unknown or expired. Database errors propagate."""
+class SessionAccount(NamedTuple):
+    """The account a valid Session belongs to."""
+    user_id: int
+    username: str
+
+def get_session_account(sid):
+    """Looks up the Session for a sid. Returns the SessionAccount for a valid Session,
+    or None when the sid is missing, unknown or expired. Database errors propagate.
+
+    A missing sid and an unknown/expired one both return None, so callers that want a
+    distinct "no sid" error must check the cookie themselves before calling this."""
     if not sid:
         return None
 
     conn = psycopg2.connect(DATABASE_URL)
     try:
         cursor = conn.cursor()
-        cursor.execute("""SELECT s.user_id, u.username
-                        from sessions s
-                       join users u
-                       ON s.user_id = u.id
-                       where s.session_id = %s and s.expires_at > NOW()
-                       """, (sid,))
-        row = cursor.fetchone()
-        cursor.close()
+        try:
+            cursor.execute("""SELECT s.user_id, u.username
+                            from sessions s
+                           join users u
+                           ON s.user_id = u.id
+                           where s.session_id = %s and s.expires_at > NOW()
+                           """, (sid,))
+            row = cursor.fetchone()
+        finally:
+            cursor.close()
     finally:
         conn.close()
 
     if not row:
         return None
-    user_id, username = row
-    return user_id, username
+    return SessionAccount(*row)
 
 @app.route("/api/current-user", methods=["GET", "OPTIONS"])
 def current_user():
@@ -112,17 +122,16 @@ def current_user():
         return jsonify({"error": "Not authenticated"}), 401
 
     try:
-        session_user = get_session_user(sid)
+        account = get_session_account(sid)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-    if not session_user:
+    if not account:
         return jsonify({"error": "Session expired or invalid"}), 401
 
-    user_id, username = session_user
     return jsonify({
-        "username": username,
-        "user_id": user_id,
+        "username": account.username,
+        "user_id": account.user_id,
         "authenticated": True
     }), 200
     
