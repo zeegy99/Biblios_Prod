@@ -1,29 +1,27 @@
 import React, {useState, useEffect} from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import "./lobby.css";
 import RulesPage from "./rulespage"; 
 import socket from "../socket";
+import { useAuth } from "../auth/auth_context";
 
 
-const SignedIn = ({playerName}) => {
-  const [login_info, setLoginInfo] = useState(playerName || "none");
-  const savedName = localStorage.getItem("playerName") || login_info;
+const SignedIn = () => {
+  const { username, isSignedIn, loading } = useAuth();
+  const savedName = localStorage.getItem("playerName") || username;
   const [elo, setElo] = useState(null);
-  const isGuest = localStorage.getItem("isGuest") === "true";
   const navigate = useNavigate();
   const [showBox, setShowBox] = useState(false);
   const [rulesPage, setRulesPage] = useState(false);
   const [roomInput, setRoomInput] = useState("");
-  const [temp, setTemp] = useState("");
 
 const handleRejoin = () => {
-  const signin_username = localStorage.getItem("signin_username");
-  const playerName = localStorage.getItem("playerName") || localStorage.getItem("signin_username");
+  const playerName = localStorage.getItem("playerName") || username;
   const prevRoomCode = localStorage.getItem("prevRoomCode")
   const roomCode = localStorage.getItem("roomCode") || prevRoomCode;
   
 
-  if (!signin_username || !playerName || !roomCode) {
+  if (!isSignedIn || !playerName || !roomCode) {
     alert("No game to rejoin.");
     return;
   }
@@ -32,7 +30,7 @@ const handleRejoin = () => {
   // Emit rejoin request
   socket.emit("rejoin_game", {
     room: roomCode,
-    signin_username: signin_username,
+    signin_username: username,
     playerName: playerName,
   });
 
@@ -49,34 +47,6 @@ const handleJoin = (e) => {
   navigate("/lobby");
 };
 
-useEffect (() => {
-    console.log("inside inside inside")
-    const fetchUsername = async () => {
-      try {
-        const response = await fetch ("/api/current-user", {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-        credentials: 'include'
-        })
-
-        const data = await response.json();
-        if (response.ok) {
-          setLoginInfo(data['username'])
-          console.log("This is setLoginInfo going", login_info)
-        }
-        else {
-          console.log("I was in the else")
-        }
-
-      }
-      catch (error){
-        console.log("This is error", error)
-      }
-    }
-
-    fetchUsername();
-  }, []);
-
 useEffect(() => {
     const handleEsc = (event) => {
        if (event.key === 'Escape') {
@@ -90,63 +60,27 @@ useEffect(() => {
     };
   }, []);
 useEffect(() => {
-  console.log("temp updated to:", temp);
-}, [temp]);
+  if (!isSignedIn) return;
 
-useEffect(() => {
-  
-  const fetchUsername = async () => {
-    try {
-      const response = await fetch ("/api/current-user", {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-        credentials: 'include'
-      })
-
-      const data = await response.json();
-
-      if (response.ok) {
-        console.log ("this is data", data)
-        setTemp(data['username'])
-        const username = data['username'];
-        console.log("username", username)
-
-        if (username) {
-          const cleanUsername = username.trim();
-          fetch("/api/get_elo", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username: cleanUsername })
-          })
-            .then(res => res.json())
-            .then(data => {
-              if (data.elo !== undefined) {
-                setElo(data.elo);
-              } else {
-                console.warn("No elo found:", data);
-                setElo("N/A");
-              }
-            })
-            .catch(err => {
-              console.error("Failed to fetch elo:", err);
-              setElo("Error");
-            });
-        }
+  fetch("/api/get_elo", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username: username.trim() })
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data.elo !== undefined) {
+        setElo(data.elo);
+      } else {
+        console.warn("No elo found:", data);
+        setElo("N/A");
       }
-      else {
-        console.log("response was not ok")
-      }
-    }
-    catch (error) {
-      console.log("This is error", error)
-    }
-  }
-
-  fetchUsername();
-
-  
-  
-}, []);
+    })
+    .catch(err => {
+      console.error("Failed to fetch elo:", err);
+      setElo("Error");
+    });
+}, [isSignedIn, username]);
 
 const handleCreateRoom = () => {
   const newRoom = Math.random().toString(36).substring(2, 7).toUpperCase();
@@ -155,9 +89,11 @@ const handleCreateRoom = () => {
 };
 
 
-  if (isGuest) {
-    navigate("/"); // redirect guests to home
+  if (loading) {
     return null;
+  }
+  if (!isSignedIn) {
+    return <Navigate to="/" replace />; // redirect guests to home
   }
   const toggleDropDown = () => {
     setShowBox((prev) => !prev);
@@ -218,13 +154,13 @@ const handleCreateRoom = () => {
           
 
           <button className={'naming-button'} onClick={toggleDropDown}>
-          {login_info}
+          {username}
           </button>
 
           {showBox && (
             <div className="profile-dropdown">
               <p className="profile-label">You are logged in as:</p>
-              <h3 className="profile-name">{login_info} 
+              <h3 className="profile-name">{username} 
 
                 
               </h3>
@@ -258,7 +194,7 @@ const handleCreateRoom = () => {
 
       <main className="home-main">
   <div className="home-card left-card">
-     <h2 className="home-title">Welcome back, {login_info}!</h2>
+     <h2 className="home-title">Welcome back, {username}!</h2>
     <h2>Join or Create a Room</h2>
 
     <input

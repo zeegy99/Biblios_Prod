@@ -3,9 +3,10 @@ import React, { useState } from "react";
 import "./sign_in.css";
 import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
+import { useAuth } from "../auth/auth_context";
 
-const SigninPage = ({setPlayerName, setIsAuthenticated}) => {
-  console.log("Props received", setPlayerName, setIsAuthenticated)
+const SigninPage = () => {
+  const { refresh } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
@@ -32,27 +33,12 @@ const SigninPage = ({setPlayerName, setIsAuthenticated}) => {
 
       if (res.ok) {
         console.log("4. Res is ok")
-        
-        const userResponse = await fetch('/api/current-user', {
-          method: "GET",
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          }
-      });
-      
-      if (userResponse.ok) {
-        console.log("userResponse is ok")
-        const userData = await userResponse.json();
-        console.log("6 userData", userData)
-        setPlayerName(userData.username);  
-        console.log("7. SetPlayerName Issues")
-        setIsAuthenticated(true);
-    }
+
+        // The new Session is now set; let the auth provider ask who we are.
+        await refresh();
 
         localStorage.setItem("playerName", username);
-        localStorage.setItem("isGuest", "false")
-        navigate("/signedin");  
+        navigate("/signedin");
       } else {
         alert("Login failed: " + data.error);
       }

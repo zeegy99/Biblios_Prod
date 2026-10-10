@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../auth/auth_context";
 import RulesPage from "./rulespage";
 import "./leaderboard.css";
 import "./settings.css";
@@ -19,10 +20,9 @@ export function setUpdatedSettings(newMap) {
 const Settings = () => {
   const [changingAction, setChangingAction] = useState(null);
   const [volume, setVolume] = useState(50);
-  const login_info = localStorage.getItem("signin_username") || "none";
+  const { username, isSignedIn } = useAuth();
   const savedName = localStorage.getItem("playerName");
   const [elo, setElo] = useState(null);
-  const isGuest = localStorage.getItem("isGuest") === "true";
   const navigate = useNavigate();
   const [showBox, setShowBox] = useState(false);
   const [rulesPage, setRulesPage] = useState(false);
@@ -44,23 +44,23 @@ const Settings = () => {
 
 
   useEffect(() => {
-    if (!isGuest && savedName) {
+    if (isSignedIn) {
       fetch("/api/get_elo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: savedName.trim() })
+        body: JSON.stringify({ username: username.trim() })
       })
         .then(res => res.json())
         .then(data => setElo(data.elo ?? "N/A"))
         .catch(() => setElo("Error"));
     }
-  }, [isGuest, savedName]);
+  }, [isSignedIn, username]);
 
   const sendKeybinds = () => {
     fetch("/api/send_keybinds", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: login_info, settings: updatedSettings})
+        body: JSON.stringify({ name: username, settings: updatedSettings})
       })
 
       console.log("finished the sendKeybinds", updatedSettings)
@@ -78,17 +78,9 @@ const Settings = () => {
 
 
   
+  // Rejoin is not supported from this page yet.
   const handleRejoin = () => {
-    const playerId = localStorage.getItem("playerId");
-    const playerName = localStorage.getItem("playerName");
-    const roomCode = localStorage.getItem("roomCode");
-
-    if (!playerId || !playerName || !roomCode) {
-      alert("No game to rejoin.");
-      return;
-    }
-    socket.emit("rejoin_game", { room: roomCode, playerId, playerName });
-    navigate(`/game/${roomCode}`);
+    alert("No game to rejoin.");
   };
 
 
@@ -177,10 +169,10 @@ const Settings = () => {
             {savedName}
           </button>
 
-          {showBox && (
+          {showBox && isSignedIn && (
             <div className="profile-dropdown">
               <p className="profile-label" style={{marginLeft: "50px"}}>You are logged in as:</p>
-              <h3 className="profile-name">{login_info}</h3>
+              <h3 className="profile-name">{username}</h3>
               
               <hr className="profile-divider" />
               <button
@@ -198,7 +190,7 @@ const Settings = () => {
       </header>
           
           <h1> WORK IN PROGRESS. IF ANYONE FINDS A GOOD SETTINGS PAGE ON GITHUB LMK</h1>
-      <p>Current username: {login_info} </p>
+      <p>Current username: {isSignedIn ? username : "Guest"} </p>
       <p>Current email: ur the goat{}</p>
       <p>Volume:  </p>
       <div className="slidecontainer">
@@ -263,7 +255,7 @@ const Settings = () => {
       </button>
 
 
-      <button onClick={sendKeybinds}>Confirm keybinds</button>
+      {isSignedIn && <button onClick={sendKeybinds}>Confirm keybinds</button>}
 
     </div>
 

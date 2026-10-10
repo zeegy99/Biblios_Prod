@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../auth/auth_context";
 import RulesPage from "./rulespage";
 import "./leaderboard.css";
 
 const ForgotPassword = () => {
-  const login_info = localStorage.getItem("signin_username") || "none";
+  const { username, isSignedIn } = useAuth();
   const savedName = localStorage.getItem("playerName");
   const [elo, setElo] = useState(null);
-  const isGuest = localStorage.getItem("isGuest") === "true";
   const navigate = useNavigate();
   const [showBox, setShowBox] = useState(false);
   const [rulesPage, setRulesPage] = useState(false);
@@ -34,17 +34,17 @@ const ForgotPassword = () => {
   
 
   useEffect(() => {
-    if (!isGuest && savedName) {
+    if (isSignedIn) {
       fetch("/api/get_elo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: savedName.trim() })
+        body: JSON.stringify({ username: username.trim() })
       })
         .then(res => res.json())
         .then(data => setElo(data.elo ?? "N/A"))
         .catch(() => setElo("Error"));
     }
-  }, [isGuest, savedName]);
+  }, [isSignedIn, username]);
 
  
 
@@ -83,10 +83,10 @@ const ForgotPassword = () => {
             {savedName}
           </button>
 
-          {showBox && (
+          {showBox && isSignedIn && (
             <div className="profile-dropdown">
               <p className="profile-label" style={{marginLeft: "50px"}}>You are logged in as:</p>
-              <h3 className="profile-name">{login_info}</h3>
+              <h3 className="profile-name">{username}</h3>
               
               <hr className="profile-divider" />
               <button
