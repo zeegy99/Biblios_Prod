@@ -147,6 +147,50 @@ class Test_current_user:
 
     
 
+def expire_session(sid):
+    conn = psycopg2.connect(os.environ["DATABASE_URL"])
+    cur = conn.cursor()
+    cur.execute("UPDATE sessions SET expires_at = NOW() - INTERVAL '1 minute' WHERE session_id = %s", (sid,))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def elo_of(username):
+    conn = psycopg2.connect(os.environ["DATABASE_URL"])
+    cur = conn.cursor()
+    cur.execute("SELECT elo_score FROM elo WHERE username = %s", (username,))
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+    return row[0]
+
+class Test_update_elo:
+    def test_changes_only_the_sessions_account_even_when_body_names_another(self, client, signin_user, existing_user):
+        sign_in(client, signin_user)
+
+        resp = client.post("/api/update_elo", json={"username": "test_1", "eloChange": 25})
+
+        assert resp.status_code == 200
+        assert elo_of("signin_user") == 1025
+        assert elo_of("test_1") == 900
+
+    def test_no_session_returns_401_and_changes_nothing(self, client, signin_user):
+        resp = client.post("/api/update_elo", json={"username": "signin_user", "eloChange": 25})
+
+        assert resp.status_code == 401
+        assert resp.get_json() == {"error": "Not authenticated"}
+        assert elo_of("signin_user") == 1000
+
+    def test_expired_session_returns_401_and_changes_nothing(self, client, signin_user):
+        sid = sign_in(client, signin_user)
+        expire_session(sid)
+
+        resp = client.post("/api/update_elo", json={"username": "signin_user", "eloChange": 25})
+
+        assert resp.status_code == 401
+        assert resp.get_json() == {"error": "Session expired or invalid"}
+        assert elo_of("signin_user") == 1000
+
 class Test_signin_expired_session_cleanup:
     PASSWORD = "correct_password"
 

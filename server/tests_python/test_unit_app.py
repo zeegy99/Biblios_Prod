@@ -195,21 +195,54 @@ class Test_signin:
         assert resp.get_json()['message'] == "Login successful"
         
 class Test_update_elo:
-    def test_username_is_none(self, client):
+    def test_update_elo_options_preflight(self, client):
+        resp = client.open("/api/update_elo", method="OPTIONS")
+        assert resp.status_code == 200
 
-        resp = client.post("/api/update_elo", json={'username': 'none', 'eloChange': 10})
-        assert resp.json['message'] == "No username associated with this account"
-        assert resp.status_code == 400
+    def test_no_sid_returns_401(self, client, mocker):
+        helper = mocker.patch("app.get_session_account")
+        connect = mocker.patch("app.psycopg2.connect")
 
-    def test_changing_elo(self, client, mocker):
-        conn = mocker.MagicMock()
-        cursor = mocker.MagicMock()
+        resp = client.post("/api/update_elo", json={'eloChange': 10})
 
+        helper.assert_not_called()
+        connect.assert_not_called()
+        assert resp.status_code == 401
+        assert resp.get_json() == {"error": "Not authenticated"}
 
-        conn.cursor.return_value = cursor
-        mocker.patch("app.psycopg2.connect", return_value=conn)
-        resp = client.post("/api/update_elo", json={'username': 'abc', 'eloChange': 10})
+    def test_invalid_session_returns_401(self, client, mocker):
+        mocker.patch("app.get_session_account", return_value=None)
+        connect = mocker.patch("app.psycopg2.connect")
+        client.set_cookie("sid", "stale-sid")
 
+        resp = client.post("/api/update_elo", json={'eloChange': 10})
+
+        connect.assert_not_called()
+        assert resp.status_code == 401
+        assert resp.get_json() == {"error": "Session expired or invalid"}
+
+    def test_session_lookup_error_returns_500(self, client, mocker):
+        mocker.patch("app.get_session_account", side_effect=Exception("db down"))
+        client.set_cookie("sid", "good-sid")
+
+        resp = client.post("/api/update_elo", json={'eloChange': 10})
+
+        assert resp.status_code == 500
+        assert resp.get_json() == {"error": "db down"}
+
+    def test_changes_session_accounts_elo_and_ignores_body_username(self, client, mocker, db):
+        conn, cursor = db
+        helper = mocker.patch("app.get_session_account", return_value=SessionAccount(user_id=7, username="alice"))
+        client.set_cookie("sid", "good-sid")
+
+        resp = client.post("/api/update_elo", json={'username': 'mallory', 'eloChange': 10})
+
+        helper.assert_called_once_with("good-sid")
+        cursor.execute.assert_called_once_with(
+            "UPDATE elo SET elo_score = elo_score + %s WHERE username = %s",
+            (10, "alice")
+        )
+        conn.commit.assert_called_once()
         assert resp.status_code == 200
         assert resp.json['message'] == "Elo updated"
 

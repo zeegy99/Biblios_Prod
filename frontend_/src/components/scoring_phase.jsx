@@ -4,12 +4,13 @@ import { useAuth } from "../auth/auth_context";
 const ScoringPhase = ({ players, dice, setFinalResults, goToResults, isHost }) => {
   const [log, setLog] = useState([]);
   const displayName = localStorage.getItem("playerName") || "none";
-  const { username, isSignedIn } = useAuth();
+  const { isSignedIn } = useAuth();
   const [currentDieIndex, setCurrentDieIndex] = useState(0);
   const [scoredPlayers, setScoredPlayers] = useState(() =>
     players.map((p) => ({ ...p, points: 0 }))
   );
   const [isDone, setIsDone] = useState(false);
+  const [eloNotRecorded, setEloNotRecorded] = useState(false);
 
   const handleScoreNextDie = () => {
     const die = dice[currentDieIndex];
@@ -143,7 +144,10 @@ const ScoringPhase = ({ players, dice, setFinalResults, goToResults, isHost }) =
         fetch("/api/update_elo", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username: username, eloChange: player.elo })
+          credentials: 'include',
+          body: JSON.stringify({ eloChange: player.elo })
+        }).then((response) => {
+          if (response.status === 401) setEloNotRecorded(true);
         });
       }
     });
@@ -170,6 +174,9 @@ const ScoringPhase = ({ players, dice, setFinalResults, goToResults, isHost }) =
       {isDone && (
         <>
           <p>✅ Scoring complete!</p>
+          {eloNotRecorded && (
+            <p>You're signed out, so your Elo change wasn't recorded.</p>
+          )}
           {isHost && (
             <button onClick={goToResults} style={{ marginTop: "20px" }}>
               ➡️ Continue to Results
