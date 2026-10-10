@@ -5,12 +5,21 @@ import sys, os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from app import app, get_session_user
+from app import app, get_session_account, SessionAccount
 @pytest.fixture
 def client():
     app.config["TESTING"] = True
     with app.test_client() as c:
         yield c
+
+@pytest.fixture
+def db(mocker):
+    """Patches psycopg2.connect with a mock connection; yields (conn, cursor)."""
+    conn = mocker.MagicMock()
+    cursor = mocker.MagicMock()
+    conn.cursor.return_value = cursor
+    mocker.patch("app.psycopg2.connect", return_value=conn)
+    return conn, cursor
 
 def test_app_exists():
     assert app is not None
@@ -61,32 +70,41 @@ class Test_register:
         cursor.execute.assert_any_call("INSERT INTO elo (username, elo_score) VALUES (%s, %s)", ('a', 1000))
         conn.commit.assert_called_once()
 
-class Test_get_session_user:
+class Test_get_session_account:
     def test_missing_sid_returns_none_without_touching_db(self, mocker):
         connect = mocker.patch("app.psycopg2.connect")
 
-        assert get_session_user(None) is None
-        assert get_session_user("") is None
+        assert get_session_account(None) is None
+        assert get_session_account("") is None
         connect.assert_not_called()
 
-    def test_valid_sid_returns_user_id_and_username(self, mocker):
-        conn = mocker.MagicMock()
-        cursor = mocker.MagicMock()
-        conn.cursor.return_value = cursor
+    def test_valid_sid_returns_session_account(self, db):
+        conn, cursor = db
         cursor.fetchone.return_value = (7, "alice")
-        mocker.patch("app.psycopg2.connect", return_value=conn)
 
-        assert get_session_user("good-sid") == (7, "alice")
+        account = get_session_account("good-sid")
+
+        assert account == SessionAccount(user_id=7, username="alice")
+        assert account.user_id == 7
+        assert account.username == "alice"
+        cursor.close.assert_called_once()
         conn.close.assert_called_once()
 
-    def test_unknown_or_expired_sid_returns_none(self, mocker):
-        conn = mocker.MagicMock()
-        cursor = mocker.MagicMock()
-        conn.cursor.return_value = cursor
+    def test_unknown_or_expired_sid_returns_none(self, db):
+        conn, cursor = db
         cursor.fetchone.return_value = None
-        mocker.patch("app.psycopg2.connect", return_value=conn)
 
-        assert get_session_user("stale-sid") is None
+        assert get_session_account("stale-sid") is None
+        cursor.close.assert_called_once()
+        conn.close.assert_called_once()
+
+    def test_db_error_propagates_and_closes_cursor_and_connection(self, db):
+        conn, cursor = db
+        cursor.execute.side_effect = Exception("db down")
+
+        with pytest.raises(Exception, match="db down"):
+            get_session_account("good-sid")
+        cursor.close.assert_called_once()
         conn.close.assert_called_once()
 
 class Test_current_user:
@@ -95,7 +113,7 @@ class Test_current_user:
         assert resp.status_code == 200
 
     def test_current_user_resolves_sid_through_helper(self, client, mocker):
-        helper = mocker.patch("app.get_session_user", return_value=(7, "alice"))
+        helper = mocker.patch("app.get_session_account", return_value=SessionAccount(user_id=7, username="alice"))
         client.set_cookie("sid", "good-sid")
 
         resp = client.get("/api/current-user")
@@ -105,15 +123,16 @@ class Test_current_user:
         assert resp.get_json() == {"username": "alice", "user_id": 7, "authenticated": True}
 
     def test_current_user_no_sid_returns_401(self, client, mocker):
-        mocker.patch("app.get_session_user", return_value=None)
+        helper = mocker.patch("app.get_session_account")
 
         resp = client.get("/api/current-user")
 
+        helper.assert_not_called()
         assert resp.status_code == 401
         assert resp.get_json() == {"error": "Not authenticated"}
 
     def test_current_user_invalid_session_returns_401(self, client, mocker):
-        mocker.patch("app.get_session_user", return_value=None)
+        mocker.patch("app.get_session_account", return_value=None)
         client.set_cookie("sid", "stale-sid")
 
         resp = client.get("/api/current-user")
@@ -122,13 +141,14 @@ class Test_current_user:
         assert resp.get_json() == {"error": "Session expired or invalid"}
 
     def test_current_user_db_error_returns_500(self, client, mocker):
-        mocker.patch("app.get_session_user", side_effect=Exception("db down"))
+        mocker.patch("app.get_session_account", side_effect=Exception("db down"))
         client.set_cookie("sid", "good-sid")
 
         resp = client.get("/api/current-user")
 
         assert resp.status_code == 500
         assert resp.get_json() == {"error": "db down"}
+
 class Test_signin:
     def test_signin_options_preflight(self, client):
         resp = client.open("/api/signin", method="OPTIONS")
