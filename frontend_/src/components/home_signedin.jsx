@@ -4,6 +4,7 @@ import "./lobby.css";
 import RulesPage from "./rulespage"; 
 import socket from "../socket";
 import { useAuth } from "../auth/auth_context";
+import SignOutButton from "../auth/sign_out_button";
 
 
 const SignedIn = () => {
@@ -175,15 +176,7 @@ const handleCreateRoom = () => {
 
               <hr className="profile-divider" />
 
-              <button
-                className="profile-signout"
-                onClick={() => {
-                localStorage.clear();
-                navigate("/");
-                }}
-                >
-                Sign Out
-              </button>
+              <SignOutButton />
             </div>
           )}
         

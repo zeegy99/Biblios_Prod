@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/auth_context";
+import SignOutButton from "../auth/sign_out_button";
 import RulesPage from "./rulespage";
 import "./leaderboard.css";
 
@@ -85,15 +86,7 @@ const LeaderBoard = () => {
               <h3 className="profile-name">{username}</h3>
               
               <hr className="profile-divider" />
-              <button
-                className="profile-signout" style={{marginLeft: "30px"}}
-                onClick={() => {
-                  localStorage.clear();
-                  navigate("/");
-                }}
-              >
-                Sign Out
-              </button>
+              <SignOutButton style={{marginLeft: "30px"}} />
             </div>
           )}
         </div>

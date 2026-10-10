@@ -292,4 +292,69 @@ class Test_send_keybinds:
         cursor.execute.assert_any_call("SELECT username FROM keybinds WHERE username = %s", ("alice",))
         cursor.execute.assert_any_call("INSERT INTO keybinds (username, keep_card) VALUES (%s, %s)", ["alice", "E"])
 
+class Test_signout:
+    def test_signout_options_preflight(self, client):
+        resp = client.open("/api/signout", method="OPTIONS")
+        assert resp.status_code == 200
+
+    def test_signout_deletes_this_sessions_row_and_clears_cookie(self, client, db):
+        conn, cursor = db
+        client.set_cookie("sid", "good-sid")
+
+        resp = client.post("/api/signout")
+
+        cursor.execute.assert_called_once_with("DELETE FROM sessions WHERE session_id = %s", ("good-sid",))
+        conn.commit.assert_called_once()
+        cursor.close.assert_called_once()
+        conn.close.assert_called_once()
+        assert resp.status_code == 200
+        assert resp.get_json() == {"message": "Signed out"}
+        set_cookie = resp.headers.get("Set-Cookie")
+        assert set_cookie.startswith("sid=;")
+        assert "Max-Age=0" in set_cookie
+        assert "Path=/" in set_cookie
+        assert "HttpOnly" in set_cookie
+        assert client.get_cookie("sid") is None
+
+    def test_signout_clears_cookie_with_signin_attributes_on_localhost(self, client, db):
+        client.set_cookie("sid", "good-sid")
+
+        resp = client.post("/api/signout")
+
+        set_cookie = resp.headers.get("Set-Cookie")
+        assert "SameSite=Lax" in set_cookie
+        assert "Secure" not in set_cookie
+
+    def test_signout_clears_cookie_with_signin_attributes_in_production(self, client, db):
+        client.set_cookie("sid", "good-sid", domain="playbiblios.com")
+
+        resp = client.post("/api/signout", base_url="https://playbiblios.com")
+
+        set_cookie = resp.headers.get("Set-Cookie")
+        assert "SameSite=None" in set_cookie
+        assert "Secure" in set_cookie
+
+    def test_signout_without_sid_succeeds_without_touching_db(self, client, mocker):
+        connect = mocker.patch("app.psycopg2.connect")
+
+        resp = client.post("/api/signout")
+
+        connect.assert_not_called()
+        assert resp.status_code == 200
+        assert resp.get_json() == {"message": "Signed out"}
+        assert resp.headers.get("Set-Cookie").startswith("sid=;")
+
+    def test_signout_db_error_returns_500_and_keeps_cookie(self, client, db):
+        conn, cursor = db
+        cursor.execute.side_effect = Exception("db down")
+        client.set_cookie("sid", "good-sid")
+
+        resp = client.post("/api/signout")
+
+        assert resp.status_code == 500
+        assert resp.get_json() == {"error": "db down"}
+        assert resp.headers.get("Set-Cookie") is None
+        cursor.close.assert_called_once()
+        conn.close.assert_called_once()
+
 

@@ -136,6 +136,18 @@ def current_user():
     }), 200
     
 
+def sid_cookie_attributes():
+    """The attributes the sid cookie is set with. Sign-out must clear it with the same
+    ones, or the browser keeps the original cookie."""
+    is_local = 'localhost' in request.host or '127.0.0.1' in request.host
+    return {
+        "httponly": True,
+        "secure": not is_local,                     # HTTPS in production
+        "samesite": "Lax" if is_local else "None",  # the frontend is on a different site in production
+        "path": "/",
+        "domain": None,
+    }
+
 @app.route("/api/signin", methods=["POST", "OPTIONS"])
 def signin():
     if request.method == "OPTIONS":
@@ -184,17 +196,7 @@ def signin():
                 print(f"Request origin: {request.headers.get('Origin')}")
                 print(f"Request host: {request.headers.get('Host')}")
 
-                is_local = 'localhost' in request.host or '127.0.0.1' in request.host
-
-                resp.set_cookie(
-                    "sid", raw_token,
-                    httponly=True,
-                    secure=not is_local,       # set True in production (HTTPS)
-                    samesite="Lax" if is_local else "None",     # use "None" if your frontend is on a different site
-                    max_age=7*24*3600,
-                    path="/",
-                    domain=None,
-                )
+                resp.set_cookie("sid", raw_token, max_age=7*24*3600, **sid_cookie_attributes())
                 return resp
                 
 
@@ -205,6 +207,35 @@ def signin():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/signout", methods=["POST", "OPTIONS"])
+def signout():
+    if request.method == "OPTIONS":
+        return '', 200
+
+    # Ends only this Session; the account's other Sessions stay valid.
+    # A missing, unknown or expired Session still counts as signed out.
+    sid = request.cookies.get('sid')
+    if sid:
+        try:
+            conn = psycopg2.connect(DATABASE_URL)
+            try:
+                cursor = conn.cursor()
+                try:
+                    cursor.execute("DELETE FROM sessions WHERE session_id = %s", (sid,))
+                    conn.commit()
+                finally:
+                    cursor.close()
+            finally:
+                conn.close()
+        except Exception as e:
+            # Keep the cookie: the Session may still be valid, so the player can retry
+            return jsonify({"error": str(e)}), 500
+
+    resp = make_response(jsonify({"message": "Signed out"}))
+    resp.delete_cookie("sid", **sid_cookie_attributes())
+    return resp
 
 
 @app.route("/api/update_elo", methods=["POST", "OPTIONS"])
