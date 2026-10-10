@@ -151,6 +151,8 @@ def signin():
                 print("this is what raw_token is", raw_token)
                 time = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)
                 cursor.execute("""insert into sessions (session_id, user_id, expires_at) values (%s, %s, %s)""", (raw_token, user_id, time))
+                #Clean up this account's expired sessions so the table stays bounded
+                cursor.execute("""delete from sessions where user_id = %s and expires_at <= NOW()""", (user_id,))
                 conn.commit()
 
                 cursor.execute("SELECT elo_score FROM elo WHERE username = %s", (username,))

@@ -9,3 +9,9 @@ CREATE TABLE IF NOT EXISTS elo (
     username TEXT PRIMARY KEY REFERENCES users(username),
     elo_score INTEGER NOT NULL DEFAULT 1000
 );
+
+CREATE TABLE IF NOT EXISTS sessions (
+    session_id TEXT PRIMARY KEY NOT NULL,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expires_at TIMESTAMPTZ NOT NULL
+);

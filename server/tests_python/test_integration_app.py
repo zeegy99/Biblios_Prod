@@ -1,12 +1,14 @@
 import pytest
 import psycopg2
+import bcrypt
+import datetime
 import sys, os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
-os.environ["DATABASE_URL"] = "postgresql://postgres:test@localhost:5432/biblios_database_dev"
-os.environ["SECRET_KEY"] = "test-secret-key-doesnt-matter-for-this-test"
+os.environ.setdefault("DATABASE_URL", "postgresql://postgres:test@localhost:5432/biblios_database_dev")
+os.environ.setdefault("SECRET_KEY", "test-secret-key-doesnt-matter-for-this-test")
 
 from app import app  
 
@@ -78,6 +80,71 @@ class Test_signin:
      def no_username(self, client, existing_user):
           pass
 
-    
 
-    
+class Test_signin_expired_session_cleanup:
+    PASSWORD = "correct_password"
+
+    def _seed_user(self, cur, username):
+        password_hash = bcrypt.hashpw(self.PASSWORD.encode(), bcrypt.gensalt()).decode()
+        cur.execute(
+            "INSERT INTO users (email, username, password_hash) VALUES (%s, %s, %s) RETURNING id",
+            (f"{username}@gmail.com", username, password_hash)
+        )
+        return cur.fetchone()[0]
+
+    def _seed_session(self, cur, session_id, user_id, expires_at):
+        cur.execute(
+            "INSERT INTO sessions (session_id, user_id, expires_at) VALUES (%s, %s, %s)",
+            (session_id, user_id, expires_at)
+        )
+
+    def test_signin_deletes_only_this_accounts_expired_sessions(self, client):
+        now = datetime.datetime.now(datetime.timezone.utc)
+        past = now - datetime.timedelta(days=1)
+        future = now + datetime.timedelta(days=3)
+
+        conn = psycopg2.connect(os.environ["DATABASE_URL"])
+        cur = conn.cursor()
+        alice_id = self._seed_user(cur, "alice")
+        bob_id = self._seed_user(cur, "bob")
+        self._seed_session(cur, "alice_expired_1", alice_id, past)
+        self._seed_session(cur, "alice_expired_2", alice_id, past - datetime.timedelta(days=30))
+        self._seed_session(cur, "alice_other_device", alice_id, future)
+        self._seed_session(cur, "bob_expired", bob_id, past)
+        self._seed_session(cur, "bob_active", bob_id, future)
+        conn.commit()
+
+        response = client.post("/api/signin", json={"username": "alice", "password": self.PASSWORD})
+        assert response.status_code == 200
+
+        cur.execute("SELECT session_id FROM sessions WHERE user_id = %s", (alice_id,))
+        alice_sessions = {row[0] for row in cur.fetchall()}
+        cur.execute("SELECT session_id FROM sessions WHERE user_id = %s", (bob_id,))
+        bob_sessions = {row[0] for row in cur.fetchall()}
+        cur.close()
+        conn.close()
+
+        assert "alice_expired_1" not in alice_sessions
+        assert "alice_expired_2" not in alice_sessions
+        assert "alice_other_device" in alice_sessions
+        assert len(alice_sessions) == 2  # the other device plus the new Session
+        assert bob_sessions == {"bob_expired", "bob_active"}
+
+    def test_failed_signin_leaves_expired_sessions(self, client):
+        past = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=1)
+
+        conn = psycopg2.connect(os.environ["DATABASE_URL"])
+        cur = conn.cursor()
+        alice_id = self._seed_user(cur, "alice")
+        self._seed_session(cur, "alice_expired", alice_id, past)
+        conn.commit()
+
+        response = client.post("/api/signin", json={"username": "alice", "password": "wrong_password"})
+        assert response.status_code == 401
+
+        cur.execute("SELECT session_id FROM sessions WHERE user_id = %s", (alice_id,))
+        alice_sessions = {row[0] for row in cur.fetchall()}
+        cur.close()
+        conn.close()
+
+        assert alice_sessions == {"alice_expired"}
