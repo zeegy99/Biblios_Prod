@@ -5,7 +5,7 @@ import sys, os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from app import app
+from app import app, get_session_user
 @pytest.fixture
 def client():
     app.config["TESTING"] = True
@@ -61,8 +61,74 @@ class Test_register:
         cursor.execute.assert_any_call("INSERT INTO elo (username, elo_score) VALUES (%s, %s)", ('a', 1000))
         conn.commit.assert_called_once()
 
+class Test_get_session_user:
+    def test_missing_sid_returns_none_without_touching_db(self, mocker):
+        connect = mocker.patch("app.psycopg2.connect")
+
+        assert get_session_user(None) is None
+        assert get_session_user("") is None
+        connect.assert_not_called()
+
+    def test_valid_sid_returns_user_id_and_username(self, mocker):
+        conn = mocker.MagicMock()
+        cursor = mocker.MagicMock()
+        conn.cursor.return_value = cursor
+        cursor.fetchone.return_value = (7, "alice")
+        mocker.patch("app.psycopg2.connect", return_value=conn)
+
+        assert get_session_user("good-sid") == (7, "alice")
+        conn.close.assert_called_once()
+
+    def test_unknown_or_expired_sid_returns_none(self, mocker):
+        conn = mocker.MagicMock()
+        cursor = mocker.MagicMock()
+        conn.cursor.return_value = cursor
+        cursor.fetchone.return_value = None
+        mocker.patch("app.psycopg2.connect", return_value=conn)
+
+        assert get_session_user("stale-sid") is None
+        conn.close.assert_called_once()
+
 class Test_current_user:
-    pass
+    def test_current_user_options_preflight(self, client):
+        resp = client.open("/api/current-user", method="OPTIONS")
+        assert resp.status_code == 200
+
+    def test_current_user_resolves_sid_through_helper(self, client, mocker):
+        helper = mocker.patch("app.get_session_user", return_value=(7, "alice"))
+        client.set_cookie("sid", "good-sid")
+
+        resp = client.get("/api/current-user")
+
+        helper.assert_called_once_with("good-sid")
+        assert resp.status_code == 200
+        assert resp.get_json() == {"username": "alice", "user_id": 7, "authenticated": True}
+
+    def test_current_user_no_sid_returns_401(self, client, mocker):
+        mocker.patch("app.get_session_user", return_value=None)
+
+        resp = client.get("/api/current-user")
+
+        assert resp.status_code == 401
+        assert resp.get_json() == {"error": "Not authenticated"}
+
+    def test_current_user_invalid_session_returns_401(self, client, mocker):
+        mocker.patch("app.get_session_user", return_value=None)
+        client.set_cookie("sid", "stale-sid")
+
+        resp = client.get("/api/current-user")
+
+        assert resp.status_code == 401
+        assert resp.get_json() == {"error": "Session expired or invalid"}
+
+    def test_current_user_db_error_returns_500(self, client, mocker):
+        mocker.patch("app.get_session_user", side_effect=Exception("db down"))
+        client.set_cookie("sid", "good-sid")
+
+        resp = client.get("/api/current-user")
+
+        assert resp.status_code == 500
+        assert resp.get_json() == {"error": "db down"}
 class Test_signin:
     def test_signin_options_preflight(self, client):
         resp = client.open("/api/signin", method="OPTIONS")
