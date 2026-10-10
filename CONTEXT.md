@@ -23,8 +23,16 @@ A random secret the server issues to a Guest so the same Guest is recognized aft
 _Avoid_: guest id (the token is the secret; the Player Identity is the id)
 
 **Session**:
-A row in the `sessions` table created at sign-in, referenced by the `sid` cookie. It is an opaque token, not a JWT.
+A row in the `sessions` table created at sign-in, referenced by the `sid` cookie. It is an opaque token, not a JWT. A Session expires a fixed 7 days after sign-in (no renewal). An account may hold several Sessions at once, one per sign-in. The Session is the only source of truth for whether a player is signed in and who they are.
 _Avoid_: JWT, cookie table, auth token
+
+**Sign-out**:
+Ending the current Session: its row is deleted and the `sid` cookie cleared. Other Sessions of the same account are untouched.
+_Avoid_: logout (fine colloquially), clearing local storage
+
+**Display Name**:
+The name shown to other players in a Room. A Signed-in Player's defaults to their account username but may be changed; it never identifies anyone.
+_Avoid_: alias, playerName (as an identity), username (unless you mean the account's)
 
 ### Rooms
 
