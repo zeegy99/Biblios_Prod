@@ -2,6 +2,7 @@ const express = require("express");
 const http = require("http");
 const cors = require("cors");
 const path = require("path");
+const crypto = require("crypto");
 
 const { Server } = require("socket.io");
 
@@ -58,7 +59,23 @@ function setResolveSession(fn) {
   resolveSession = fn;
 }
 
-// Never refuse a connection because of auth; unresolved connections are left without a player.
+// Guest Token -> Guest Player Identity. In memory only, so Guests don't
+// survive a socket server restart (ADR-0001).
+const guestIdentities = new Map();
+
+// Returns the Guest Player Identity for a known token, or issues a new token
+// and identity. `issuedToken` is set only when a new token was made.
+function resolveGuest(guestToken) {
+  if (typeof guestToken === "string" && guestIdentities.has(guestToken)) {
+    return { playerId: guestIdentities.get(guestToken) };
+  }
+  const issuedToken = crypto.randomBytes(32).toString("hex");
+  const playerId = `guest:${crypto.randomBytes(8).toString("hex")}`;
+  guestIdentities.set(issuedToken, playerId);
+  return { playerId, issuedToken };
+}
+
+// Never refuse a connection because of auth; anyone without a valid Session is a Guest.
 io.use(async (socket, next) => {
   try {
     const user = await resolveSession(socket.handshake.headers.cookie);
@@ -67,6 +84,11 @@ io.use(async (socket, next) => {
     }
   } catch (e) {
     console.error("Session resolution failed:", e);
+  }
+  if (!socket.data.player) {
+    const { playerId, issuedToken } = resolveGuest(socket.handshake.auth?.guestToken);
+    socket.data.player = { playerId, kind: "guest" };
+    socket.data.issuedGuestToken = issuedToken;
   }
   next();
 });
@@ -88,7 +110,10 @@ const currentGameState = {};
 
 io.on("connection", (socket) => {
 
-  
+  // Hand a newly issued Guest Token to its Guest only; it is never broadcast.
+  if (socket.data.issuedGuestToken) {
+    socket.emit("guest_token", socket.data.issuedGuestToken);
+  }
 
   socket.on("join_game", ({ room, playerName }) => {
 
