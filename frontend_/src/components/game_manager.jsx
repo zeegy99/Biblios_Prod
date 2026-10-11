@@ -106,7 +106,7 @@ const GameRunner = ({ playerName }) => {
   
   const handleRestart = () => {
   localStorage.removeItem("last_game_state");
-  localStorage.removeItem("start_game_payload");
+  sessionStorage.removeItem("start_game_payload");
 
   // Optional: reset any local state if needed
   setFinalResults([]);
@@ -321,13 +321,13 @@ useEffect(() => {
   if (playerName) {
     socket.emit("join_game", { room: `${room}`, playerName });
     
-    const cachedStart = localStorage.getItem("start_game_payload");
+    const cachedStart = sessionStorage.getItem("start_game_payload");
     if (cachedStart) {
      
       const { players: rawPlayers, deckSettings: receivedSettings, serverRules, playerView: startView } = JSON.parse(cachedStart);
       if (serverRules) {
         setPlayerView(startView);
-        localStorage.removeItem("start_game_payload");
+        sessionStorage.removeItem("start_game_payload");
         localStorage.removeItem("last_game_state");
         return () => {
           socket.off("sync_game_state", handleGameState);
@@ -369,7 +369,7 @@ useEffect(() => {
         socket.emit("sync_game_state", { room: `${room}`, gameState: state });
       }, 0);
 
-      localStorage.removeItem("start_game_payload");
+      sessionStorage.removeItem("start_game_payload");
       localStorage.removeItem("last_game_state");  // <-- ✅ add this
     }
 

@@ -120,7 +120,7 @@ useEffect(() => {
   });
 
   socket.on("start_game", (data) => {
-    localStorage.setItem("start_game_payload", JSON.stringify(data));
+    sessionStorage.setItem("start_game_payload", JSON.stringify(data));
     localStorage.setItem("playerName", playerName);
     setPlayerName(playerName);
     setTimeout(() => {

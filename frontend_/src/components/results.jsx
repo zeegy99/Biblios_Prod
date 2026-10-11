@@ -12,7 +12,7 @@ const ResultsScreen = ({ players, onRestart }) => {
     const room = localStorage.getItem("roomCode");
     
     localStorage.removeItem("roomCode");
-    localStorage.removeItem("start_game_payload");
+    sessionStorage.removeItem("start_game_payload");
     socket.emit("leave_game", {room: room})
     navigate("/");
   }
