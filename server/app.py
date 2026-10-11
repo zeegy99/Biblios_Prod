@@ -8,6 +8,7 @@ import os, smtplib, ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import hashlib
+from typing import NamedTuple
 load_dotenv()
 
 app = Flask(__name__)
@@ -77,49 +78,90 @@ def register():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+class SessionAccount(NamedTuple):
+    """The account a valid Session belongs to."""
+    user_id: int
+    username: str
+
+def get_session_account(sid):
+    """Looks up the Session for a sid. Returns the SessionAccount for a valid Session,
+    or None when the sid is missing, unknown or expired. Database errors propagate.
+
+    A missing sid and an unknown/expired one both return None, so callers that want a
+    distinct "no sid" error must check the cookie themselves before calling this."""
+    if not sid:
+        return None
+
+    conn = psycopg2.connect(DATABASE_URL)
+    try:
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""SELECT s.user_id, u.username
+                            from sessions s
+                           join users u
+                           ON s.user_id = u.id
+                           where s.session_id = %s and s.expires_at > NOW()
+                           """, (sid,))
+            row = cursor.fetchone()
+        finally:
+            cursor.close()
+    finally:
+        conn.close()
+
+    if not row:
+        return None
+    return SessionAccount(*row)
+
+def require_session_account():
+    """The Session gate for endpoints that need a Signed-in Player.
+
+    Returns (account, None) when the request's sid cookie names a valid Session, or
+    (None, error_response) otherwise; the caller returns error_response as-is:
+      - no sid cookie                  -> 401 "Not authenticated"
+      - the lookup raises              -> 500 with the error message
+      - sid unknown or expired         -> 401 "Session expired or invalid"
+    """
+    sid = request.cookies.get('sid')
+    if not sid:
+        return None, (jsonify({"error": "Not authenticated"}), 401)
+
+    try:
+        account = get_session_account(sid)
+    except Exception as e:
+        return None, (jsonify({"error": str(e)}), 500)
+
+    if not account:
+        return None, (jsonify({"error": "Session expired or invalid"}), 401)
+
+    return account, None
+
 @app.route("/api/current-user", methods=["GET", "OPTIONS"])
 def current_user():
     if request.method == "OPTIONS":
         return '', 200
-    
-    sid = request.cookies.get('sid')
-    if not sid:
-        return jsonify({"error": "Not authenticated"}), 401
-    
-    try:
-        conn = psycopg2.connect(DATABASE_URL)
-        cursor = conn.cursor()
 
-        cursor.execute("""SELECT s.user_id, u.username
-                        from sessions s
-                       join users u
-                       ON s.user_id = u.id
-                       where s.session_id = %s and s.expires_at > NOW()
-                       """, (sid,))
-        
-        row = cursor.fetchone()
+    account, error = require_session_account()
+    if error:
+        return error
 
-        if row:
-            user_id, username = row
-            cursor.close()
-            conn.close()
-            return jsonify({
-                "username": username,
-                "user_id": user_id,
-                "authenticated": True
-            }), 200
-        else:
-            cursor.close()
-            conn.close()
-            return jsonify({"error": "Session expired or invalid"}), 401
-
-    except Exception as e:
-        if 'cursor' in locals():
-            cursor.close()
-        if 'conn' in locals():
-            conn.close()
-        return jsonify({"error": str(e)}), 500  
+    return jsonify({
+        "username": account.username,
+        "user_id": account.user_id,
+        "authenticated": True
+    }), 200
     
+
+def sid_cookie_attributes():
+    """The attributes the sid cookie is set with. Sign-out must clear it with the same
+    ones, or the browser keeps the original cookie."""
+    is_local = 'localhost' in request.host or '127.0.0.1' in request.host
+    return {
+        "httponly": True,
+        "secure": not is_local,                     # HTTPS in production
+        "samesite": "Lax" if is_local else "None",  # the frontend is on a different site in production
+        "path": "/",
+        "domain": None,
+    }
 
 @app.route("/api/signin", methods=["POST", "OPTIONS"])
 def signin():
@@ -151,6 +193,8 @@ def signin():
                 print("this is what raw_token is", raw_token)
                 time = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)
                 cursor.execute("""insert into sessions (session_id, user_id, expires_at) values (%s, %s, %s)""", (raw_token, user_id, time))
+                #Clean up this account's expired sessions so the table stays bounded
+                cursor.execute("""delete from sessions where user_id = %s and expires_at <= NOW()""", (user_id,))
                 conn.commit()
 
                 cursor.execute("SELECT elo_score FROM elo WHERE username = %s", (username,))
@@ -167,17 +211,7 @@ def signin():
                 print(f"Request origin: {request.headers.get('Origin')}")
                 print(f"Request host: {request.headers.get('Host')}")
 
-                is_local = 'localhost' in request.host or '127.0.0.1' in request.host
-
-                resp.set_cookie(
-                    "sid", raw_token,
-                    httponly=False,
-                    secure=not is_local,       # set True in production (HTTPS)
-                    samesite="Lax" if is_local else "None",     # use "None" if your frontend is on a different site
-                    max_age=7*24*3600,
-                    path="/",
-                    domain=None,
-                )
+                resp.set_cookie("sid", raw_token, max_age=7*24*3600, **sid_cookie_attributes())
                 return resp
                 
 
@@ -190,16 +224,48 @@ def signin():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/signout", methods=["POST", "OPTIONS"])
+def signout():
+    if request.method == "OPTIONS":
+        return '', 200
+
+    # Ends only this Session; the account's other Sessions stay valid.
+    # A missing, unknown or expired Session still counts as signed out.
+    sid = request.cookies.get('sid')
+    if sid:
+        try:
+            conn = psycopg2.connect(DATABASE_URL)
+            try:
+                cursor = conn.cursor()
+                try:
+                    cursor.execute("DELETE FROM sessions WHERE session_id = %s", (sid,))
+                    conn.commit()
+                finally:
+                    cursor.close()
+            finally:
+                conn.close()
+        except Exception as e:
+            # Keep the cookie: the Session may still be valid, so the player can retry
+            return jsonify({"error": str(e)}), 500
+
+    resp = make_response(jsonify({"message": "Signed out"}))
+    resp.delete_cookie("sid", **sid_cookie_attributes())
+    return resp
+
+
 @app.route("/api/update_elo", methods=["POST", "OPTIONS"])
 def update_elo():
     if request.method == "OPTIONS":
         return '', 200
-    data = request.json
-    username = data.get("username", "").strip()
-    elo_change = data.get("eloChange")
 
-    if username == "none":
-        return jsonify({"message": "No username associated with this account"}), 400    
+    # The account always comes from the Session; any username in the body is ignored
+    account, error = require_session_account()
+    if error:
+        return error
+
+    data = request.json
+    username = account.username
+    elo_change = data.get("eloChange")
 
     try:
         
@@ -336,7 +402,7 @@ def check_email():
                 sender = "fred.yuan392@gmail.com"
                 rcpt = sent_email
                 pwd = (os.getenv("APP_PASSWORD") or "").strip()
-                reset_link = "https://biblios-game-frontend.onrender.com/reset-password"
+                reset_link = "https://playbiblios.com/reset-password"
 
                 msg = MIMEMultipart("alternative")
                 msg["From"] = sender
@@ -425,20 +491,23 @@ def change_password():
 def send_keybinds():
     if request.method == "OPTIONS":
         return "", 200
-    
+
+    account, error = require_session_account()
+    if error:
+        return error
+
+    # The account comes from the Session; any "name" in the body is ignored.
+    username = account.username
+
     conn = None  # Initialize conn to None
     cursor = None
-    
+
     try:
         data = request.json
         print("Received keybinds data:", data)
 
-        conn = psycopg2.connect(os.getenv("DATABASE_URL"))
+        conn = psycopg2.connect(DATABASE_URL)
         cursor = conn.cursor()
-        
-        username = data.get('name')
-        if not username:
-            return jsonify({"error": "Username not provided"}), 400
 
         cursor.execute("SELECT username FROM keybinds WHERE username = %s", (username,))
         user_exists = cursor.fetchone() is not None

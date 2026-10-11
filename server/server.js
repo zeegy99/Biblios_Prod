@@ -17,15 +17,59 @@ app.get("/", (req, res) => {
 
 const server = http.createServer(app);
 const deckSettingsInRoom = {};
+const allowedOrigins = process.env.NODE_ENV === "production"
+  ? ["https://playbiblios.com"]
+  : ["http://localhost:5173"];
+
 
 const io = new Server(server, {
   cors: {
-    origin: "*", 
-    methods: ["GET", "POST"]
+    origin: allowedOrigins, 
+    methods: ["GET", "POST"],
+    credentials: true
   }
 });
 
 const PORT = process.env.PORT || 3001;
+const AUTH_URL = process.env.AUTH_URL || "http://localhost:5000";
+const AUTH_TIMEOUT_MS = 3000;
+
+// Asks Flask who owns the Session in this cookie header (ADR-0001).
+// Returns { user_id, username } for a valid Session, otherwise null.
+async function resolveSessionViaFlask(cookieHeader, authUrl = AUTH_URL) {
+  const sid = /(?:^|;\s*)sid=([^;]*)/.exec(cookieHeader || "")?.[1];
+  if (!sid) return null;
+  try {
+    const res = await fetch(`${authUrl}/api/current-user`, {
+      headers: { cookie: `sid=${sid}` },
+      signal: AbortSignal.timeout(AUTH_TIMEOUT_MS),
+    });
+    if (res.status !== 200) return null;
+    const { user_id, username } = await res.json();
+    return { user_id, username };
+  } catch (e) {
+    return null;
+  }
+}
+
+let resolveSession = resolveSessionViaFlask;
+
+function setResolveSession(fn) {
+  resolveSession = fn;
+}
+
+// Never refuse a connection because of auth; unresolved connections are left without a player.
+io.use(async (socket, next) => {
+  try {
+    const user = await resolveSession(socket.handshake.headers.cookie);
+    if (user) {
+      socket.data.player = { playerId: `user:${user.user_id}`, kind: "user", username: user.username };
+    }
+  } catch (e) {
+    console.error("Session resolution failed:", e);
+  }
+  next();
+});
 
 function startServer(port) {
   server.listen(port, () => {
@@ -33,13 +77,11 @@ function startServer(port) {
   });
 }
 
-module.exports = { app, server, io, startServer };
+module.exports = { app, server, io, startServer, setResolveSession, resolveSessionViaFlask };
 if (require.main === module) {
   startServer(PORT);
 }
 
-
-const DEV_MODE = true; 
 
 const playersInRoom = {};
 const currentGameState = {};
@@ -48,17 +90,24 @@ io.on("connection", (socket) => {
 
   
 
-  socket.on("join_game", ({ room, playerName, playerId}) => {
+  socket.on("join_game", ({ room, playerName }) => {
 
       if (!playersInRoom[room]) {
         playersInRoom[room] = [];
       }
 
-      const alreadyJoined = playersInRoom[room].some(p => p.playerId === playerId);
+      // Player Identity comes from the connection, never from the payload.
+      const player = socket.data.player;
+      const playerId = player?.playerId;
+      const name = playerName || player?.username;
+
       /* Making sure someone isn't joining the room twice*/
+      const alreadyJoined = playersInRoom[room].some(p =>
+        p.id === socket.id || (playerId !== undefined && p.playerId === playerId)
+      );
 
       if (!alreadyJoined) {
-        playersInRoom[room].push({ id: socket.id, playerId, name: playerName });
+        playersInRoom[room].push({ id: socket.id, playerId, name });
       } 
 
       socket.join(room);
@@ -120,7 +169,7 @@ socket.on("leave_game", ({ room, playerId }) => {
     // leave socket.io room
     socket.leave(room);
     // drop by playerId (stable across reconnects)
-    removePlayerFromRoom(room, (p) => p.playerId === playerId || p.id === socket.id);
+    removePlayerFromRoom(room, (p) => (playerId !== undefined && p.playerId === playerId) || p.id === socket.id);
     console.log(`${playerId} left ${room}`);
   } catch (e) {
     console.error("leave_game error:", e);

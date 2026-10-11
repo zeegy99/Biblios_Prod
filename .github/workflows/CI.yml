@@ -7,6 +7,25 @@ on:
         branches: [main, develop]
 
 jobs:
+    socket-server-tests:
+        name: Run Socket Server Tests
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: actions/setup-node@v4
+              with:
+                node-version: 22
+                cache: npm
+                cache-dependency-path: server/package-lock.json
+
+            - working-directory: server
+              run: npm ci
+
+            - name: Run tests
+              working-directory: server
+              run: npx jest
+
     test:
         name: Run Integration Tests
         runs-on: ubuntu-latest
