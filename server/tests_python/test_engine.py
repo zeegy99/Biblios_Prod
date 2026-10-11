@@ -81,15 +81,21 @@ def test_the_seed_is_never_in_a_player_view():
 
 
 def test_the_donor_sees_only_the_current_card_and_others_only_a_count():
-    game = create_game(SEATS, DECK_SETTINGS, seed=7, now=NOW)
-    donor, other = player_view(game, 0), player_view(game, 1)
-    # n players draw n + 1 non-special cards, dealt with one at a time
-    assert donor["donation"]["cards_count"] == len(SEATS) + 1
-    assert not donor["donation"]["card"]["isSpecial"]
-    assert len(all_cards_in(donor)) == 1 + (1 if donor["donation"]["special"] else 0)
-    assert "card" not in other["donation"]
-    assert other["donation"]["cards_count"] == len(SEATS) + 1
-    assert all_cards_in(other) == []
+    for special in (False, True):
+        game = create_game(SEATS, DECK_SETTINGS, seed=_seed_where_first_donor_draws(special), now=NOW)
+        donor, other = player_view(game, 0), player_view(game, 1)
+        # A special card being played is face up for everyone; nothing else drawn is.
+        face_up = [donor["donation"]["special"]] if donor["donation"]["special"] else []
+        assert bool(face_up) == special
+        # n players draw n + 1 non-special cards, dealt with one at a time
+        assert donor["donation"]["cards_count"] == len(SEATS) + 1
+        assert not donor["donation"]["card"]["isSpecial"]
+        cards = all_cards_in(donor)
+        assert len(cards) == 1 + len(face_up)
+        assert all(c in cards for c in [donor["donation"]["card"]] + face_up)
+        assert "card" not in other["donation"]
+        assert other["donation"]["cards_count"] == len(SEATS) + 1
+        assert all_cards_in(other) == face_up
 
 
 def test_other_seats_hands_are_sent_as_counts_only():
@@ -455,6 +461,12 @@ def test_illegal_special_moves_are_rejected():
     both = _special_game("Both", 1)
     _rejected(both, 0, {"type": "choose_direction", "direction": "sideways"})
     _rejected(both, 0, {"type": "choose_direction"})
+    _rejected(both, 0, {"type": "choose_direction", "direction": []})
+    _rejected(both, 0, {"type": "choose_direction", "direction": {}})
+    _rejected(game, 0, {"type": "modify_die", "die": []})
+    _rejected(game, 0, {"type": "modify_die", "die": {}})
+    _rejected(game, 0, {"type": "modify_die", "die": 1.0})
+    _rejected(game, 0, {"type": [], "die": 0})
 
 
 def test_special_moves_without_a_special_card_are_rejected():

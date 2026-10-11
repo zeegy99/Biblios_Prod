@@ -152,7 +152,7 @@ test("a legal Move sends every Seat its new Player View; a rejected one reaches 
     // Specials must be played on the dice first (#49), so restart in a fresh
     // Room (a fresh shuffle) until the donor draws none.
     let room, views;
-    for (let tries = 0; !views || (views[0].donation.special && tries < 20); tries++) {
+    for (let tries = 0; !views || ((!views[0].donation || views[0].donation.special) && tries < 20); tries++) {
       room = `server-rules-moves-${tries}`;
       views = await startFlaggedGame(room, clients);
     }
@@ -191,11 +191,11 @@ test("playing a special card changes the dice in every Seat's Player View; an il
   try {
     // Restart in a fresh Room (a fresh shuffle) until the donor draws a special card.
     let room, views;
-    for (let tries = 0; !views || (!views[0].donation.special && tries < 40); tries++) {
+    for (let tries = 0; !views || (!views[0].donation?.special && tries < 40); tries++) {
       room = `server-rules-special-${tries}`;
       views = await startFlaggedGame(room, clients);
     }
-    const special = views[0].donation.special;
+    const special = views[0].donation?.special;
     expect(special).toBeTruthy();
     // Every Seat sees the special card being played; only the donor may play it.
     views.forEach((view) => expect(view.donation.special).toEqual(special));

@@ -82,17 +82,10 @@ def legal_moves(game, seat):
         return []
 
     if donation["specials"]:
-        special = donation["specials"][0]
-        if special["type"] == "Both" and donation["direction"] is None:
-            return [
-                {"type": "choose_direction", "direction": "plus"},
-                {"type": "choose_direction", "direction": "minus"},
-            ]
-        return [
-            {"type": "modify_die", "die": i}
-            for i in range(len(game["dice"]))
-            if i not in donation["dice_chosen"]
+        candidates = [{"type": "choose_direction", "direction": d} for d in DIRECTIONS] + [
+            {"type": "modify_die", "die": i} for i in range(len(game["dice"]))
         ]
+        return [m for m in candidates if _rejection(game, seat, m) is None]
 
     return [{"type": t} for t in DONATION_MOVES if _rejection(game, seat, {"type": t}) is None]
 
@@ -158,7 +151,8 @@ def _special_rejection(game, move):
     if move["type"] == "choose_direction":
         if not choosing:
             return "There is no direction to choose"
-        if move.get("direction") not in DIRECTIONS:
+        direction = move.get("direction")
+        if not isinstance(direction, str) or direction not in DIRECTIONS:
             return "Choose to increase (plus) or decrease (minus) the dice"
         return None
     if choosing:
@@ -182,7 +176,8 @@ def _play_special(game, move):
     if move["type"] == "choose_direction":
         donation["direction"] = move["direction"]
         return
-    step = {"Plus": +1, "Minus": -1}.get(special["type"]) or DIRECTIONS[donation["direction"]]
+    direction = {"Plus": "plus", "Minus": "minus"}.get(special["type"], donation["direction"])
+    step = DIRECTIONS[direction]
     die = game["dice"][move["die"]]
     die["value"] = min(6, max(1, die["value"] + step))
     donation["dice_chosen"].append(move["die"])
