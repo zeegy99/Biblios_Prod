@@ -593,10 +593,11 @@ def test_when_the_deck_is_short_of_a_full_draw_the_game_moves_to_the_auction():
         assert view["phase"] == "auction"
         assert view["shared_pool"] == []
         assert view["donation"] is None
-        assert view["legal_moves"] == []
         # React checks the deck before drawing: nothing more is drawn.
         assert view["deck_size"] == deck_size
-        assert view["current_seat"] == 1
+        # React bids in auctionTurnOffset order, which starts at Seat 0 (#51).
+        assert view["current_seat"] == 0
+        assert bool(view["legal_moves"]) == (view["you"] == 0)
         assert view["discard_size"] == 1
         assert [s["hand_size"] for s in view["seats"]] == [1, 1, 1]
 
@@ -634,4 +635,213 @@ def test_when_the_next_draw_comes_up_short_of_ordinary_cards_the_game_moves_to_t
     for view in views_for(game):
         assert view["phase"] == "auction"
         assert view["donation"] is None
+        assert bool(view["legal_moves"]) == (view["you"] == 0)
+
+
+# --- Auction bidding (#51) ----------------------------------------------------
+
+
+def _play_to_auction(game):
+    """Play donation turns and shared selections (always the first legal
+    choices) until the Game reaches the auction."""
+    while player_view(game, 0)["phase"] in ("donation", "shared_selection"):
+        game = _finish_donation(game) if player_view(game, 0)["phase"] == "donation" else _take_all(game)
+    return game
+
+
+AUCTION_DECK = {"gold": {"1": 2, "2": 2, "3": 0}, "resource": {"1": 2, "2": 0, "3": 0, "4": 0}}
+
+
+def _auction_game(ok=lambda views: True):
+    """A Game in the auction, with at least two cards to auction, whose
+    Player Views satisfy `ok`."""
+    for seed in range(500):
+        game = _play_to_auction(create_game(SEATS, AUCTION_DECK, seed=seed, now=NOW))
+        views = views_for(game)
+        if views[0]["phase"] == "auction" and views[0]["discard_size"] >= 2 and ok(views):
+            return game
+    raise AssertionError("no such seed")
+
+
+def test_the_auction_shows_every_seat_the_front_card_and_seat_zero_bids_first():
+    game = _auction_game()
+    views = views_for(game)
+    card = views[0]["auction"]["card"]
+    for view in views:
+        assert view["phase"] == "auction"
+        assert view["current_seat"] == 0
+        auction = view["auction"]
+        assert auction["card"] == card
+        assert auction["bidding_order"] == [0, 1, 2]
+        assert auction["active"] == [True, True, True]
+        assert (auction["bid"], auction["highest_bidder"], auction["winner"]) == (0, None, None)
+        # Only the card at auction is shown; the rest of the discard pile is a size.
+        assert "discard" not in view
+        assert all_cards_in({k: v for k, v in view.items() if k != "hand"}) == [card]
+    assert {"type": "pass"} in views[0]["legal_moves"]
+    assert views[1]["legal_moves"] == [] and views[2]["legal_moves"] == []
+
+
+def _non_gold_card(views):
+    return views[0]["auction"]["card"]["type"] != "Gold"
+
+
+def test_a_bid_on_a_non_gold_card_may_be_any_whole_amount_of_gold_the_seat_has():
+    game = _auction_game(lambda views: _non_gold_card(views) and views[0]["seats"][0]["gold"] >= 2)
+    gold = player_view(game, 0)["seats"][0]["gold"]
+    assert player_view(game, 0)["legal_moves"] == [{"type": "bid", "min": 1, "max": gold}, {"type": "pass"}]
+    game = _apply(game, 0, {"type": "bid", "amount": 2})
+    for view in views_for(game):
+        auction = view["auction"]
+        assert (auction["bid"], auction["highest_bidder"], auction["winner"]) == (2, 0, None)
+        assert auction["active"] == [True, True, True]
+        assert view["current_seat"] == 1
+    assert player_view(game, 0)["legal_moves"] == []
+
+
+def test_passing_takes_a_seat_out_of_the_bidding_for_this_card():
+    game = _auction_game()
+    game = _apply(game, 0, {"type": "pass"})
+    for view in views_for(game):
+        assert view["auction"]["active"] == [False, True, True]
+        assert view["current_seat"] == 1
+        assert view["auction"]["winner"] is None
+    game = _apply(game, 1, {"type": "pass"})
+    # Seat 2 is still in; with no bid yet it must bid or pass.
+    assert player_view(game, 0)["current_seat"] == 2
+    assert player_view(game, 0)["legal_moves"] == []
+    assert "passed" in _rejected(game, 0, {"type": "pass"})
+    assert "passed" in _rejected(game, 0, {"type": "bid", "amount": 1})
+
+
+def _can_bid(seat):
+    """Whether `seat` could bid 1 on the first card: it has the gold, or for
+    a Gold card (bid for in cards) a card in hand."""
+
+    def ok(views):
+        card, me = views[0]["auction"]["card"], views[0]["seats"][seat]
+        return (me["hand_size"] if card["type"] == "Gold" else me["gold"]) >= 1
+
+    return ok
+
+
+def test_a_bid_that_leaves_one_seat_in_wins_the_card_and_the_game_awaits_payment():
+    game = _auction_game(_can_bid(2))
+    card = player_view(game, 0)["auction"]["card"]
+    game = _apply(game, 0, {"type": "pass"})
+    game = _apply(game, 1, {"type": "pass"})
+    game = _apply(game, 2, {"type": "bid", "amount": 1})
+    for view in views_for(game):
+        assert view["phase"] == "auction"
+        assert view["auction"]["winner"] == {"seat": 2, "card": card, "bid": 1}
+        # Payment Moves come with #52.
+        assert view["legal_moves"] == []
+    assert "pay" in _rejected(game, 2, {"type": "bid", "amount": 2})
+
+
+def test_when_all_but_the_highest_bidder_pass_the_highest_bidder_wins():
+    game = _auction_game(_can_bid(0))
+    card = player_view(game, 0)["auction"]["card"]
+    game = _apply(game, 0, {"type": "bid", "amount": 1})
+    game = _apply(game, 1, {"type": "pass"})
+    assert player_view(game, 0)["auction"]["winner"] is None
+    game = _apply(game, 2, {"type": "pass"})
+    for view in views_for(game):
+        assert view["auction"]["winner"] == {"seat": 0, "card": card, "bid": 1}
+        assert view["legal_moves"] == []
+
+
+def _all_pass(game):
+    for _ in SEATS:
+        game = _apply(game, player_view(game, 0)["current_seat"], {"type": "pass"})
+    return game
+
+
+def test_a_card_everyone_passes_on_is_removed_and_the_next_card_goes_up_one_seat_later():
+    game = _auction_game()
+    first = player_view(game, 0)
+    game = _all_pass(game)
+    for view in views_for(game):
+        assert view["phase"] == "auction"
+        assert view["discard_size"] == first["discard_size"] - 1
+        assert view["auction"]["winner"] is None
+        assert view["auction"]["bidding_order"] == [1, 2, 0]
+        assert view["auction"]["active"] == [True, True, True]
+        assert (view["auction"]["bid"], view["auction"]["highest_bidder"]) == (0, None)
+        assert view["current_seat"] == 1
+        # The card everyone passed on is out of the Game.
+        assert view["seats"] == first["seats"]
+    assert {"type": "pass"} in player_view(game, 1)["legal_moves"]
+    assert player_view(game, 0)["legal_moves"] == []
+
+
+def test_when_the_last_card_is_passed_on_the_game_moves_to_scoring():
+    game = _auction_game()
+    while player_view(game, 0)["phase"] == "auction":
+        game = _all_pass(game)
+    for view in views_for(game):
+        assert view["phase"] == "scoring"
+        assert view["discard_size"] == 0
+        assert view["auction"] is None
+        assert view["legal_moves"] == []
+
+
+def test_illegal_bids_are_rejected():
+    game = _auction_game(lambda views: _non_gold_card(views) and all(s["gold"] >= 2 for s in views[0]["seats"][:2]))
+    gold = player_view(game, 1)["seats"][1]["gold"]
+    assert "turn" in _rejected(game, 1, {"type": "bid", "amount": 1})
+    assert "turn" in _rejected(game, 2, {"type": "pass"})
+    for amount in [0, -1, None, "1", 1.0, True, [1], {}]:
+        _rejected(game, 0, {"type": "bid", "amount": amount})
+    _rejected(game, 0, {"type": "bid"})
+    assert "auction" in _rejected(_plain_game(), 0, {"type": "bid", "amount": 1})
+    assert "auction" in _rejected(_plain_game(), 0, {"type": "pass"})
+    assert "Seat" in _rejected(game, 5, {"type": "pass"})
+
+    game = _apply(game, 0, {"type": "bid", "amount": 1})
+    # Once someone has bid, a bid must beat it.
+    assert player_view(game, 1)["legal_moves"] == [{"type": "bid", "min": 2, "max": gold}, {"type": "pass"}]
+    assert "at least 2" in _rejected(game, 1, {"type": "bid", "amount": 1})
+    assert "gold" in _rejected(game, 1, {"type": "bid", "amount": gold + 1})
+    assert "turn" in _rejected(game, 0, {"type": "bid", "amount": 2})
+
+
+def test_a_seat_that_cannot_beat_the_bid_may_only_pass():
+    game = _auction_game(lambda views: _non_gold_card(views) and views[0]["seats"][1]["gold"] == 0)
+    game = _apply(game, 0, {"type": "pass"})
+    assert player_view(game, 1)["legal_moves"] == [{"type": "pass"}]
+    assert "at most 0" in _rejected(game, 1, {"type": "bid", "amount": 1})
+
+
+def test_a_gold_card_is_bid_for_in_cards_from_the_hand():
+    game = _auction_game(
+        lambda views: views[0]["auction"]["card"]["type"] == "Gold"
+        and views[0]["seats"][0]["hand_size"] != views[0]["seats"][0]["gold"]
+    )
+    hand = player_view(game, 0)["seats"][0]["hand_size"]
+    assert player_view(game, 0)["legal_moves"][0] == {"type": "bid", "min": 1, "max": hand}
+    assert "cards" in _rejected(game, 0, {"type": "bid", "amount": hand + 1})
+
+
+def test_the_turn_skips_seats_that_have_passed():
+    def rich_enough(views):
+        high = [s["hand_size"] if views[0]["auction"]["card"]["type"] == "Gold" else s["gold"] for s in views[0]["seats"]]
+        return high[0] >= 3 and high[2] >= 2
+
+    game = _auction_game(rich_enough)
+    game = _apply(game, 0, {"type": "bid", "amount": 1})
+    game = _apply(game, 1, {"type": "pass"})
+    game = _apply(game, 2, {"type": "bid", "amount": 2})
+    assert player_view(game, 0)["current_seat"] == 0
+    game = _apply(game, 0, {"type": "bid", "amount": 3})
+    assert player_view(game, 0)["current_seat"] == 2
+    assert player_view(game, 0)["auction"]["highest_bidder"] == 0
+
+
+def test_with_nothing_discarded_there_is_no_auction_and_the_game_moves_to_scoring():
+    # Only the six special cards: the first draw comes up short with nothing discarded.
+    empty = {"gold": {"1": 0, "2": 0, "3": 0}, "resource": {"1": 0, "2": 0, "3": 0, "4": 0}}
+    for view in views_for(create_game(SEATS, empty, seed=7, now=NOW)):
+        assert view["phase"] == "scoring"
+        assert view["auction"] is None
         assert view["legal_moves"] == []

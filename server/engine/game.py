@@ -24,6 +24,8 @@ SPECIAL_MOVES = ["choose_direction", "modify_die"]
 DIRECTIONS = {"plus": +1, "minus": -1}
 # How a Seat takes a card from the shared pool.
 SELECTION_MOVES = ["take"]
+# How a Seat bids on the card at auction.
+AUCTION_MOVES = ["bid", "pass"]
 
 DEFAULT_RESOURCE = {"1": 5, "2": 4, "3": 2, "4": 2}
 DEFAULT_GOLD = {"1": 5, "2": 5, "3": 5}
@@ -48,6 +50,7 @@ def create_game(seats, deck_settings, seed, now):
         "current_seat": 0,
         "donation": None,
         "last_donor": None,
+        "auction": None,
         "turn_started_at": now,
     }
     _start_donation_turn(game)
@@ -73,12 +76,26 @@ def player_view(game, seat):
         "current_seat": game["current_seat"],
         "last_donor": game["last_donor"],
         "donation": _donation_view(game, seat),
+        "auction": _auction_view(game),
         "legal_moves": legal_moves(game, seat),
     }
 
 
 def legal_moves(game, seat):
     """The Moves `seat` may make right now."""
+    if game["phase"] == "auction":
+        # A bid is any whole number in a range, so it is listed as that range
+        # rather than one Move per amount; both ends are checked by
+        # _rejection like any other Move, and every amount between them is
+        # legal too.
+        moves = []
+        low, high = _bid_range(game, seat)
+        if all(_rejection(game, seat, {"type": "bid", "amount": a}) is None for a in (low, high)):
+            moves.append({"type": "bid", "min": low, "max": high})
+        if _rejection(game, seat, {"type": "pass"}) is None:
+            moves.append({"type": "pass"})
+        return moves
+
     if game["phase"] == "shared_selection":
         candidates = [{"type": "take", "card": i} for i in range(len(game["shared_pool"]))]
         return [m for m in candidates if _rejection(game, seat, m) is None]
@@ -108,6 +125,12 @@ def apply_move(game, seat, move):
     if move["type"] in SELECTION_MOVES:
         _take(game, seat, move)
         return game, None
+    if move["type"] == "bid":
+        _bid(game, seat, move["amount"])
+        return game, None
+    if move["type"] == "pass":
+        _pass(game, seat)
+        return game, None
     if move["type"] in SPECIAL_MOVES:
         _play_special(game, move)
         return game, None
@@ -127,12 +150,14 @@ def apply_move(game, seat, move):
 
 def _rejection(game, seat, move):
     """Why `seat` may not make `move` right now, or None if it may."""
-    if not isinstance(move, dict) or move.get("type") not in DONATION_MOVES + SPECIAL_MOVES + SELECTION_MOVES:
+    if not isinstance(move, dict) or move.get("type") not in DONATION_MOVES + SPECIAL_MOVES + SELECTION_MOVES + AUCTION_MOVES:
         return "Unknown Move"
     if not isinstance(seat, int) or not 0 <= seat < len(game["seats"]):
         return "You have no Seat in this Game"
     if move["type"] in SELECTION_MOVES:
         return _selection_rejection(game, seat, move)
+    if move["type"] in AUCTION_MOVES:
+        return _auction_rejection(game, seat, move)
     donation = game["donation"]
     if game["phase"] != "donation" or donation is None:
         return "It is not the donation phase"
@@ -216,18 +241,154 @@ def _finish_shared_selection(game):
     is cleared and the Seat after the last donor starts a donation turn, or,
     if the deck no longer holds a full draw, the Game goes to the auction.
 
-    Going to the auction, current_seat is left at last_donor + 1 (React's
-    auctionStarterIndex). That is NOT the auction's bidding order: React's
-    auction rotates the Seats by auctionTurnOffset, which starts at 0. #51
-    decides which one starts the bidding."""
+    React also hands the auction last_donor + 1 (auctionStarterIndex), but
+    never uses it: the bidding order comes from auctionTurnOffset alone, so
+    Seat 0 bids first on the first card (see _start_auction)."""
     game["shared_pool"] = []
     game["current_seat"] = (game["last_donor"] + 1) % len(game["seats"])
     if len(game["deck"]) < _cards_to_draw(game):
         # React checks the deck before drawing, so nothing more is drawn.
-        game["phase"] = "auction"
+        _start_auction(game)
         return
     game["phase"] = "donation"
     _start_donation_turn(game)
+
+
+def _start_auction(game):
+    """As the React auction phase: the discard pile is auctioned one card at
+    a time, front first, with every Seat bidding on each card. The bidding
+    order is the Seats rotated by an offset that starts at 0 and moves on by
+    one after every card. With nothing discarded there is nothing to
+    auction, and the Game goes straight to scoring (React's `!currentCard`)."""
+    game["auction"] = {"offset": 0}
+    if not game["discard"]:
+        game["phase"] = "scoring"
+        return
+    game["phase"] = "auction"
+    _open_bidding(game)
+
+
+def _open_bidding(game):
+    """Every Seat is back in for the card at the front of the discard pile,
+    with no bid yet, and the first Seat in the bidding order to bid."""
+    auction = game["auction"]
+    auction.update({"active": [True] * len(game["seats"]), "bid": 0, "highest_bidder": None, "winner": None})
+    game["current_seat"] = auction["offset"]
+
+
+def _auction_rejection(game, seat, move):
+    """Why `seat` may not bid or pass right now, or None if it may (the
+    React auction phase's Bid and Pass buttons)."""
+    if game["phase"] != "auction":
+        return "It is not the auction phase"
+    auction = game["auction"]
+    if auction["winner"] is not None:
+        return f"{game['seats'][auction['winner']['seat']]['name']} has won this card and must pay first"
+    if not auction["active"][seat]:
+        return "You have passed on this card"
+    if seat != game["current_seat"]:
+        return "It is not your turn to bid"
+    if move["type"] == "pass":
+        return None
+    amount = move.get("amount")
+    if not isinstance(amount, int) or isinstance(amount, bool):
+        return "Bid a whole number"
+    low, high = _bid_range(game, seat)
+    if amount < low:
+        return f"Bid at least {low}"
+    if amount > high:
+        if game["discard"][0]["type"] == "Gold":
+            return f"You may bid at most {high}: the cards in your hand"
+        return f"You may bid at most {high}: the gold you have"
+    return None
+
+
+def _bid_range(game, seat):
+    """The lowest and highest bid `seat` may make, as the React auction
+    phase's handleBid: at least 1 and more than the current bid; at most the
+    Seat's gold, or for a Gold card (paid for in cards) its hand size."""
+    holder = game["seats"][seat]
+    high = len(holder["hand"]) if game["discard"][0]["type"] == "Gold" else holder["gold"]
+    return game["auction"]["bid"] + 1, high
+
+
+def _bid(game, seat, amount):
+    """As handleBid: the Seat becomes the highest bidder; if it is the only
+    Seat still in, it wins the card, otherwise the turn passes to the next
+    Seat still in."""
+    auction = game["auction"]
+    auction["bid"] = amount
+    auction["highest_bidder"] = seat
+    if sum(auction["active"]) == 1:
+        _win(game, seat)
+    else:
+        _next_bidder(game, seat)
+
+
+def _pass(game, seat):
+    """As handlePass: the Seat is out of the bidding for this card. If no
+    Seat is left in, or one is left and someone has bid, the card goes to
+    the highest bidder (React's finishAuction), or, with no bid, to no one."""
+    auction = game["auction"]
+    auction["active"][seat] = False
+    still_in = sum(auction["active"])
+    has_bid = auction["highest_bidder"] is not None
+    if still_in == 0 and not has_bid:
+        _discard_unsold(game)
+    elif still_in == 0 or (still_in == 1 and has_bid):
+        _win(game, auction["highest_bidder"])
+    else:
+        _next_bidder(game, seat)
+
+
+def _win(game, seat):
+    """`seat` has won the card at auction for the current bid, and the Game
+    waits for it to pay (payment is #52). Until then no Seat may bid."""
+    auction = game["auction"]
+    auction["winner"] = {"seat": seat, "card": game["discard"][0], "bid": auction["bid"]}
+    game["current_seat"] = seat
+
+
+def _discard_unsold(game):
+    """As finishAuction with no winner: the card leaves the Game, and the
+    next card goes up with the bidding order one Seat on, or, if that was
+    the last card, the Game goes to scoring."""
+    game["discard"].pop(0)
+    if not game["discard"]:
+        game["phase"] = "scoring"
+        return
+    auction = game["auction"]
+    auction["offset"] = (auction["offset"] + 1) % len(game["seats"])
+    _open_bidding(game)
+
+
+def _next_bidder(game, seat):
+    """The turn passes to the next Seat after `seat` in the bidding order
+    that has not passed on this card (React's getNextActivePlayerIndex; the
+    bidding order is a rotation of the Seats, so that is the next Seat)."""
+    n, active = len(game["seats"]), game["auction"]["active"]
+    nxt = (seat + 1) % n
+    while not active[nxt]:
+        nxt = (nxt + 1) % n
+    game["current_seat"] = nxt
+
+
+def _auction_view(game):
+    """The auction as every Seat sees it: the card at auction is face up,
+    as React shows it to everyone; the rest of the discard pile is only
+    its size."""
+    auction = game["auction"]
+    if game["phase"] != "auction" or auction is None:
+        return None
+    n = len(game["seats"])
+    return {
+        "card": game["discard"][0],
+        "bidding_order": [(auction["offset"] + i) % n for i in range(n)],
+        "active": list(auction["active"]),
+        "bid": auction["bid"],
+        "highest_bidder": auction["highest_bidder"],
+        "winner": auction["winner"],
+    }
 
 
 def _is_index(value, size):
@@ -292,8 +453,8 @@ def _start_donation_turn(game):
 
     if len(drawn) < needed:
         # Not enough cards left for a full donation turn: straight to auction.
-        game["phase"] = "auction"
         game["donation"] = None
+        _start_auction(game)
         return
 
     game["donation"] = {
