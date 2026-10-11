@@ -84,6 +84,8 @@ if (require.main === module) {
 
 
 const playersInRoom = {};
+// Exposed so tests can check that emptied Rooms are cleaned up.
+module.exports.playersInRoom = playersInRoom;
 const currentGameState = {};
 
 io.on("connection", (socket) => {
@@ -163,14 +165,18 @@ io.on("connection", (socket) => {
   }
 }
 
-socket.on("leave_game", ({ room, playerId }) => {
-  console.log("I HAVE RUN")
+// Any playerId in the payload is ignored: a player can only remove their own seat.
+socket.on("leave_game", ({ room }) => {
   try {
     // leave socket.io room
     socket.leave(room);
-    // drop by playerId (stable across reconnects)
-    removePlayerFromRoom(room, (p) => (playerId !== undefined && p.playerId === playerId) || p.id === socket.id);
-    console.log(`${playerId} left ${room}`);
+    // Drop the caller's seat by their server-assigned Player Identity. A
+    // connection without one can only drop the seat held by this socket.
+    const playerId = socket.data.player?.playerId;
+    removePlayerFromRoom(room, (p) =>
+      playerId !== undefined ? p.playerId === playerId : p.id === socket.id
+    );
+    console.log(`${playerId ?? socket.id} left ${room}`);
   } catch (e) {
     console.error("leave_game error:", e);
   }
