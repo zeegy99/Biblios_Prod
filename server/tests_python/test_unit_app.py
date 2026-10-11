@@ -358,3 +358,52 @@ class Test_signout:
         conn.close.assert_called_once()
 
 
+
+
+class Test_game_result:
+    SECRET = "unit-test-secret"
+    PLACINGS = [{"player_id": "user:7", "rank": 1}, {"player_id": "guest:x", "rank": 2}]
+
+    @pytest.fixture(autouse=True)
+    def secret(self, monkeypatch):
+        monkeypatch.setenv("GAME_RESULT_SECRET", self.SECRET)
+
+    def post(self, client, body, secret=SECRET):
+        return client.post("/api/internal/game_result", json=body, headers={"X-Game-Result-Secret": secret})
+
+    def test_wrong_secret_returns_401_without_touching_db(self, client, mocker):
+        connect = mocker.patch("app.psycopg2.connect")
+
+        resp = self.post(client, {"game_id": "g", "placings": self.PLACINGS}, secret="nope")
+
+        connect.assert_not_called()
+        assert resp.status_code == 401
+
+    @pytest.mark.parametrize("body", [
+        {"placings": [{"player_id": "user:7", "rank": 1}]},
+        {"game_id": "", "placings": [{"player_id": "user:7", "rank": 1}]},
+        {"game_id": "g"},
+        {"game_id": "g", "placings": []},
+        {"game_id": "g", "placings": [{"player_id": "user:7", "rank": 1}, {"player_id": "user:8", "rank": 1}]},
+        {"game_id": "g", "placings": [{"player_id": "user:7", "rank": 2}]},
+        {"game_id": "g", "placings": [{"player_id": "user:7", "rank": True}]},
+        {"game_id": "g", "placings": ["user:7"]},
+    ])
+    def test_malformed_report_returns_400_without_touching_db(self, client, mocker, body):
+        connect = mocker.patch("app.psycopg2.connect")
+
+        resp = self.post(client, body)
+
+        connect.assert_not_called()
+        assert resp.status_code == 400
+
+    def test_db_error_returns_500_and_commits_nothing(self, client, db):
+        conn, cursor = db
+        cursor.execute.side_effect = Exception("db down")
+
+        resp = self.post(client, {"game_id": "g", "placings": self.PLACINGS})
+
+        assert resp.status_code == 500
+        assert resp.get_json() == {"error": "db down"}
+        conn.commit.assert_not_called()
+        conn.close.assert_called_once()

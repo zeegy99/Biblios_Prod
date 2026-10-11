@@ -396,3 +396,87 @@ class Test_public_reads_without_session:
             {"username": "signin_user", "elo": 1000},
             {"username": "test_1", "elo": 900},
         ]
+
+
+RESULT_SECRET = "test-game-result-secret"
+
+@pytest.fixture
+def players(client, monkeypatch):
+    """Three Signed-in Players at 1000 Elo, and the shared secret Node and
+    Flask agree on for Game results. Yields their Player Identities by name."""
+    monkeypatch.setenv("GAME_RESULT_SECRET", RESULT_SECRET)
+    conn = psycopg2.connect(os.environ["DATABASE_URL"])
+    cur = conn.cursor()
+    ids = {}
+    for name in ("ann", "bob", "cid"):
+        cur.execute(
+            "INSERT INTO users (email, username, password_hash) VALUES (%s, %s, %s) RETURNING id",
+            (f"{name}@gmail.com", name, "some_password")
+        )
+        ids[name] = f"user:{cur.fetchone()[0]}"
+        cur.execute("INSERT INTO elo (username, elo_score) VALUES (%s, %s)", (name, 1000))
+    conn.commit()
+    cur.close()
+    conn.close()
+    yield ids
+    conn = psycopg2.connect(os.environ["DATABASE_URL"])
+    cur = conn.cursor()
+    cur.execute("TRUNCATE TABLE game_results")
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def report_result(client, game_id, placings, secret=RESULT_SECRET):
+    headers = {"X-Game-Result-Secret": secret} if secret is not None else {}
+    return client.post("/api/internal/game_result", json={"game_id": game_id, "placings": placings}, headers=headers)
+
+def ranked(*player_ids):
+    return [{"player_id": p, "rank": i + 1} for i, p in enumerate(player_ids)]
+
+class Test_game_result:
+    def test_without_the_shared_secret_is_refused_and_changes_nothing(self, client, players):
+        resp = report_result(client, "game-1", ranked(players["ann"], players["bob"]), secret=None)
+
+        assert resp.status_code == 401
+        assert elo_of("ann") == 1000 and elo_of("bob") == 1000
+
+    def test_with_a_wrong_secret_is_refused_and_changes_nothing(self, client, players):
+        resp = report_result(client, "game-1", ranked(players["ann"], players["bob"]), secret="guessed")
+
+        assert resp.status_code == 401
+        assert elo_of("ann") == 1000 and elo_of("bob") == 1000
+
+    def test_is_refused_when_flask_has_no_secret_configured(self, client, players, monkeypatch):
+        monkeypatch.delenv("GAME_RESULT_SECRET")
+
+        resp = report_result(client, "game-1", ranked(players["ann"], players["bob"]), secret="")
+
+        assert resp.status_code == 503
+        assert elo_of("ann") == 1000 and elo_of("bob") == 1000
+
+    def test_applies_the_elo_formula_with_guests_taking_placings(self, client, players):
+        # Four places: +20, +10, -10, -20. The Guest has no Elo but still takes second place.
+        resp = report_result(client, "game-1", ranked(players["bob"], "guest:abc", players["ann"], players["cid"]))
+
+        assert resp.status_code == 200
+        assert (elo_of("bob"), elo_of("ann"), elo_of("cid")) == (1020, 990, 980)
+
+    def test_with_an_odd_number_of_seats_the_median_place_gets_nothing(self, client, players):
+        resp = report_result(client, "game-1", ranked(players["cid"], players["ann"], players["bob"]))
+
+        assert resp.status_code == 200
+        assert (elo_of("cid"), elo_of("ann"), elo_of("bob")) == (1010, 1000, 990)
+
+    def test_a_repeat_report_for_the_same_game_changes_nothing(self, client, players):
+        placings = ranked(players["ann"], players["bob"])
+        assert report_result(client, "game-1", placings).status_code == 200
+
+        resp = report_result(client, "game-1", placings)
+
+        assert resp.status_code == 200
+        assert resp.get_json() == {"recorded": False}
+        assert (elo_of("ann"), elo_of("bob")) == (1010, 990)
+
+        # Another Game between the same players counts.
+        assert report_result(client, "game-2", placings).get_json() == {"recorded": True}
+        assert (elo_of("ann"), elo_of("bob")) == (1020, 980)
