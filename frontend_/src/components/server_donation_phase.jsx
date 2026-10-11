@@ -58,10 +58,10 @@ const ServerDonationPhase = ({ view }) => {
         </div>
       )}
 
-      {isDonor && !donation.special && donation.cards.length > 0 && (
+      {isDonor && !donation.special && donation.card && (
         <div>
           <h4>Choose what to do with this card:</h4>
-          <Card card={donation.cards[0]} />
+          <Card card={donation.card} />
           <div style={{ display: "flex", justifyContent: "center", gap: "10px", marginTop: "10px" }}>
             {moveButton("Keep", "keep")}
             {moveButton("Discard", "discard")}
@@ -77,7 +77,6 @@ const ServerDonationPhase = ({ view }) => {
             {view.shared_pool.map((card, idx) => (
               <div key={idx} style={{ textAlign: "center" }}>
                 <Card card={card} />
-                <p style={{ fontSize: "0.9em", color: "gray" }}>Pooled by {card.pooledBy || "?"}</p>
               </div>
             ))}
             {!isDonor && donation.cards_count > 0 && (

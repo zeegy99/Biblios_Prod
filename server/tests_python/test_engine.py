@@ -80,20 +80,21 @@ def test_the_seed_is_never_in_a_player_view():
         assert "987654321" not in json.dumps(view)
 
 
-def test_the_donor_sees_the_cards_they_drew_and_others_only_a_count():
+def test_the_donor_sees_only_the_current_card_and_others_only_a_count():
     game = create_game(SEATS, DECK_SETTINGS, seed=7, now=NOW)
     donor, other = player_view(game, 0), player_view(game, 1)
-    # n players draw n + 1 non-special cards
-    assert len(donor["donation"]["cards"]) == len(SEATS) + 1
-    assert all(not c["isSpecial"] for c in donor["donation"]["cards"])
-    assert "cards" not in other["donation"]
+    # n players draw n + 1 non-special cards, dealt with one at a time
+    assert donor["donation"]["cards_count"] == len(SEATS) + 1
+    assert not donor["donation"]["card"]["isSpecial"]
+    assert len(all_cards_in(donor)) == 1 + (1 if donor["donation"]["special"] else 0)
+    assert "card" not in other["donation"]
     assert other["donation"]["cards_count"] == len(SEATS) + 1
     assert all_cards_in(other) == []
 
 
 def test_other_seats_hands_are_sent_as_counts_only():
     game = create_game(SEATS, DECK_SETTINGS, seed=7, now=NOW)
-    for seat, view in enumerate(views_for(game)):
+    for view in views_for(game):
         assert isinstance(view["hand"], list)
         for s in view["seats"]:
             assert "hand" not in s
@@ -141,13 +142,13 @@ def test_deck_settings_change_the_deck():
     small = {"gold": {"1": 0, "2": 0, "3": 0}, "resource": {"1": 2, "2": 0, "3": 0, "4": 0}}
     view = player_view(create_game(SEATS, small, seed=7, now=NOW), 0)
     # 10 resource cards + 6 specials; the donor drew 4 non-specials plus any specials on top
-    assert view["deck_size"] + len(view["donation"]["cards"]) + _specials_drawn(view) == 16
+    assert view["deck_size"] + view["donation"]["cards_count"] + _specials_drawn(view) == 16
 
 
 def test_blank_deck_settings_count_as_zero():
     blank = {"gold": {"1": "", "2": 0, "3": 0}, "resource": {"1": 2, "2": "", "3": 0, "4": 0}}
     view = player_view(create_game(SEATS, blank, seed=7, now=NOW), 0)
-    assert view["deck_size"] + len(view["donation"]["cards"]) + _specials_drawn(view) == 16
+    assert view["deck_size"] + view["donation"]["cards_count"] + _specials_drawn(view) == 16
 
 
 def _specials_drawn(donor_view):

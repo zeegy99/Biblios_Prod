@@ -79,12 +79,13 @@ test("a flagged start gives every Seat a Player View with only its own hand", as
       view.seats.forEach((s) => expect(s.hand).toBeUndefined());
     });
 
-    // The first Seat donates: only it sees its drawn cards and has legal Moves.
+    // The first Seat donates: only it sees its current card and has legal Moves.
     const [donor, ...others] = payloads.map((p) => p.playerView);
-    expect(donor.donation.cards).toHaveLength(4);
+    expect(donor.donation.cards_count).toBe(4);
+    expect(donor.donation.card.isSpecial).toBe(false);
     expect(donor.legal_moves.length).toBeGreaterThan(0);
     others.forEach((view) => {
-      expect(view.donation.cards).toBeUndefined();
+      expect(view.donation.card).toBeUndefined();
       expect(view.donation.cards_count).toBe(4);
       expect(view.legal_moves).toEqual([]);
       expect(allCardsIn(view)).toEqual([]);

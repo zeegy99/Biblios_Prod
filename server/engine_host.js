@@ -1,12 +1,11 @@
 const { spawn } = require("child_process");
-const path = require("path");
 const readline = require("readline");
 
 // The Python Game engine, run as a child process (ADR-0002). Requests and
 // responses are JSON lines matched by id; see engine/host.py for the ops.
 const PYTHON = process.env.ENGINE_PYTHON || (process.platform === "win32" ? "python" : "python3");
 
-function createEngineHost({ python = PYTHON } = {}) {
+function createEngineHost() {
   let child = null;
   let nextId = 1;
   const pending = new Map();
@@ -17,7 +16,7 @@ function createEngineHost({ python = PYTHON } = {}) {
   }
 
   function start() {
-    child = spawn(python, ["-u", "-m", "engine.host"], {
+    child = spawn(PYTHON, ["-u", "-m", "engine.host"], {
       cwd: __dirname,
       stdio: ["pipe", "pipe", "inherit"],
     });

@@ -10,6 +10,8 @@ module and read it only through player_view.
 
 import random
 
+# Both orders are the React ones: RESOURCE_TYPES is the deck build order (it
+# decides which card a seed shuffles where), DICE_TYPES the order dice are shown.
 RESOURCE_TYPES = ["Religion", "Science", "Military", "Art", "Herbs"]
 DICE_TYPES = ["Art", "Herbs", "Military", "Religion", "Science"]
 TIE_BREAKERS = list("ABCDEFGHIJK")
@@ -22,7 +24,8 @@ DEFAULT_GOLD = {"1": 5, "2": 5, "3": 5}
 def create_game(seats, deck_settings, seed, now):
     """A new Game for the given Seats ([{player_id, name}] in turn order),
     with the deck shuffled and the dice rolled from the seed. The first Seat
-    starts the donation phase with its cards already drawn."""
+    starts the donation phase with its cards already drawn. `now` (ms) is
+    the start time; the engine never reads the clock."""
     rng = random.Random(seed)
     game = {
         "phase": "donation",
@@ -35,7 +38,6 @@ def create_game(seats, deck_settings, seed, now):
         "shared_pool": [],
         "dice": [{"resource_type": t, "value": rng.randint(2, 4)} for t in DICE_TYPES],
         "current_seat": 0,
-        "last_donor": None,
         "donation": None,
         "turn_started_at": now,
     }
@@ -134,9 +136,11 @@ def _donation_view(game, seat):
         return None
     view = {"donor": game["current_seat"], "cards_count": len(donation["cards"])}
     if seat == game["current_seat"]:
+        # The donor deals with one card at a time, so only that card is shown:
+        # the rest of the draw is as hidden as the deck it came from.
         view.update(
             {
-                "cards": list(donation["cards"]),
+                "card": donation["cards"][0] if donation["cards"] else None,
                 "special": donation["specials"][0] if donation["specials"] else None,
                 "specials_drawn": donation["specials_drawn"],
                 "direction": donation["direction"],
@@ -150,6 +154,8 @@ def _donation_view(game, seat):
 
 
 def _count(settings, key, defaults, value):
+    """How many cards of `value` the deck settings ask for. The lobby sends
+    string keys and may send "" for a blank field, which counts as zero."""
     counts = settings.get(key) or defaults
     raw = counts.get(value, counts.get(int(value), 0)) if isinstance(counts, dict) else 0
     try:
