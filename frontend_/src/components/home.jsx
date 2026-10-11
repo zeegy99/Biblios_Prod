@@ -2,7 +2,9 @@ import React, { useState, useEffect } from "react";
 import { Navigate, useNavigate } from "react-router-dom";import { getOrCreatePlayerId } from "../utils/playerId";
 import Timer from "../timer.jsx";
 import "./lobby.css";
-import RulesPage from "./rulespage"; 
+import RulesPage from "./rulespage";
+import { useAuth } from "../auth/auth_context";
+import { useInRoom, IN_ROOM_MESSAGE } from "../use_in_room";
 
 
 const generateRoomCode = () =>
@@ -24,18 +26,20 @@ const Home = ({ setPlayerName }) => {
   const [tempName, setTempName] = useState(localStorage.getItem("playerName") || "");
   const [rulesPage, setRulesPage] = useState(false);
   const navigate = useNavigate();
+  const { isSignedIn, loading } = useAuth();
+  // Sign-in isn't offered while the player holds a seat in a Room.
+  const inRoom = useInRoom();
 
   useEffect(() => {
     const localStorageVol = localStorage.getItem("Volume") || 50;
     localStorage.setItem("Volume", localStorageVol)
-  
-  const name = localStorage.getItem("playerName");
-  const isGuest = localStorage.getItem("isGuest") === "true";
+  }, []);
 
-  if (name && !isGuest) {
-    navigate("/signedin");
-  }
-}, []);
+  useEffect(() => {
+    if (isSignedIn) {
+      navigate("/signedin");
+    }
+  }, [isSignedIn, navigate]);
 
   const toggleDropDown = () => {
     setShowBox((prev) => !prev);
@@ -61,7 +65,6 @@ const Home = ({ setPlayerName }) => {
     if (!nameInput || !roomInput) return;
     localStorage.setItem("playerName", nameInput);
     localStorage.setItem("roomCode", roomInput.toUpperCase());
-    localStorage.setItem("isGuest", "true")
     setPlayerName(nameInput);
     navigate("/lobby");
   };
@@ -72,7 +75,6 @@ const Home = ({ setPlayerName }) => {
     console.log(newRoom)
     localStorage.setItem("playerName", nameInput);
     localStorage.setItem("roomCode", newRoom);
-    localStorage.setItem("isGuest", "true")
     setPlayerName(nameInput);
     navigate("/lobby");
   };
@@ -82,6 +84,12 @@ const Home = ({ setPlayerName }) => {
   }
 
 
+
+  // Wait for the auth provider before showing the Guest form, and show nothing
+  // while a Signed-in Player is being redirected to /signedin.
+  if (loading || isSignedIn) {
+    return null;
+  }
 
   return (
     <div className="home-container">
@@ -106,7 +114,8 @@ const Home = ({ setPlayerName }) => {
   </button>
 
         
-  <button className={'naming-button'} onClick={toSigninPage}>Log In</button>
+  <button className={'naming-button'} onClick={toSigninPage} disabled={inRoom}
+    title={inRoom ? IN_ROOM_MESSAGE : undefined}>Log In</button>
 </div>
 
   </header>
@@ -147,7 +156,8 @@ const Home = ({ setPlayerName }) => {
       
 
       {!savedName && ( //here
-        <button className="secondary-button" onClick={toSigninPage}>
+        <button className="secondary-button" onClick={toSigninPage} disabled={inRoom}
+          title={inRoom ? IN_ROOM_MESSAGE : undefined}>
           Go to Sign In Page
         </button>
       )}

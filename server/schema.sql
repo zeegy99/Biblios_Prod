@@ -9,3 +9,33 @@ CREATE TABLE IF NOT EXISTS elo (
     username TEXT PRIMARY KEY REFERENCES users(username),
     elo_score INTEGER NOT NULL DEFAULT 1000
 );
+
+CREATE TABLE IF NOT EXISTS sessions (
+    session_id TEXT PRIMARY KEY NOT NULL,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expires_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS keybinds (
+    username TEXT PRIMARY KEY REFERENCES users(username),
+    donate_card TEXT,
+    discard_card TEXT,
+    keep_card TEXT,
+    open_chat TEXT,
+    bid_increase TEXT,
+    bid_decrease TEXT,
+    pass_bid TEXT,
+    take_card_1 TEXT,
+    take_card_2 TEXT,
+    take_card_3 TEXT,
+    take_card_4 TEXT,
+    place_bid TEXT,
+    update_dice_1 TEXT,
+    update_dice_2 TEXT,
+    update_dice_3 TEXT,
+    update_dice_4 TEXT,
+    update_dice_5 TEXT,
+    update_dice_6 TEXT,
+    increase_dice TEXT,
+    decrease_dice TEXT
+);

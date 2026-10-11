@@ -1,42 +1,16 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
+import { useAuth } from "../auth/auth_context";
 
 const ScoringPhase = ({ players, dice, setFinalResults, goToResults, isHost }) => {
   const [log, setLog] = useState([]);
-  const username = localStorage.getItem("playerName") || "none";
-  const [login_info, setLoginInfo] = useState(localStorage.getItem("signin_username") || "none");
+  const displayName = localStorage.getItem("playerName") || "none";
+  const { isSignedIn, refresh } = useAuth();
   const [currentDieIndex, setCurrentDieIndex] = useState(0);
   const [scoredPlayers, setScoredPlayers] = useState(() =>
     players.map((p) => ({ ...p, points: 0 }))
   );
   const [isDone, setIsDone] = useState(false);
-  useEffect (() => {
-    console.log("inside inside inside")
-    const fetchUsername = async () => {
-      try {
-        const response = await fetch ("/api/current-user", {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-        credentials: 'include'
-        })
-
-        const data = await response.json();
-        if (response.ok) {
-          setLoginInfo(data['username'])
-          console.log("This is setLoginInfo going", login_info)
-        }
-        else {
-          console.log("I was in the else")
-        }
-
-      }
-      catch (error){
-        console.log("This is error", error)
-      }
-    }
-
-    fetchUsername();
-  }, []);
-
+  const [eloNotRecorded, setEloNotRecorded] = useState(false);
 
   const handleScoreNextDie = () => {
     const die = dice[currentDieIndex];
@@ -165,11 +139,20 @@ const ScoringPhase = ({ players, dice, setFinalResults, goToResults, isHost }) =
         player.elo = -step * (i - medianIndex + (isOdd ? 0 : 1));
       }
 
-      if (player.name === username) {
+      // Guests have no Elo to update.
+      if (player.name === displayName && isSignedIn) {
         fetch("/api/update_elo", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username: login_info, eloChange: player.elo })
+          credentials: 'include',
+          body: JSON.stringify({ eloChange: player.elo })
+        }).then((response) => {
+          if (response.status === 401) {
+            // The Session has expired: say the Elo change wasn't recorded, and let
+            // the auth provider drop us to Guest. A failed refresh() is harmless.
+            setEloNotRecorded(true);
+            refresh().catch(() => {});
+          }
         });
       }
     });
@@ -196,6 +179,9 @@ const ScoringPhase = ({ players, dice, setFinalResults, goToResults, isHost }) =
       {isDone && (
         <>
           <p>✅ Scoring complete!</p>
+          {eloNotRecorded && (
+            <p>You're signed out, so your Elo change wasn't recorded.</p>
+          )}
           {isHost && (
             <button onClick={goToResults} style={{ marginTop: "20px" }}>
               ➡️ Continue to Results

@@ -99,8 +99,8 @@ useEffect(() => {
 };
 
   
-
- useEffect(() => {
+//When a User Joins a lobby
+useEffect(() => {
   const joinedKey = `hasJoined-${room}`;
   const hasJoined = sessionStorage.getItem(joinedKey);
 
