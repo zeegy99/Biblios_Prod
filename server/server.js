@@ -19,7 +19,9 @@ app.get("/", (req, res) => {
 });
 
 const server = http.createServer(app);
-const deckSettingsInRoom = {};
+// Per-Room state is keyed by client-chosen room codes, so it lives in objects
+// without a prototype: a room called "constructor" or "__proto__" is just a key.
+const deckSettingsInRoom = Object.create(null);
 const allowedOrigins = process.env.NODE_ENV === "production"
   ? ["https://playbiblios.com"]
   : ["http://localhost:5173"];
@@ -104,18 +106,18 @@ if (require.main === module) {
 }
 
 
-const playersInRoom = {};
-const currentGameState = {};
+const playersInRoom = Object.create(null);
+const currentGameState = Object.create(null);
 // Server-authoritative Games by Room: { gameId, seats, views }. Each Seat is
 // { playerId, name, socketId, disconnectedAt }: socketId is where its Player
 // Views go (moved on Rejoin), disconnectedAt is when its socket dropped (null
 // while connected; the abandoned-Game rule of #55 builds on it). `views` are
 // the Player Views the engine last returned, one per Seat, so Rejoin needs no
 // extra engine request.
-const gamesInRoom = {};
+const gamesInRoom = Object.create(null);
 // Finished Games by Room, in the same shape, kept for a while after the end so
 // a Seat that refreshes on the results screen can Rejoin it.
-const finishedGamesInRoom = {};
+const finishedGamesInRoom = Object.create(null);
 const FINISHED_GAME_KEPT_MS = 10 * 60 * 1000;
 
 // Starts a Game in the engine and sends each Seat only its own Player View.
@@ -138,7 +140,6 @@ async function startServerRulesGame(room, players, deckSettings) {
       seed: crypto.randomInt(0, 2 ** 47),
       now: Date.now(),
     });
-    delete finishedGamesInRoom[room];
     gamesInRoom[room] = { gameId, seats, views };
     seats.forEach((seat, i) => {
       io.to(seat.socketId).emit("start_game", { players, deckSettings, serverRules: true, playerView: views[i] });
@@ -177,11 +178,17 @@ function dropDisconnectedPlayers(room) {
   else io.to(room).emit("player_list", playersInRoom[room]);
 }
 
+// Which of `game`'s Seats is bound to the Player Identity of `socket`, or -1.
+function seatOfPlayer(game, socket) {
+  const playerId = socket.data.player?.playerId;
+  return playerId === undefined ? -1 : game.seats.findIndex((s) => s.playerId === playerId);
+}
+
 // Which of `game`'s Seats `socket` holds, or -1. A Seat is found by
 // Player Identity, or for a Guest by the socket it joined with.
 function seatOf(game, socket) {
-  const playerId = socket.data.player?.playerId;
-  return game.seats.findIndex((s) => (playerId !== undefined && s.playerId === playerId) || s.socketId === socket.id);
+  const seat = seatOfPlayer(game, socket);
+  return seat !== -1 ? seat : game.seats.findIndex((s) => s.socketId === socket.id);
 }
 
 // Sends a Move to the engine. If it is applied every Seat gets its new Player
@@ -213,9 +220,12 @@ async function handleMove(socket, room, move) {
 // only by the Player Identity of the connection, never by the payload; a
 // Guest's Seat is bound to the socket it joined with, so it cannot be
 // Rejoined until Guest Tokens exist. Anyone without a Seat gets no view.
+// Unlike seatOf there is deliberately no socket-id fallback: Rejoin comes on
+// a new socket, so a socket id could only match a Seat this very socket
+// already holds, and must never hand a Guest's Seat to anyone.
 function rejoinSeat(socket, room, game) {
   const playerId = socket.data.player?.playerId;
-  const seat = playerId === undefined ? -1 : game.seats.findIndex((s) => s.playerId === playerId);
+  const seat = seatOfPlayer(game, socket);
   if (seat === -1) {
     socket.emit("rejoin_result", { room, playerView: null, reason: "You have no Seat in this Room's Game." });
     return;
@@ -236,13 +246,31 @@ function rejoinSeat(socket, room, game) {
   socket.emit("rejoin_result", { room, playerView: game.views[seat] });
 }
 
+function isRoomCode(room) {
+  return typeof room === "string" && room.length > 0;
+}
+
 io.on("connection", (socket) => {
 
-  socket.on("move", (payload) => handleMove(socket, payload?.room, payload?.move));
+  // Registers a handler for an event that names a Room. A payload that is not
+  // an object, or whose `room` is not a room code, is ignored; a handler that
+  // throws or rejects is logged instead of ending the process.
+  function onRoomEvent(event, handler) {
+    socket.on(event, (payload) => {
+      if (payload === null || typeof payload !== "object" || !isRoomCode(payload.room)) return;
+      try {
+        Promise.resolve(handler(payload)).catch((e) => console.error(`${event} failed:`, e));
+      } catch (e) {
+        console.error(`${event} failed:`, e);
+      }
+    });
+  }
+
+  onRoomEvent("move", ({ room, move }) => handleMove(socket, room, move));
 
   
 
-  socket.on("join_game", ({ room, playerName }) => {
+  onRoomEvent("join_game", ({ room, playerName }) => {
 
       if (!playersInRoom[room]) {
         playersInRoom[room] = [];
@@ -267,7 +295,7 @@ io.on("connection", (socket) => {
       io.to(room).emit("player_list", playersInRoom[room]);
     });
 
-  socket.on("update_name", ({ room, newName }) => {
+  onRoomEvent("update_name", ({ room, newName }) => {
     if (!playersInRoom[room]) return;
     const player = playersInRoom[room].find(p => p.id === socket.id);
     if (player) {
@@ -276,7 +304,9 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("start_game", ({ room, deckSettings, serverRules }) => {
+  onRoomEvent("start_game", ({ room, deckSettings, serverRules }) => {
+  // A new Game replaces any finished one kept for Rejoin.
+  delete finishedGamesInRoom[room];
 
   deckSettingsInRoom[room] = deckSettings;
 
@@ -288,7 +318,7 @@ io.on("connection", (socket) => {
   io.to(room).emit("start_game", { players, deckSettings });
   });
 
-  socket.on("cursor_position", ({ room, playerName, x, y }) => 
+  onRoomEvent("cursor_position", ({ room, playerName, x, y }) => 
     {
       console.log(`cursor_position received from ${playerName} at (${x}, ${y})`);
       socket.to(room).emit("cursor_position", { playerName, x, y });
@@ -298,7 +328,7 @@ io.on("connection", (socket) => {
 
 
 
-  socket.on("sync_game_state", ({ room, gameState }) => {
+  onRoomEvent("sync_game_state", ({ room, gameState }) => {
     currentGameState[room] = gameState;
     io.to(room).emit("sync_game_state", gameState);
 });
@@ -319,7 +349,7 @@ io.on("connection", (socket) => {
   }
 }
 
-socket.on("leave_game", ({ room, playerId }) => {
+onRoomEvent("leave_game", ({ room, playerId }) => {
   console.log("I HAVE RUN")
   try {
     // leave socket.io room
@@ -370,15 +400,24 @@ socket.on("leave_game", ({ room, playerId }) => {
 
 
   //Rejoining
-  socket.on("rejoin_game", ({ room, signin_username, playerName } = {}) => {
-  // Flagged Rooms: Rejoin by Player Identity (see rejoinSeat).
-  const game = gamesInRoom[room] ?? finishedGamesInRoom[room];
-  if (game) {
-    rejoinSeat(socket, room, game);
+  onRoomEvent("rejoin_game", ({ room, signin_username, playerName }) => {
+  // Flagged Rooms: Rejoin by Player Identity (see rejoinSeat). A finished
+  // Game answers only its own Seats; anyone else falls through below.
+  const live = gamesInRoom[room];
+  if (live) {
+    rejoinSeat(socket, room, live);
+    return;
+  }
+  const finished = finishedGamesInRoom[room];
+  if (finished && seatOfPlayer(finished, socket) !== -1) {
+    rejoinSeat(socket, room, finished);
     return;
   }
 
-  // Unflagged Rooms keep the old behaviour until #57.
+  // Unflagged Rooms keep the old behaviour until #57. The game screen sends
+  // rejoin_game { room } on every refresh; without a username there is
+  // nothing to look up (it would match a Guest's undefined playerId).
+  if (!signin_username) return;
   console.log(`${playerName} attempting to rejoin ${room}`);
 
   socket.emit("add_playerlist", ({ playerName }))
@@ -406,18 +445,18 @@ socket.on("leave_game", ({ room, playerId }) => {
 
 
    //Chat system
-  socket.on("chat_message", ({ room, playerName, message }) => 
+  onRoomEvent("chat_message", ({ room, playerName, message }) => 
   {
     io.to(room).emit("chat_message", { playerName, message });
   });
 
-  socket.on("update_deck_settings", ({ room, deckSettings }) => 
+  onRoomEvent("update_deck_settings", ({ room, deckSettings }) => 
   {
   console.log(`Deck settings updated for room ${room}:`, deckSettings);
   deckSettingsInRoom[room] = deckSettings;
   });
 
-  socket.on("score_next", ({ room }) => {
+  onRoomEvent("score_next", ({ room }) => {
     const gs = rooms[room]
     console.log(gs)
   })
