@@ -53,6 +53,7 @@ def create_game(seats, deck_settings, seed, now):
         "donation": None,
         "last_donor": None,
         "auction": None,
+        "results": None,
         "turn_started_at": now,
     }
     _start_donation_turn(game)
@@ -79,7 +80,23 @@ def player_view(game, seat):
         "last_donor": game["last_donor"],
         "donation": _donation_view(game, seat),
         "auction": _auction_view(game),
+        # Once the Game is over, the same results for every Seat.
+        "results": copy.deepcopy(game["results"]),
         "legal_moves": legal_moves(game, seat),
+    }
+
+
+def game_result(game):
+    """What the host reports once the Game is over, or None before: each
+    Seat's Player Identity with its rank (1 = first), in rank order. Player
+    Identities are not in any Player View."""
+    if game["phase"] != "results":
+        return None
+    return {
+        "placings": [
+            {"player_id": game["seats"][s["seat"]]["player_id"], "rank": s["rank"]}
+            for s in game["results"]["standings"]
+        ]
     }
 
 
@@ -279,7 +296,7 @@ def _start_auction(game):
     auction, and the Game goes straight to scoring (React's `!currentCard`)."""
     game["auction"] = {"offset": 0, "last_payment": None}
     if not game["discard"]:
-        game["phase"] = "scoring"
+        _end_game(game)
         return
     game["phase"] = "auction"
     _open_bidding(game)
@@ -471,11 +488,23 @@ def _next_card(game):
     scoring."""
     game["discard"].pop(0)
     if not game["discard"]:
-        game["phase"] = "scoring"
+        _end_game(game)
         return
     auction = game["auction"]
     auction["offset"] = (auction["offset"] + 1) % len(game["seats"])
     _open_bidding(game)
+
+
+def _end_game(game):
+    """The auction is over, so the Game is scored at once (the React scoring
+    phase, without its one-die-per-click pacing) and is over: every Seat sees
+    the same results and has no more Moves. Hands stay hidden: React's
+    scoring log shows only each Seat's totals."""
+    game["phase"] = "results"
+    game["current_seat"] = None
+    game["results"] = score(game["seats"], game["dice"])
+    for standing in game["results"]["standings"]:
+        game["seats"][standing["seat"]]["points"] = standing["points"]
 
 
 def _next_bidder(game, seat):
@@ -645,3 +674,79 @@ def _build_deck(settings, rng):
             deck.append({"value": value, "type": special, "isSpecial": True})
     rng.shuffle(deck)
     return deck
+
+
+# Elo per place, as the React scoring phase: a fixed step per place above or
+# below the median place.
+ELO_STEP = 10
+
+
+def score(seats, dice):
+    """Score a finished Game as the React scoring phase does, die by die in
+    dice order. `seats` are [{name, hand, gold}] in Seat order. Returns the
+    log every Seat sees (React's lines) and the standings in rank order:
+    [{seat, name, points, gold, rank, elo}]."""
+    log = []
+    points = [0] * len(seats)
+    for die in dice:
+        resource, value = die["resource_type"], die["value"]
+        log.append(f"Scoring {resource} (Die value {value})")
+        totals = [sum(c["value"] for c in s["hand"] if c["type"] == resource) for s in seats]
+        log.append(f"Totals — {resource}: " + ", ".join(f"{s['name']}: {t}" for s, t in zip(seats, totals)))
+        best = max(totals)
+        contenders = [i for i, t in enumerate(totals) if t == best]
+        if len(contenders) == 1:
+            points[contenders[0]] += value
+            log.append(f"{seats[contenders[0]]['name']} wins {resource} for {value} points")
+            continue
+        # React means the lowest tie-breaker letter among the Seat's cards of
+        # this resource to win, but reads card.tie_breaker, which no card has
+        # (cards carry tieBreaker), so in React it never decides anything.
+        # A Seat with no such card has no letter and loses to any letter.
+        letters = {i: min((c["tieBreaker"] for c in seats[i]["hand"] if c["type"] == resource), default="~") for i in contenders}
+        best_letter = min(letters.values())
+        winners = [i for i in contenders if letters[i] == best_letter]
+        if len(winners) == 1:
+            points[winners[0]] += value
+            log.append(f"Tiebreaker! {seats[winners[0]]['name']} wins {resource}")
+            continue
+        split = _number(value / len(winners))
+        for i in winners:
+            points[i] = _number(points[i] + split)
+        names = ", ".join(seats[i]["name"] for i in winners)
+        log.append(f"Tie-breakers also tied on {resource}. {split} point(s) to each: {names}")
+    order = sorted(range(len(seats)), key=lambda i: (-points[i], -seats[i]["gold"]))
+    standings = [
+        {"seat": i, "name": seats[i]["name"], "points": points[i], "gold": seats[i]["gold"], "rank": r + 1, "elo": elo_change(r, len(seats))}
+        for r, i in enumerate(order)
+    ]
+    # As React's finishScoring: the most points win, then the most gold.
+    leaders = [s for s in standings if s["points"] == standings[0]["points"]]
+    winners = [s for s in leaders if s["gold"] == standings[0]["gold"]]
+    if len(leaders) == 1:
+        log.append(f"🏆 {standings[0]['name']} wins the game!")
+    elif len(winners) == 1:
+        log.append(f"🏆 {standings[0]['name']} wins by gold tiebreaker!")
+    else:
+        log.append("🏆 Tie between: " + ", ".join(s["name"] for s in winners))
+    log.append("Final Rankings: " + ", ".join(f"{s['name']}: #{s['rank']}, elo: {s['elo']}" for s in standings))
+    return {"log": log, "standings": standings}
+
+
+def elo_change(index, n):
+    """The Elo change for the Seat ranked `index` (0 = first) of `n`, as the
+    React scoring phase: the median place (odd n) gets 0, each place above it
+    +ELO_STEP, each place below it -ELO_STEP; with even n there is no median
+    place, so the halves get +/-ELO_STEP and up."""
+    median = n // 2
+    odd = n % 2 == 1
+    if odd and index == median:
+        return 0
+    if index < median:
+        return ELO_STEP * (median - index)
+    return -ELO_STEP * (index - median + (0 if odd else 1))
+
+
+def _number(x):
+    """`x` as JavaScript would show it: a whole number without a decimal point."""
+    return int(x) if x == int(x) else x

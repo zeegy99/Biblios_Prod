@@ -35,6 +35,7 @@ const io = new Server(server, {
 const PORT = process.env.PORT || 3001;
 const AUTH_URL = process.env.AUTH_URL || "http://localhost:5000";
 const AUTH_TIMEOUT_MS = 3000;
+const REPORT_TIMEOUT_MS = 10000;
 
 // Asks Flask who owns the Session in this cookie header (ADR-0001).
 // Returns { user_id, username } for a valid Session, otherwise null.
@@ -58,6 +59,35 @@ let resolveSession = resolveSessionViaFlask;
 
 function setResolveSession(fn) {
   resolveSession = fn;
+}
+
+// Reports a finished Game ({ gameId, placings: [{ player_id, rank }] }) to
+// Flask's internal results endpoint, which applies Elo once per Game id. It
+// authenticates with the shared secret GAME_RESULT_SECRET; without it nothing
+// is sent. A failure is logged and never reaches the Game.
+async function reportResultToFlask({ gameId, placings }, authUrl = AUTH_URL) {
+  const secret = process.env.GAME_RESULT_SECRET;
+  if (!secret) {
+    console.error(`GAME_RESULT_SECRET is not set: the result of Game ${gameId} was not reported.`);
+    return;
+  }
+  try {
+    const res = await fetch(`${authUrl}/api/internal/game_result`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Game-Result-Secret": secret },
+      body: JSON.stringify({ game_id: gameId, placings }),
+      signal: AbortSignal.timeout(REPORT_TIMEOUT_MS),
+    });
+    if (!res.ok) console.error(`Flask refused the result of Game ${gameId}: HTTP ${res.status}`);
+  } catch (e) {
+    console.error(`Could not report the result of Game ${gameId}:`, e);
+  }
+}
+
+let reportResult = reportResultToFlask;
+
+function setReportResult(fn) {
+  reportResult = fn;
 }
 
 // Never refuse a connection because of auth; unresolved connections are left without a player.
@@ -85,7 +115,7 @@ function stopEngine() {
   engine.stop();
 }
 
-module.exports = { app, server, io, startServer, setResolveSession, resolveSessionViaFlask, stopEngine };
+module.exports = { app, server, io, startServer, setResolveSession, resolveSessionViaFlask, setReportResult, stopEngine };
 if (require.main === module) {
   startServer(PORT);
 }
@@ -104,7 +134,7 @@ async function startServerRulesGame(room, players, deckSettings) {
   // is bound to the socket it joined with.
   const seats = players.map((p) => ({ playerId: p.playerId ?? `guest:${p.id}`, socketId: p.id }));
   try {
-    const views = await engine.createGame({
+    const { views, ended } = await engine.createGame({
       gameId,
       seats: seats.map((s, i) => ({ player_id: s.playerId, name: players[i].name })),
       deckSettings,
@@ -115,10 +145,21 @@ async function startServerRulesGame(room, players, deckSettings) {
     seats.forEach((seat, i) => {
       io.to(seat.socketId).emit("start_game", { players, deckSettings, serverRules: true, playerView: views[i] });
     });
+    if (ended) finishGame(room, gamesInRoom[room], ended);
   } catch (e) {
     console.error(`Could not start a server-rules Game in ${room}:`, e);
     io.to(room).emit("start_game_failed", { message: "The server could not start the Game." });
   }
+}
+
+// The engine has ended `game` (and forgotten it, so this happens once per
+// Game): the Room no longer has a Game in progress, and the result is
+// reported with the Seats' Player Identities.
+function finishGame(room, game, { placings }) {
+  if (gamesInRoom[room] === game) delete gamesInRoom[room];
+  Promise.resolve()
+    .then(() => reportResult({ gameId: game.gameId, placings }))
+    .catch((e) => console.error(`Could not report the result of Game ${game.gameId}:`, e));
 }
 
 // Which of `game`'s Seats `socket` holds, or -1. A Seat is found by
@@ -138,12 +179,13 @@ async function handleMove(socket, room, move) {
     return;
   }
   try {
-    const { views, rejected } = await engine.applyMove({ gameId: game.gameId, seat, move });
+    const { views, rejected, ended } = await engine.applyMove({ gameId: game.gameId, seat, move });
     if (rejected) {
       socket.emit("move_rejected", { reason: rejected });
       return;
     }
     game.seats.forEach((s, i) => io.to(s.socketId).emit("player_view", views[i]));
+    if (ended) finishGame(room, game, ended);
   } catch (e) {
     console.error(`Could not apply a Move in ${room}:`, e);
     socket.emit("move_rejected", { reason: "The server could not apply the Move." });

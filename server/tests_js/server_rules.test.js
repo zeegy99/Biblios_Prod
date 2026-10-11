@@ -1,6 +1,9 @@
-const { server, startServer, setResolveSession, stopEngine } = require("../server.js");
+const { server, startServer, setResolveSession, setReportResult, stopEngine } = require("../server.js");
 const ioClient = require("socket.io-client");
 const TEST_PORT = 4004;
+
+// Every Game result Node reports, captured instead of being sent to Flask.
+const reports = [];
 
 const DECK_SETTINGS = { gold: { 1: 5, 2: 5, 3: 5 }, resource: { 1: 5, 2: 4, 3: 2, 4: 2 } };
 
@@ -9,6 +12,7 @@ beforeAll((done) => {
     const sid = /(?:^|;\s*)sid=([^;]+)/.exec(cookieHeader || "")?.[1];
     return { zeg: { user_id: 1, username: "zeg" }, bob: { user_id: 2, username: "bob" } }[sid] || null;
   });
+  setReportResult(async (report) => reports.push(report));
   startServer(TEST_PORT);
   done();
 });
@@ -368,10 +372,54 @@ test("a payment reaches every Seat; a payment with the card just won reaches onl
     const after = await moveAndWait(clients, room, 0, { type: "pay", cards: [0] });
     after.forEach((view, seat) => {
       expect(view.you).toBe(seat);
-      expect(view.phase).toBe("scoring");
+      expect(view.phase).toBe("results");
       expect(view.seats[0]).toMatchObject({ hand_size: 1, gold: 1 });
     });
     expect(after[0].hand).toEqual([views[0].hand[1]]);
+  } finally {
+    clients.forEach(({ socket }) => socket.disconnect());
+  }
+});
+
+test("a finished Game is scored for every Seat and reported once with its placings", async () => {
+  const clients = [
+    { socket: connectAs("zeg"), name: "Zeg" },
+    { socket: connectAs("bob"), name: "Bob" },
+    { socket: connectAs(null), name: "Guest" },
+  ];
+  try {
+    // As in the bid test: one Gold 1 goes up for auction, whatever the shuffle.
+    const goldOnly = { gold: { 1: 5, 2: 0, 3: 0 }, resource: { 1: 0, 2: 0, 3: 0, 4: 0 } };
+    const room = "server-rules-end";
+    let views = await startFlaggedGame(room, clients, goldOnly);
+    while (views[0].phase !== "auction") {
+      const seat = views[0].current_seat;
+      views = await moveAndWait(clients, room, seat, views[seat].legal_moves[0]);
+    }
+    const guestId = `guest:${clients[2].socket.id}`;
+    const ours = () => reports.filter((r) => r.placings.some((p) => p.player_id === guestId));
+    // Everyone passes on the only card, so the Game is over.
+    for (const seat of [0, 1, 2]) views = await moveAndWait(clients, room, seat, { type: "pass" });
+
+    views.forEach((view) => {
+      expect(view.phase).toBe("results");
+      expect(view.legal_moves).toEqual([]);
+      expect(view.results).toEqual(views[0].results);
+    });
+    const { standings } = views[0].results;
+    expect(standings.map((s) => s.rank)).toEqual([1, 2, 3]);
+    expect(standings.map((s) => s.elo)).toEqual([10, 0, -10]);
+
+    // A Move after the end changes nothing and reports nothing more.
+    const rej = once(clients[0].socket, "move_rejected");
+    clients[0].socket.emit("move", { room, move: { type: "pass" } });
+    await rej;
+
+    const ids = ["user:1", "user:2", guestId];
+    expect(ours()).toHaveLength(1);
+    const [report] = ours();
+    expect(typeof report.gameId).toBe("string");
+    expect(report.placings).toEqual(standings.map((s) => ({ player_id: ids[s.seat], rank: s.rank })));
   } finally {
     clients.forEach(({ socket }) => socket.disconnect());
   }

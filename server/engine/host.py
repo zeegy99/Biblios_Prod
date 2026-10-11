@@ -9,13 +9,16 @@ Requests:
   {"id", "op": "apply_move", "game_id", "seat", "move"}
       -> {"id", "ok": true, "views": [Player View per Seat]} if the Move is legal
       -> {"id", "ok": true, "rejected": "<reason>"} if not (the Game is unchanged)
+When a Game is over, its response also carries
+  "ended": {"placings": [{"player_id", "rank"}]} (rank order), exactly once:
+the Game is then dropped from memory, so no later request can end it again.
 Failures -> {"id", "ok": false, "error": "<reason>"}
 """
 
 import json
 import sys
 
-from engine import apply_move, create_game, player_view
+from engine import apply_move, create_game, game_result, player_view
 
 
 def handle(games, request):
@@ -25,8 +28,7 @@ def handle(games, request):
         if game_id in games:
             raise ValueError(f"Game {game_id} already exists")
         game = create_game(request["seats"], request.get("deck_settings"), request["seed"], request["now"])
-        games[game_id] = game
-        return {"views": _views(game)}
+        return _store(games, game_id, game)
     if op == "apply_move":
         game_id = request["game_id"]
         if game_id not in games:
@@ -34,9 +36,21 @@ def handle(games, request):
         game, reason = apply_move(games[game_id], request["seat"], request["move"])
         if reason:
             return {"rejected": reason}
-        games[game_id] = game
-        return {"views": _views(game)}
+        return _store(games, game_id, game)
     raise ValueError(f"Unknown op: {op}")
+
+
+def _store(games, game_id, game):
+    """Keep `game` as the Game `game_id` and answer with its Player Views,
+    or, if it is over, forget it and answer with its result too."""
+    response = {"views": _views(game)}
+    ended = game_result(game)
+    if ended:
+        games.pop(game_id, None)
+        response["ended"] = ended
+    else:
+        games[game_id] = game
+    return response
 
 
 def _views(game):

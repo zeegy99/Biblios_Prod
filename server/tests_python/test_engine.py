@@ -4,7 +4,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from engine import apply_move, create_game, player_view
+from engine import apply_move, create_game, game_result, player_view, score
 
 SEATS = [
     {"player_id": "user:1", "name": "Zeg"},
@@ -776,12 +776,12 @@ def test_a_card_everyone_passes_on_is_removed_and_the_next_card_goes_up_one_seat
     assert player_view(game, 0)["legal_moves"] == []
 
 
-def test_when_the_last_card_is_passed_on_the_game_moves_to_scoring():
+def test_when_the_last_card_is_passed_on_the_game_is_over():
     game = _auction_game()
     while player_view(game, 0)["phase"] == "auction":
         game = _all_pass(game)
     for view in views_for(game):
-        assert view["phase"] == "scoring"
+        assert view["phase"] == "results"
         assert view["discard_size"] == 0
         assert view["auction"] is None
         assert view["legal_moves"] == []
@@ -840,11 +840,11 @@ def test_the_turn_skips_seats_that_have_passed():
     assert player_view(game, 0)["auction"]["highest_bidder"] == 0
 
 
-def test_with_nothing_discarded_there_is_no_auction_and_the_game_moves_to_scoring():
+def test_with_nothing_discarded_there_is_no_auction_and_the_game_is_over():
     # Only the six special cards: the first draw comes up short with nothing discarded.
     empty = {"gold": {"1": 0, "2": 0, "3": 0}, "resource": {"1": 0, "2": 0, "3": 0, "4": 0}}
     for view in views_for(create_game(SEATS, empty, seed=7, now=NOW)):
-        assert view["phase"] == "scoring"
+        assert view["phase"] == "results"
         assert view["auction"] is None
         assert view["legal_moves"] == []
 
@@ -1029,7 +1029,7 @@ def _a_payment(view):
     return {"type": "pay", "cards": [i for i, c in enumerate(view["hand"]) if c["type"] == "Gold"]}
 
 
-def test_every_winner_can_pay_its_highest_bid_and_the_last_payment_ends_the_auction_in_scoring():
+def test_every_winner_can_pay_its_highest_bid_and_the_last_payment_ends_the_game():
     """A Seat's gold is always the total of the Gold cards in its hand, so
     the bid cap (gold, or for a Gold card the hand without it) is always
     affordable."""
@@ -1053,7 +1053,7 @@ def test_every_winner_can_pay_its_highest_bid_and_the_last_payment_ends_the_auct
             game = _apply(game, seat, move)
         ended_by_payment += bool(move) and move["type"] == "pay"
         for view in views_for(game):
-            assert view["phase"] == "scoring"
+            assert view["phase"] == "results"
             assert view["auction"] is None and view["legal_moves"] == []
     assert payments and ended_by_payment
 
@@ -1077,3 +1077,128 @@ def test_the_cards_paid_for_a_gold_card_are_shown_to_every_seat():
     game = _apply(game, 2, {"type": "pay", "cards": [0]})
     for view in views_for(game):
         assert view["auction"]["last_payment"] == {"seat": 2, "cards": [paid]}
+
+
+# --- Scoring and the end of the Game (#53) ------------------------------------
+
+
+def _card(type_, value, tie_breaker="A"):
+    return {"type": type_, "value": value, "tieBreaker": tie_breaker, "isSpecial": False}
+
+
+def _rolled(**values):
+    return [{"resource_type": t, "value": v} for t, v in values.items()]
+
+
+def test_the_highest_total_of_a_resource_wins_its_die():
+    seats = [
+        {"name": "Zeg", "gold": 1, "hand": [_card("Art", 2), _card("Art", 1), _card("Gold", 1)]},
+        {"name": "Bob", "gold": 0, "hand": [_card("Art", 2), _card("Herbs", 1)]},
+        {"name": "Ann", "gold": 0, "hand": []},
+    ]
+    results = score(seats, _rolled(Art=3, Herbs=5))
+    assert results["log"][:6] == [
+        "Scoring Art (Die value 3)",
+        "Totals — Art: Zeg: 3, Bob: 2, Ann: 0",
+        "Zeg wins Art for 3 points",
+        "Scoring Herbs (Die value 5)",
+        "Totals — Herbs: Zeg: 0, Bob: 1, Ann: 0",
+        "Bob wins Herbs for 5 points",
+    ]
+    assert results["standings"] == [
+        {"seat": 1, "name": "Bob", "points": 5, "gold": 0, "rank": 1, "elo": 10},
+        {"seat": 0, "name": "Zeg", "points": 3, "gold": 1, "rank": 2, "elo": 0},
+        {"seat": 2, "name": "Ann", "points": 0, "gold": 0, "rank": 3, "elo": -10},
+    ]
+    assert results["log"][6:] == ["🏆 Bob wins the game!", "Final Rankings: Bob: #1, elo: 10, Zeg: #2, elo: 0, Ann: #3, elo: -10"]
+
+
+def test_a_tied_total_goes_to_the_lowest_tie_breaker_letter_among_that_resources_cards():
+    # React reads card.tie_breaker, which no card has, so its tie-break never
+    # decides anything; the engine uses the cards' tieBreaker letter as meant.
+    seats = [
+        {"name": "Zeg", "gold": 0, "hand": [_card("Art", 2, "C"), _card("Herbs", 1, "A")]},
+        {"name": "Bob", "gold": 0, "hand": [_card("Art", 1, "D"), _card("Art", 1, "B")]},
+        {"name": "Ann", "gold": 0, "hand": [_card("Art", 1, "A")]},
+    ]
+    results = score(seats, _rolled(Art=4))
+    assert results["log"][1:3] == ["Totals — Art: Zeg: 2, Bob: 2, Ann: 1", "Tiebreaker! Bob wins Art"]
+    assert [(s["name"], s["points"]) for s in results["standings"]] == [("Bob", 4), ("Zeg", 0), ("Ann", 0)]
+
+
+def test_when_the_tie_breakers_tie_too_the_die_is_split_evenly():
+    seats = [
+        {"name": "Zeg", "gold": 0, "hand": [_card("Art", 2, "B")]},
+        {"name": "Bob", "gold": 0, "hand": [_card("Art", 2, "B")]},
+        {"name": "Ann", "gold": 0, "hand": [_card("Herbs", 4, "A")]},
+    ]
+    results = score(seats, _rolled(Art=3, Herbs=2))
+    assert results["log"][2] == "Tie-breakers also tied on Art. 1.5 point(s) to each: Zeg, Bob"
+    assert [(s["name"], s["points"]) for s in results["standings"]] == [("Ann", 2), ("Zeg", 1.5), ("Bob", 1.5)]
+
+
+def test_a_resource_nobody_holds_is_split_between_every_seat():
+    # As in React: every Seat ties on 0, none has a tie-breaker letter.
+    seats = [{"name": n, "gold": 0, "hand": []} for n in ("Zeg", "Bob")]
+    results = score(seats, _rolled(Science=4))
+    assert results["log"][2] == "Tie-breakers also tied on Science. 2 point(s) to each: Zeg, Bob"
+    assert [s["points"] for s in results["standings"]] == [2, 2]
+
+
+def test_equal_points_rank_by_gold_and_the_winner_wins_by_gold():
+    seats = [
+        {"name": "Zeg", "gold": 1, "hand": [_card("Art", 1)]},
+        {"name": "Bob", "gold": 3, "hand": [_card("Herbs", 1)]},
+    ]
+    results = score(seats, _rolled(Art=2, Herbs=2))
+    assert [s["name"] for s in results["standings"]] == ["Bob", "Zeg"]
+    assert results["log"][-2] == "🏆 Bob wins by gold tiebreaker!"
+
+
+def test_seats_equal_on_points_and_gold_keep_seat_order_but_share_the_win():
+    # React's sort is stable, so exactly tied Seats are ranked in Seat order
+    # and get different Elo; its log still calls the top of the table a tie.
+    seats = [{"name": n, "gold": 2, "hand": []} for n in ("Zeg", "Bob", "Ann", "Cid")]
+    results = score(seats, [])
+    assert [(s["name"], s["rank"], s["elo"]) for s in results["standings"]] == [
+        ("Zeg", 1, 20), ("Bob", 2, 10), ("Ann", 3, -10), ("Cid", 4, -20),
+    ]
+    assert results["log"][0] == "🏆 Tie between: Zeg, Bob, Ann, Cid"
+
+
+def test_when_the_auction_ends_the_game_is_scored_and_every_seat_sees_the_same_results():
+    game = _auction_game()
+    while player_view(game, 0)["phase"] == "auction":
+        game = _all_pass(game)
+    views = views_for(game)
+    # Each Seat still sees only its own hand; together they are the Game's hands.
+    hands = [{"name": v["seats"][v["you"]]["name"], "gold": v["seats"][v["you"]]["gold"], "hand": v["hand"]} for v in views]
+    expected = score(hands, views[0]["dice"])
+    for view in views:
+        assert view["phase"] == "results"
+        assert view["legal_moves"] == []
+        assert view["results"] == expected
+        assert [s["points"] for s in view["seats"]] == [
+            next(s["points"] for s in expected["standings"] if s["seat"] == seat) for seat in range(len(SEATS))
+        ]
+        for s in view["seats"]:
+            assert "hand" not in s
+
+
+def test_a_game_in_progress_has_no_results():
+    for view in views_for(_plain_game()):
+        assert view["results"] is None
+
+
+def test_a_finished_game_gives_its_placings_by_player_identity():
+    assert game_result(_plain_game()) is None
+    game = _auction_game()
+    while player_view(game, 0)["phase"] == "auction":
+        game = _all_pass(game)
+    standings = player_view(game, 0)["results"]["standings"]
+    assert game_result(game) == {
+        "placings": [{"player_id": SEATS[s["seat"]]["player_id"], "rank": s["rank"]} for s in standings]
+    }
+    # Player Identities stay out of the Player Views.
+    for view in views_for(game):
+        assert "user:1" not in json.dumps(view)

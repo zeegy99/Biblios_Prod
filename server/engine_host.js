@@ -54,22 +54,25 @@ function createEngineHost() {
   }
 
   return {
-    // Resolves to one Player View per Seat, in Seat order.
+    // Resolves to { views } (one Player View per Seat, in Seat order), plus
+    // `ended` ({ placings: [{ player_id, rank }] }) if the Game is already over.
     async createGame({ gameId, seats, deckSettings, seed, now }) {
-      const { views } = await request("create_game", {
+      const { views, ended } = await request("create_game", {
         game_id: gameId,
         seats,
         deck_settings: deckSettings,
         seed,
         now,
       });
-      return views;
+      return ended ? { views, ended } : { views };
     },
     // Resolves to { views } (one Player View per Seat) if the Move was applied,
-    // or { rejected: reason } if the engine refused it.
+    // plus `ended` if it ended the Game (reported once: the engine then
+    // forgets the Game), or { rejected: reason } if the engine refused it.
     async applyMove({ gameId, seat, move }) {
-      const { views, rejected } = await request("apply_move", { game_id: gameId, seat, move });
-      return rejected ? { rejected } : { views };
+      const { views, rejected, ended } = await request("apply_move", { game_id: gameId, seat, move });
+      if (rejected) return { rejected };
+      return ended ? { views, ended } : { views };
     },
     stop() {
       if (child) {
