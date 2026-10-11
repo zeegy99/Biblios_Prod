@@ -26,6 +26,8 @@ DIRECTIONS = {"plus": +1, "minus": -1}
 SELECTION_MOVES = ["take"]
 # How a Seat bids on the card at auction.
 AUCTION_MOVES = ["bid", "pass"]
+# How the winner of the card at auction pays for it.
+PAYMENT_MOVES = ["pay"]
 
 DEFAULT_RESOURCE = {"1": 5, "2": 4, "3": 2, "4": 2}
 DEFAULT_GOLD = {"1": 5, "2": 5, "3": 5}
@@ -85,6 +87,14 @@ def legal_moves(game, seat):
     """The Moves `seat` may make right now."""
     if not _is_index(seat, len(game["seats"])):
         return []
+    if game["phase"] == "auction" and game["auction"]["winner"] is not None:
+        # A payment is a choice of cards from the hand, so rather than one
+        # Move per set of cards the winner is told what the set must be.
+        # Whether it may pay at all is _payer_rejection, the same check
+        # _rejection makes before looking at the cards of an actual pay Move.
+        if _payer_rejection(game, seat) is not None:
+            return []
+        return [_payment_descriptor(game)]
     if game["phase"] == "auction":
         # A bid is any whole number in a range, so it is listed as that range
         # rather than one Move per amount; both ends are checked by
@@ -133,6 +143,9 @@ def apply_move(game, seat, move):
     if move["type"] == "pass":
         _pass(game, seat)
         return game, None
+    if move["type"] in PAYMENT_MOVES:
+        _pay(game, seat, move["cards"])
+        return game, None
     if move["type"] in SPECIAL_MOVES:
         _play_special(game, move)
         return game, None
@@ -152,7 +165,7 @@ def apply_move(game, seat, move):
 
 def _rejection(game, seat, move):
     """Why `seat` may not make `move` right now, or None if it may."""
-    if not isinstance(move, dict) or move.get("type") not in DONATION_MOVES + SPECIAL_MOVES + SELECTION_MOVES + AUCTION_MOVES:
+    if not isinstance(move, dict) or move.get("type") not in DONATION_MOVES + SPECIAL_MOVES + SELECTION_MOVES + AUCTION_MOVES + PAYMENT_MOVES:
         return "Unknown Move"
     if not _is_index(seat, len(game["seats"])):
         return "You have no Seat in this Game"
@@ -160,6 +173,8 @@ def _rejection(game, seat, move):
         return _selection_rejection(game, seat, move)
     if move["type"] in AUCTION_MOVES:
         return _auction_rejection(game, seat, move)
+    if move["type"] in PAYMENT_MOVES:
+        return _payment_rejection(game, seat, move)
     donation = game["donation"]
     if game["phase"] != "donation" or donation is None:
         return "It is not the donation phase"
@@ -262,7 +277,7 @@ def _start_auction(game):
     order is the Seats rotated by an offset that starts at 0 and moves on by
     one after every card. With nothing discarded there is nothing to
     auction, and the Game goes straight to scoring (React's `!currentCard`)."""
-    game["auction"] = {"offset": 0}
+    game["auction"] = {"offset": 0, "last_payment": None}
     if not game["discard"]:
         game["phase"] = "scoring"
         return
@@ -351,15 +366,101 @@ def _pass(game, seat):
 
 def _win(game, seat):
     """`seat` has won the card at auction for the current bid, and the Game
-    waits for it to pay (payment is #52). Until then no Seat may bid."""
+    waits for it to pay. Until then no Seat may bid. As React's
+    finishAuction, a Gold card is the winner's at once (into the hand, its
+    value onto the gold), before it pays for it in cards; any other card
+    joins the hand only once it is paid for (see _pay)."""
     auction = game["auction"]
     # The card won is still the one at the front of the discard pile.
     auction["winner"] = {"seat": seat, "bid": auction["bid"]}
     game["current_seat"] = seat
+    card = game["discard"][0]
+    if _paid_in_cards(game):
+        winner = game["seats"][seat]
+        winner["hand"].append(dict(card))
+        winner["gold"] += card["value"]
+        # The won card is the last in the hand, and may not pay for itself.
+        auction["won_index"] = len(winner["hand"]) - 1
+
+
+def _payer_rejection(game, seat):
+    """Why `seat` may not pay for a card right now, or None if it may: only
+    the winner of the card at auction pays, and only once it has won."""
+    if game["phase"] != "auction":
+        return "It is not the auction phase"
+    winner = game["auction"]["winner"]
+    if winner is None:
+        return "No one has won the card yet"
+    if seat != winner["seat"]:
+        return f"Only {game['seats'][winner['seat']]['name']} pays for this card"
+    return None
+
+
+def _payment_descriptor(game):
+    """What the winner's payment must be: for a Gold card exactly `bid`
+    cards from the hand other than the Gold card just won; for any other
+    card Gold cards from the hand worth at least `bid`."""
+    auction = game["auction"]
+    bid = auction["winner"]["bid"]
+    if _paid_in_cards(game):
+        return {"type": "pay", "pay_in": "cards", "exactly": bid, "excluding": [auction["won_index"]]}
+    return {"type": "pay", "pay_in": "gold", "at_least": bid}
+
+
+def _payment_rejection(game, seat, move):
+    """Why `seat` may not pay with the hand cards `move["cards"]` (indices
+    into its own hand), or None if it may (React's confirmCardPayment and
+    confirmGoldPayment, whose checks the server now makes)."""
+    reason = _payer_rejection(game, seat)
+    if reason:
+        return reason
+    hand = game["seats"][seat]["hand"]
+    cards = move.get("cards")
+    if not isinstance(cards, list) or not all(_is_index(i, len(hand)) for i in cards):
+        return "Choose cards from your hand"
+    if len(set(cards)) != len(cards):
+        return "Choose each card only once"
+    descriptor = _payment_descriptor(game)
+    if descriptor["pay_in"] == "cards":
+        if any(i in descriptor["excluding"] for i in cards):
+            return "The Gold card you won cannot pay for itself"
+        if len(cards) != descriptor["exactly"]:
+            return f"Choose exactly {descriptor['exactly']} card(s)"
+        return None
+    if any(hand[i]["type"] != "Gold" for i in cards):
+        return "Pay with Gold cards only"
+    total = sum(hand[i]["value"] for i in cards)
+    if total < descriptor["at_least"]:
+        return f"Your Gold cards come to {total}: pay at least {descriptor['at_least']}"
+    return None
+
+
+def _pay(game, seat, cards):
+    """As React's payment: the chosen cards leave the Game, the gold among
+    them leaves the Seat's gold (no change is given), a card other than
+    Gold joins the hand (a Gold card already has, in _win), and the next
+    card goes up."""
+    payer = game["seats"][seat]
+    paid = [payer["hand"][i] for i in cards]
+    payer["hand"] = [c for i, c in enumerate(payer["hand"]) if i not in cards]
+    gold = sum(c["value"] for c in paid if c["type"] == "Gold")
+    payer["gold"] -= gold
+    if _paid_in_cards(game):
+        # React posts the cards given up to the Room's chat, so every Seat
+        # sees them; which Gold cards paid for a card React does not show,
+        # only the gold paid.
+        game["auction"]["last_payment"] = {"seat": seat, "cards": paid}
+    else:
+        game["auction"]["last_payment"] = {"seat": seat, "gold": gold}
+        payer["hand"].append(dict(game["discard"][0]))
+    game["auction"].pop("won_index", None)
+    _next_card(game)
 
 
 def _discard_unsold(game):
-    """As finishAuction with no winner: the card leaves the Game."""
+    """As finishAuction with no winner: the card leaves the Game, and no
+    one paid for it."""
+    game["auction"]["last_payment"] = None
     _next_card(game)
 
 
@@ -406,6 +507,8 @@ def _auction_view(game):
         "bid": auction["bid"],
         "highest_bidder": auction["highest_bidder"],
         "winner": {**winner, "card": dict(card)} if winner else None,
+        # How the previous card was paid for, if it was.
+        "last_payment": copy.deepcopy(auction["last_payment"]),
     }
 
 

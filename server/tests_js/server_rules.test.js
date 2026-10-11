@@ -326,3 +326,53 @@ test("a bid reaches every Seat; a bid out of turn reaches only its sender", asyn
     clients.forEach(({ socket }) => socket.disconnect());
   }
 });
+
+test("a payment reaches every Seat; a payment with the card just won reaches only its sender", async () => {
+  const clients = [
+    { socket: connectAs("zeg"), name: "Zeg" },
+    { socket: connectAs("bob"), name: "Bob" },
+    { socket: connectAs(null), name: "Guest" },
+  ];
+  try {
+    // As in the bid test: one Gold 1 goes up for auction and every Seat
+    // holds one Gold 1, whatever the shuffle.
+    const goldOnly = { gold: { 1: 5, 2: 0, 3: 0 }, resource: { 1: 0, 2: 0, 3: 0, 4: 0 } };
+    const room = "server-rules-payment";
+    let views = await startFlaggedGame(room, clients, goldOnly);
+    while (views[0].phase !== "auction") {
+      const seat = views[0].current_seat;
+      views = await moveAndWait(clients, room, seat, views[seat].legal_moves[0]);
+    }
+    views = await moveAndWait(clients, room, 0, { type: "bid", amount: 1 });
+    views = await moveAndWait(clients, room, 1, { type: "pass" });
+    views = await moveAndWait(clients, room, 2, { type: "pass" });
+
+    // Zeg won the Gold card: it is in Zeg's hand and gold already.
+    views.forEach((view) => {
+      expect(view.auction.winner).toMatchObject({ seat: 0, bid: 1 });
+      expect(view.seats[0]).toMatchObject({ hand_size: 2, gold: 2 });
+    });
+    expect(views[0].legal_moves).toEqual([{ type: "pay", pay_in: "cards", exactly: 1, excluding: [1] }]);
+    views.slice(1).forEach((view) => expect(view.legal_moves).toEqual([]));
+
+    // Paying with the card just won: only Zeg hears, nobody's view changes.
+    const others = [1, 2].map((i) => collect(clients[i].socket, "move_rejected"));
+    const quiet = clients.map(({ socket }) => collect(socket, "player_view"));
+    const zegRej = once(clients[0].socket, "move_rejected");
+    clients[0].socket.emit("move", { room, move: { type: "pay", cards: [1] } });
+    expect((await zegRej).reason).toMatch(/won/);
+    (await Promise.all(others)).forEach((got) => expect(got).toEqual([]));
+    (await Promise.all(quiet)).forEach((got) => expect(got).toEqual([]));
+
+    // The only card is paid for, so the auction ends.
+    const after = await moveAndWait(clients, room, 0, { type: "pay", cards: [0] });
+    after.forEach((view, seat) => {
+      expect(view.you).toBe(seat);
+      expect(view.phase).toBe("scoring");
+      expect(view.seats[0]).toMatchObject({ hand_size: 1, gold: 1 });
+    });
+    expect(after[0].hand).toEqual([views[0].hand[1]]);
+  } finally {
+    clients.forEach(({ socket }) => socket.disconnect());
+  }
+});

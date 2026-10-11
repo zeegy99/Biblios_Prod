@@ -735,8 +735,8 @@ def test_a_bid_that_leaves_one_seat_in_wins_the_card_and_the_game_awaits_payment
     for view in views_for(game):
         assert view["phase"] == "auction"
         assert view["auction"]["winner"] == {"seat": 2, "card": card, "bid": 1}
-        # Payment Moves come with #52.
-        assert view["legal_moves"] == []
+        # Only the winner may move now, and only to pay (#52).
+        assert [m["type"] for m in view["legal_moves"]] == (["pay"] if view["you"] == 2 else [])
     assert "pay" in _rejected(game, 2, {"type": "bid", "amount": 2})
 
 
@@ -749,7 +749,7 @@ def test_when_all_but_the_highest_bidder_pass_the_highest_bidder_wins():
     game = _apply(game, 2, {"type": "pass"})
     for view in views_for(game):
         assert view["auction"]["winner"] == {"seat": 0, "card": card, "bid": 1}
-        assert view["legal_moves"] == []
+        assert [m["type"] for m in view["legal_moves"]] == (["pay"] if view["you"] == 0 else [])
 
 
 def _all_pass(game):
@@ -889,3 +889,199 @@ def test_on_the_second_card_the_bidding_starts_one_seat_on_and_wraps_round():
 def _can_bid_two(views, seat):
     card, me = views[0]["auction"]["card"], views[0]["seats"][seat]
     return (me["hand_size"] if card["type"] == "Gold" else me["gold"]) >= 2
+
+
+# --- Auction payment (#52) ----------------------------------------------------
+
+
+def _gold_card(views):
+    return views[0]["auction"]["card"]["type"] == "Gold"
+
+
+def _won_by_two(game, amount=1):
+    """Seats 0 and 1 pass and Seat 2 bids `amount`, winning the card."""
+    game = _apply(game, 0, {"type": "pass"})
+    game = _apply(game, 1, {"type": "pass"})
+    return _apply(game, 2, {"type": "bid", "amount": amount})
+
+
+def test_a_gold_card_won_is_in_the_winners_hand_and_gold_at_once():
+    game = _auction_game(lambda views: _gold_card(views) and _can_bid(2)(views))
+    before = player_view(game, 2)
+    card = before["auction"]["card"]
+    game = _won_by_two(game)
+    for view in views_for(game):
+        me = view["seats"][2]
+        assert me["hand_size"] == before["seats"][2]["hand_size"] + 1
+        assert me["gold"] == before["seats"][2]["gold"] + card["value"]
+    assert player_view(game, 2)["hand"] == before["hand"] + [card]
+
+
+def test_the_winner_of_a_gold_card_pays_exactly_the_bid_in_other_cards_from_the_hand():
+    game = _auction_game(lambda views: _gold_card(views) and _can_bid(2)(views))
+    before = player_view(game, 0)
+    game = _won_by_two(game)
+    won = player_view(game, 2)
+    hand, gold = won["hand"], won["seats"][2]["gold"]
+    assert won["legal_moves"] == [{"type": "pay", "pay_in": "cards", "exactly": 1, "excluding": [len(hand) - 1]}]
+    assert player_view(game, 0)["legal_moves"] == [] and player_view(game, 1)["legal_moves"] == []
+
+    paid = hand[0]
+    game = _apply(game, 2, {"type": "pay", "cards": [0]})
+    for view in views_for(game):
+        me = view["seats"][2]
+        assert me["hand_size"] == len(hand) - 1
+        # Paying with a Gold card gives up its gold too.
+        assert me["gold"] == gold - (paid["value"] if paid["type"] == "Gold" else 0)
+        # The card is resolved: the next one goes up, one Seat on.
+        assert view["discard_size"] == before["discard_size"] - 1
+        assert view["auction"]["winner"] is None
+        assert view["auction"]["bidding_order"] == [1, 2, 0]
+        assert view["current_seat"] == 1
+    # The paid card is gone and the won Gold card stays.
+    assert player_view(game, 2)["hand"] == hand[1:]
+
+
+def _gold_in_hand(game, seat):
+    return [i for i, c in enumerate(player_view(game, seat)["hand"]) if c["type"] == "Gold"]
+
+
+def _non_gold_won_by_two(ok=lambda game: True):
+    """A Game where Seat 2 has just won a non-Gold card for 1 gold and `ok`."""
+    for seed in range(500):
+        game = _play_to_auction(create_game(SEATS, AUCTION_DECK, seed=seed, now=NOW))
+        views = views_for(game)
+        if views[0]["phase"] == "auction" and views[0]["discard_size"] >= 2 and _non_gold_card(views) and _can_bid(2)(views):
+            game = _won_by_two(game)
+            if ok(game):
+                return game
+    raise AssertionError("no such seed")
+
+
+def test_the_winner_of_another_card_pays_in_gold_cards_worth_at_least_the_bid_with_no_change():
+    # A Gold 2 pays a bid of 1: the card is gone, all 2 gold with it.
+    game = _non_gold_won_by_two(lambda g: any(player_view(g, 2)["hand"][i]["value"] >= 2 for i in _gold_in_hand(g, 2)))
+    won = player_view(game, 2)
+    hand, gold, card = won["hand"], won["seats"][2]["gold"], won["auction"]["card"]
+    assert won["legal_moves"] == [{"type": "pay", "pay_in": "gold", "at_least": 1}]
+    i = next(i for i in _gold_in_hand(game, 2) if hand[i]["value"] >= 2)
+
+    game = _apply(game, 2, {"type": "pay", "cards": [i]})
+    for view in views_for(game):
+        assert view["seats"][2]["gold"] == gold - hand[i]["value"]
+        assert view["seats"][2]["hand_size"] == len(hand)
+        assert view["current_seat"] == 1
+    # The paid Gold card is gone and the won card joins the hand.
+    assert player_view(game, 2)["hand"] == hand[:i] + hand[i + 1 :] + [card]
+
+
+def test_a_gold_payment_must_be_gold_cards_worth_at_least_the_bid():
+    def ok(g):
+        hand = player_view(g, 2)["hand"]
+        return any(c["type"] != "Gold" for c in hand) and _gold_in_hand(g, 2)
+
+    game = _non_gold_won_by_two(ok)
+    hand = player_view(game, 2)["hand"]
+    other = next(i for i, c in enumerate(hand) if c["type"] != "Gold")
+    assert "Gold" in _rejected(game, 2, {"type": "pay", "cards": [other]})
+    assert "at least 1" in _rejected(game, 2, {"type": "pay", "cards": []})
+
+
+def test_gold_cards_worth_less_than_the_bid_are_rejected():
+    def ok(views):
+        return _non_gold_card(views) and _can_bid_two(views, 2)
+
+    for seed in range(500):
+        game = _play_to_auction(create_game(SEATS, AUCTION_DECK, seed=seed, now=NOW))
+        views = views_for(game)
+        if views[0]["phase"] == "auction" and ok(views):
+            game = _won_by_two(game, amount=2)
+            ones = [i for i in _gold_in_hand(game, 2) if player_view(game, 2)["hand"][i]["value"] == 1]
+            if ones:
+                break
+    else:
+        raise AssertionError("no such seed")
+    assert "at least 2" in _rejected(game, 2, {"type": "pay", "cards": [ones[0]]})
+
+
+def test_illegal_payments_are_rejected():
+    game = _auction_game(lambda views: _gold_card(views) and _can_bid(2)(views))
+    # Before anyone has won, and outside the auction, there is nothing to pay.
+    assert "won" in _rejected(game, 0, {"type": "pay", "cards": [0]})
+    assert "auction" in _rejected(_plain_game(), 0, {"type": "pay", "cards": [0]})
+
+    game = _won_by_two(game)
+    hand = player_view(game, 2)["hand"]
+    won = len(hand) - 1
+    assert "Ann" in _rejected(game, 1, {"type": "pay", "cards": [0]})
+    assert "Seat" in _rejected(game, 7, {"type": "pay", "cards": [0]})
+    for cards in [None, 0, "0", [len(hand)], [-1], [True], [0.0], ["0"], [[0]], {"0": 0}]:
+        assert "hand" in _rejected(game, 2, {"type": "pay", "cards": cards})
+    _rejected(game, 2, {"type": "pay"})
+    assert "once" in _rejected(game, 2, {"type": "pay", "cards": [0, 0]})
+    assert "won" in _rejected(game, 2, {"type": "pay", "cards": [won]})
+    assert "exactly 1" in _rejected(game, 2, {"type": "pay", "cards": []})
+    if won >= 2:
+        assert "exactly 1" in _rejected(game, 2, {"type": "pay", "cards": [0, 1]})
+    # While the winner pays, no one bids.
+    assert "pay" in _rejected(game, 0, {"type": "bid", "amount": 1})
+
+
+def _a_payment(view):
+    """A payment meeting the winner's descriptor: the first cards it may
+    give, or every Gold card in its hand."""
+    (pay,) = view["legal_moves"]
+    if pay["pay_in"] == "cards":
+        free = [i for i in range(len(view["hand"])) if i not in pay["excluding"]]
+        return {"type": "pay", "cards": free[: pay["exactly"]]}
+    return {"type": "pay", "cards": [i for i, c in enumerate(view["hand"]) if c["type"] == "Gold"]}
+
+
+def test_every_winner_can_pay_its_highest_bid_and_the_last_payment_ends_the_auction_in_scoring():
+    """A Seat's gold is always the total of the Gold cards in its hand, so
+    the bid cap (gold, or for a Gold card the hand without it) is always
+    affordable."""
+    payments, ended_by_payment = 0, 0
+    for seed in range(30):
+        game, move = _play_to_auction(create_game(SEATS, AUCTION_DECK, seed=seed, now=NOW)), None
+        while player_view(game, 0)["phase"] == "auction":
+            for seat in range(len(SEATS)):
+                view = player_view(game, seat)
+                assert view["seats"][seat]["gold"] == sum(c["value"] for c in view["hand"] if c["type"] == "Gold")
+            seat = player_view(game, 0)["current_seat"]
+            view = player_view(game, seat)
+            moves = {m["type"]: m for m in view["legal_moves"]}
+            if "pay" in moves:
+                move = _a_payment(view)
+                payments += 1
+            elif "bid" in moves and view["auction"]["highest_bidder"] is None:
+                move = {"type": "bid", "amount": moves["bid"]["max"]}
+            else:
+                move = {"type": "pass"}
+            game = _apply(game, seat, move)
+        ended_by_payment += bool(move) and move["type"] == "pay"
+        for view in views_for(game):
+            assert view["phase"] == "scoring"
+            assert view["auction"] is None and view["legal_moves"] == []
+    assert payments and ended_by_payment
+
+
+def test_a_gold_payment_shows_others_only_the_gold_paid():
+    game = _non_gold_won_by_two(lambda g: len(_gold_in_hand(g, 2)) > 0)
+    i = _gold_in_hand(game, 2)[0]
+    paid = player_view(game, 2)["hand"][i]
+    game = _apply(game, 2, {"type": "pay", "cards": [i]})
+    for view in views_for(game):
+        assert view["auction"]["last_payment"] == {"seat": 2, "gold": paid["value"]}
+        if view["you"] != 2:
+            # Which Gold cards paid is not shown, only the card now at auction.
+            assert all_cards_in({k: v for k, v in view.items() if k != "hand"}) == [view["auction"]["card"]]
+
+
+def test_the_cards_paid_for_a_gold_card_are_shown_to_every_seat():
+    # React posts the discarded cards to the Room's chat, so they are public.
+    game = _won_by_two(_auction_game(lambda views: _gold_card(views) and _can_bid(2)(views)))
+    paid = player_view(game, 2)["hand"][0]
+    game = _apply(game, 2, {"type": "pay", "cards": [0]})
+    for view in views_for(game):
+        assert view["auction"]["last_payment"] == {"seat": 2, "cards": [paid]}
