@@ -135,7 +135,9 @@ def test_a_drawn_special_card_must_be_played_on_the_dice_first():
         ]
     else:
         assert donor["legal_moves"] == [{"type": "modify_die", "die": i} for i in range(5)]
-    assert "special" not in other["donation"]
+    # A special card is played face up: every Seat sees which one is being resolved.
+    assert other["donation"]["special"] == special
+    assert other["legal_moves"] == []
 
 
 def test_deck_settings_change_the_deck():
@@ -289,3 +291,173 @@ def test_the_same_moves_on_the_same_seed_give_the_same_game():
         return views_for(game)
 
     assert play() == play()
+
+
+# --- Special cards and dice modification (#49) -------------------------------
+
+
+def _special_game(type_, value, specials_drawn=1):
+    """A Game whose first donor drew, as its first special card, a `type_`
+    special of `value`, with `specials_drawn` specials drawn in all."""
+    for seed in range(500):
+        game = create_game(SEATS, DECK_SETTINGS, seed=seed, now=NOW)
+        donation = player_view(game, 0)["donation"]
+        special = donation["special"]
+        if special and (special["type"], special["value"], donation["specials_drawn"]) == (type_, value, specials_drawn):
+            return game
+    raise AssertionError("no such seed")
+
+
+def _dice(game):
+    return [d["value"] for d in player_view(game, 0)["dice"]]
+
+
+def _with_values(values, i, delta):
+    out = list(values)
+    out[i] = min(6, max(1, out[i] + delta))
+    return out
+
+
+def test_a_plus_one_card_raises_the_chosen_die_for_every_seat_then_ordinary_cards_follow():
+    game = _special_game("Plus", 1)
+    before = _dice(game)
+    game = _apply(game, 0, {"type": "modify_die", "die": 2})
+    for view in views_for(game):
+        assert [d["value"] for d in view["dice"]] == _with_values(before, 2, +1)
+        assert view["donation"]["special"] is None
+    assert sorted(m["type"] for m in player_view(game, 0)["legal_moves"]) == ["discard", "donate", "keep"]
+
+
+def _specials_played(game):
+    """The special cards the first donor must play, in order, found by
+    playing them all on the first dice the Player View allows."""
+    played = []
+    while player_view(game, 0)["donation"]["special"]:
+        donation = player_view(game, 0)["donation"]
+        if donation["dice_chosen"] == [] and donation["direction"] is None:
+            played.append((donation["special"]["type"], donation["special"]["value"]))
+        game = _apply(game, 0, player_view(game, 0)["legal_moves"][0])
+    return played
+
+
+def _game_whose_specials_start(prefix, dice=lambda values: True):
+    for seed in range(2000):
+        game = create_game(SEATS, DECK_SETTINGS, seed=seed, now=NOW)
+        if _specials_played(game)[: len(prefix)] == prefix and dice(_dice(game)):
+            return game
+    raise AssertionError("no such seed")
+
+
+def test_a_minus_one_card_lowers_the_chosen_die():
+    game = _special_game("Minus", 1)
+    before = _dice(game)
+    game = _apply(game, 0, {"type": "modify_die", "die": 4})
+    assert _dice(game) == _with_values(before, 4, -1)
+
+
+def test_a_value_two_card_changes_two_different_dice_by_one_each():
+    game = _special_game("Plus", 2)
+    before = _dice(game)
+    game = _apply(game, 0, {"type": "modify_die", "die": 1})
+    # Every Seat sees the first die change while the card is still in play.
+    for view in views_for(game):
+        assert [d["value"] for d in view["dice"]] == _with_values(before, 1, +1)
+        assert view["donation"]["dice_chosen"] == [1]
+        assert view["donation"]["special"]["type"] == "Plus"
+    assert {"type": "modify_die", "die": 1} not in player_view(game, 0)["legal_moves"]
+    assert "already" in _rejected(game, 0, {"type": "modify_die", "die": 1})
+
+    game = _apply(game, 0, {"type": "modify_die", "die": 3})
+    assert _dice(game) == _with_values(_with_values(before, 1, +1), 3, +1)
+    assert player_view(game, 0)["donation"]["special"] is None
+
+
+def test_a_both_card_takes_a_direction_first_then_changes_dice_that_way():
+    game = _special_game("Both", 2)
+    before = _dice(game)
+    assert "direction" in _rejected(game, 0, {"type": "modify_die", "die": 0})
+    game = _apply(game, 0, {"type": "choose_direction", "direction": "minus"})
+    for view in views_for(game):
+        assert view["donation"]["direction"] == "minus"
+    assert player_view(game, 0)["legal_moves"] == [{"type": "modify_die", "die": i} for i in range(5)]
+    assert "direction" in _rejected(game, 0, {"type": "choose_direction", "direction": "plus"})
+
+    game = _apply(game, 0, {"type": "modify_die", "die": 0})
+    game = _apply(game, 0, {"type": "modify_die", "die": 4})
+    assert _dice(game) == _with_values(_with_values(before, 0, -1), 4, -1)
+    assert player_view(game, 0)["donation"]["special"] is None
+
+
+def test_a_both_card_may_increase():
+    game = _special_game("Both", 1)
+    before = _dice(game)
+    game = _apply(game, 0, {"type": "choose_direction", "direction": "plus"})
+    game = _apply(game, 0, {"type": "modify_die", "die": 2})
+    assert _dice(game) == _with_values(before, 2, +1)
+
+
+def test_several_special_cards_are_played_one_by_one_before_ordinary_cards():
+    game = _game_whose_specials_start([("Minus", 2), ("Both", 1), ("Plus", 2)])
+    assert "special" in _rejected(game, 0, {"type": "keep"})
+    game = _apply(game, 0, {"type": "modify_die", "die": 0})
+    game = _apply(game, 0, {"type": "modify_die", "die": 1})
+    # The next special is now in play, with no dice chosen and no direction yet.
+    view = player_view(game, 1)["donation"]
+    assert (view["special"]["type"], view["dice_chosen"], view["direction"]) == ("Both", [], None)
+    # A die changed by an earlier special may be changed again by the next one.
+    game = _apply(game, 0, {"type": "choose_direction", "direction": "plus"})
+    game = _apply(game, 0, {"type": "modify_die", "die": 0})
+    assert player_view(game, 0)["donation"]["special"]["type"] == "Plus"
+    game = _apply(game, 0, {"type": "modify_die", "die": 0})
+    game = _apply(game, 0, {"type": "modify_die", "die": 1})
+    assert player_view(game, 0)["donation"]["special"] is None
+    assert sorted(m["type"] for m in player_view(game, 0)["legal_moves"]) == ["discard", "donate", "keep"]
+
+
+def test_a_die_never_goes_below_one():
+    game = _game_whose_specials_start([("Minus", 2), ("Both", 1)], dice=lambda values: 2 in values)
+    low = _dice(game).index(2)
+    game = _apply(game, 0, {"type": "modify_die", "die": low})
+    game = _apply(game, 0, {"type": "modify_die", "die": (low + 1) % 5})
+    assert _dice(game)[low] == 1
+    game = _apply(game, 0, {"type": "choose_direction", "direction": "minus"})
+    game = _apply(game, 0, {"type": "modify_die", "die": low})
+    assert _dice(game)[low] == 1
+
+
+def test_a_die_never_goes_above_six():
+    game = _game_whose_specials_start([("Plus", 2), ("Both", 1), ("Both", 2)], dice=lambda values: 4 in values)
+    high = _dice(game).index(4)
+    other = (high + 1) % 5
+    for move in [
+        {"type": "modify_die", "die": high},
+        {"type": "modify_die", "die": other},
+        {"type": "choose_direction", "direction": "plus"},
+        {"type": "modify_die", "die": high},
+    ]:
+        game = _apply(game, 0, move)
+    assert _dice(game)[high] == 6
+    game = _apply(game, 0, {"type": "choose_direction", "direction": "plus"})
+    game = _apply(game, 0, {"type": "modify_die", "die": high})
+    assert _dice(game)[high] == 6
+
+
+def test_illegal_special_moves_are_rejected():
+    game = _special_game("Plus", 1)
+    assert "direction" in _rejected(game, 0, {"type": "choose_direction", "direction": "plus"})
+    _rejected(game, 0, {"type": "modify_die", "die": 5})
+    _rejected(game, 0, {"type": "modify_die", "die": -1})
+    _rejected(game, 0, {"type": "modify_die", "die": "0"})
+    _rejected(game, 0, {"type": "modify_die", "die": True})
+    _rejected(game, 0, {"type": "modify_die"})
+    assert "turn" in _rejected(game, 1, {"type": "modify_die", "die": 0})
+
+    both = _special_game("Both", 1)
+    _rejected(both, 0, {"type": "choose_direction", "direction": "sideways"})
+    _rejected(both, 0, {"type": "choose_direction"})
+
+
+def test_special_moves_without_a_special_card_are_rejected():
+    game = _plain_game()
+    assert "special" in _rejected(game, 0, {"type": "modify_die", "die": 0})
+    assert "special" in _rejected(game, 0, {"type": "choose_direction", "direction": "plus"})

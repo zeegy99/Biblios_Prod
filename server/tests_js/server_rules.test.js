@@ -181,3 +181,51 @@ test("a legal Move sends every Seat its new Player View; a rejected one reaches 
     clients.forEach(({ socket }) => socket.disconnect());
   }
 });
+
+test("playing a special card changes the dice in every Seat's Player View; an illegal one reaches only its sender", async () => {
+  const clients = [
+    { socket: connectAs("zeg"), name: "Zeg" },
+    { socket: connectAs("bob"), name: "Bob" },
+    { socket: connectAs(null), name: "Guest" },
+  ];
+  try {
+    // Restart in a fresh Room (a fresh shuffle) until the donor draws a special card.
+    let room, views;
+    for (let tries = 0; !views || (!views[0].donation.special && tries < 40); tries++) {
+      room = `server-rules-special-${tries}`;
+      views = await startFlaggedGame(room, clients);
+    }
+    const special = views[0].donation.special;
+    expect(special).toBeTruthy();
+    // Every Seat sees the special card being played; only the donor may play it.
+    views.forEach((view) => expect(view.donation.special).toEqual(special));
+    views.slice(1).forEach((view) => expect(view.legal_moves).toEqual([]));
+
+    if (special.type === "Both") {
+      const chosen = clients.map(({ socket }) => once(socket, "player_view"));
+      clients[0].socket.emit("move", { room, move: { type: "choose_direction", direction: "plus" } });
+      (await Promise.all(chosen)).forEach((view) => expect(view.donation.direction).toBe("plus"));
+    }
+
+    // A die that does not exist: only the donor hears, nobody's view changes.
+    const rejections = clients.map(({ socket }) => collect(socket, "move_rejected"));
+    const quiet = clients.map(({ socket }) => collect(socket, "player_view"));
+    clients[0].socket.emit("move", { room, move: { type: "modify_die", die: 9 } });
+    const [zegRej, bobRej, guestRej] = await Promise.all(rejections);
+    expect(zegRej).toHaveLength(1);
+    expect(bobRej).toEqual([]);
+    expect(guestRej).toEqual([]);
+    (await Promise.all(quiet)).forEach((got) => expect(got).toEqual([]));
+
+    const before = views[0].dice[0].value;
+    const step = special.type === "Minus" ? -1 : 1;
+    const updates = clients.map(({ socket }) => once(socket, "player_view"));
+    clients[0].socket.emit("move", { room, move: { type: "modify_die", die: 0 } });
+    (await Promise.all(updates)).forEach((view, seat) => {
+      expect(view.you).toBe(seat);
+      expect(view.dice[0].value).toBe(Math.min(6, Math.max(1, before + step)));
+    });
+  } finally {
+    clients.forEach(({ socket }) => socket.disconnect());
+  }
+});

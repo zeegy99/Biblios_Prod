@@ -31,10 +31,13 @@ const ServerDonationPhase = ({ view }) => {
     <div>
       <h3>{donorName}'s Donation Turn</h3>
 
-      {isDonor && donation.special && (
+      {/* A special card is played face up: every Seat sees it and the dice
+          it changes; only the donor's controls are ever enabled. */}
+      {donation.special && (
         <div style={{ marginTop: "20px", border: "2px dashed gray", padding: "10px", borderRadius: "10px" }}>
           <h4 style={{ textAlign: "center" }}>💫 Special Card Drawn!</h4>
           <Card card={donation.special} />
+          {!isDonor && <p style={{ textAlign: "center" }}>⏳ Waiting for {donorName} to play it on the dice...</p>}
           {donation.special.type === "Both" && donation.direction === null ? (
             <div style={{ display: "flex", justifyContent: "center", gap: "10px" }}>
               {moveButton("➕ Increase", "choose_direction", { direction: "plus" })}

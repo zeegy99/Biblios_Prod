@@ -19,6 +19,9 @@ TIE_BREAKERS = list("ABCDEFGHIJK")
 SPECIAL_TYPES = ["Plus", "Minus", "Both"]
 # What the donor may do with each ordinary card it drew.
 DONATION_MOVES = ["keep", "discard", "donate"]
+# How the donor plays a special card on the dice.
+SPECIAL_MOVES = ["choose_direction", "modify_die"]
+DIRECTIONS = {"plus": +1, "minus": -1}
 
 DEFAULT_RESOURCE = {"1": 5, "2": 4, "3": 2, "4": 2}
 DEFAULT_GOLD = {"1": 5, "2": 5, "3": 5}
@@ -103,6 +106,9 @@ def apply_move(game, seat, move):
     if reason:
         return None, reason
     game = copy.deepcopy(game)
+    if move["type"] in SPECIAL_MOVES:
+        _play_special(game, move)
+        return game, None
     donation = game["donation"]
     card = donation["cards"].pop(0)
     if move["type"] == "keep":
@@ -119,7 +125,7 @@ def apply_move(game, seat, move):
 
 def _rejection(game, seat, move):
     """Why `seat` may not make `move` right now, or None if it may."""
-    if not isinstance(move, dict) or move.get("type") not in DONATION_MOVES:
+    if not isinstance(move, dict) or move.get("type") not in DONATION_MOVES + SPECIAL_MOVES:
         return "Unknown Move"
     if not isinstance(seat, int) or not 0 <= seat < len(game["seats"]):
         return "You have no Seat in this Game"
@@ -128,6 +134,8 @@ def _rejection(game, seat, move):
         return "It is not the donation phase"
     if seat != game["current_seat"]:
         return "It is not your turn to donate"
+    if move["type"] in SPECIAL_MOVES:
+        return _special_rejection(game, move)
     if donation["specials"]:
         return "Play the special card on the dice first"
     if move["type"] == "keep" and donation["kept"] is not None:
@@ -137,6 +145,51 @@ def _rejection(game, seat, move):
     if move["type"] == "donate" and len(donation["donated"]) >= _cards_to_draw(game) - 2:
         return "You have already donated enough cards to the shared pool"
     return None
+
+
+def _special_rejection(game, move):
+    """Why the donor may not make the special-card Move `move` right now, or
+    None if it may (the React donation phase's Both choice and dice buttons)."""
+    donation = game["donation"]
+    if not donation["specials"]:
+        return "There is no special card to play"
+    special = donation["specials"][0]
+    choosing = special["type"] == "Both" and donation["direction"] is None
+    if move["type"] == "choose_direction":
+        if not choosing:
+            return "There is no direction to choose"
+        if move.get("direction") not in DIRECTIONS:
+            return "Choose to increase (plus) or decrease (minus) the dice"
+        return None
+    if choosing:
+        return "Choose a direction (increase or decrease) first"
+    die = move.get("die")
+    if not isinstance(die, int) or isinstance(die, bool) or not 0 <= die < len(game["dice"]):
+        return "There is no such die"
+    if die in donation["dice_chosen"]:
+        return "You have already changed that die with this card"
+    return None
+
+
+def _play_special(game, move):
+    """As the React donation phase's dice buttons: a Both card first takes a
+    direction; then each chosen die moves one step (Plus up to 6, Minus down
+    to 1). A value-2 card changes two different dice, a value-1 card one.
+    Once enough dice are chosen the card is spent and the next special, if
+    any, is played the same way."""
+    donation = game["donation"]
+    special = donation["specials"][0]
+    if move["type"] == "choose_direction":
+        donation["direction"] = move["direction"]
+        return
+    step = {"Plus": +1, "Minus": -1}.get(special["type"]) or DIRECTIONS[donation["direction"]]
+    die = game["dice"][move["die"]]
+    die["value"] = min(6, max(1, die["value"] + step))
+    donation["dice_chosen"].append(move["die"])
+    if len(donation["dice_chosen"]) == (2 if special["value"] == 2 else 1):
+        donation["specials"].pop(0)
+        donation["direction"] = None
+        donation["dice_chosen"] = []
 
 
 def _finish_donation_turn(game):
@@ -193,17 +246,22 @@ def _donation_view(game, seat):
     donation = game["donation"]
     if donation is None:
         return None
-    view = {"donor": game["current_seat"], "cards_count": len(donation["cards"])}
+    view = {
+        "donor": game["current_seat"],
+        "cards_count": len(donation["cards"]),
+        # A special card is played face up on the dice, as at the table, so
+        # every Seat sees the one being played and how far it has got.
+        "special": donation["specials"][0] if donation["specials"] else None,
+        "direction": donation["direction"],
+        "dice_chosen": list(donation["dice_chosen"]),
+    }
     if seat == game["current_seat"]:
         # The donor deals with one card at a time, so only that card is shown:
         # the rest of the draw is as hidden as the deck it came from.
         view.update(
             {
                 "card": donation["cards"][0] if donation["cards"] else None,
-                "special": donation["specials"][0] if donation["specials"] else None,
                 "specials_drawn": donation["specials_drawn"],
-                "direction": donation["direction"],
-                "dice_chosen": list(donation["dice_chosen"]),
                 "kept": donation["kept"],
                 "discarded": donation["discarded"],
                 "donated": list(donation["donated"]),
