@@ -689,6 +689,7 @@ def _non_gold_card(views):
 def test_a_bid_on_a_non_gold_card_may_be_any_whole_amount_of_gold_the_seat_has():
     game = _auction_game(lambda views: _non_gold_card(views) and views[0]["seats"][0]["gold"] >= 2)
     gold = player_view(game, 0)["seats"][0]["gold"]
+    assert player_view(game, 1)["auction"]["pay_in"] == "gold"
     assert player_view(game, 0)["legal_moves"] == [{"type": "bid", "min": 1, "max": gold}, {"type": "pass"}]
     game = _apply(game, 0, {"type": "bid", "amount": 2})
     for view in views_for(game):
@@ -819,6 +820,7 @@ def test_a_gold_card_is_bid_for_in_cards_from_the_hand():
         and views[0]["seats"][0]["hand_size"] != views[0]["seats"][0]["gold"]
     )
     hand = player_view(game, 0)["seats"][0]["hand_size"]
+    assert player_view(game, 1)["auction"]["pay_in"] == "cards"
     assert player_view(game, 0)["legal_moves"][0] == {"type": "bid", "min": 1, "max": hand}
     assert "cards" in _rejected(game, 0, {"type": "bid", "amount": hand + 1})
 
@@ -845,3 +847,45 @@ def test_with_nothing_discarded_there_is_no_auction_and_the_game_moves_to_scorin
         assert view["phase"] == "scoring"
         assert view["auction"] is None
         assert view["legal_moves"] == []
+
+
+def test_a_seat_that_does_not_exist_has_no_legal_moves_in_the_auction():
+    from engine.game import legal_moves
+
+    game = _auction_game()
+    for seat in [3, -1, None, "0", True]:
+        assert legal_moves(game, seat) == []
+        _rejected(game, seat, {"type": "pass"})
+
+
+def test_on_the_second_card_the_bidding_starts_one_seat_on_and_wraps_round():
+    for seed in range(500):
+        game = _play_to_auction(create_game(SEATS, AUCTION_DECK, seed=seed, now=NOW))
+        first = player_view(game, 0)
+        if first["phase"] != "auction" or first["discard_size"] < 2:
+            continue
+        game = _all_pass(game)
+        views = views_for(game)
+        if _can_bid(2)(views) and _can_bid(0)(views) and _can_bid_two(views, 0):
+            break
+    else:
+        raise AssertionError("no such seed")
+    card = player_view(game, 0)["auction"]["card"]
+    assert player_view(game, 0)["auction"]["bidding_order"] == [1, 2, 0]
+    assert player_view(game, 0)["current_seat"] == 1
+    game = _apply(game, 1, {"type": "pass"})
+    assert player_view(game, 0)["current_seat"] == 2
+    game = _apply(game, 2, {"type": "bid", "amount": 1})
+    # The order wraps round from the last Seat back to Seat 0.
+    assert player_view(game, 0)["current_seat"] == 0
+    game = _apply(game, 0, {"type": "bid", "amount": 2})
+    assert player_view(game, 0)["current_seat"] == 2
+    game = _apply(game, 2, {"type": "pass"})
+    for view in views_for(game):
+        assert view["auction"]["winner"] == {"seat": 0, "card": card, "bid": 2}
+        assert view["current_seat"] == 0
+
+
+def _can_bid_two(views, seat):
+    card, me = views[0]["auction"]["card"], views[0]["seats"][seat]
+    return (me["hand_size"] if card["type"] == "Gold" else me["gold"]) >= 2

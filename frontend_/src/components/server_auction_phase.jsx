@@ -31,7 +31,7 @@ const ServerAuctionPhase = ({ view }) => {
         <Card card={auction.winner.card} />
         <p>
           {auction.winner.seat === view.you ? "You win" : `${winner} wins`} the card for {auction.winner.bid}
-          {auction.winner.card.type === "Gold" ? " card(s)" : " gold"}.
+          {auction.pay_in === "cards" ? " card(s)" : " gold"}.
         </p>
         <p>⏳ Waiting for {winner} to pay...</p>
       </div>

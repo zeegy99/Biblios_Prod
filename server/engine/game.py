@@ -83,6 +83,8 @@ def player_view(game, seat):
 
 def legal_moves(game, seat):
     """The Moves `seat` may make right now."""
+    if not _is_index(seat, len(game["seats"])):
+        return []
     if game["phase"] == "auction":
         # A bid is any whole number in a range, so it is listed as that range
         # rather than one Move per amount; both ends are checked by
@@ -152,7 +154,7 @@ def _rejection(game, seat, move):
     """Why `seat` may not make `move` right now, or None if it may."""
     if not isinstance(move, dict) or move.get("type") not in DONATION_MOVES + SPECIAL_MOVES + SELECTION_MOVES + AUCTION_MOVES:
         return "Unknown Move"
-    if not isinstance(seat, int) or not 0 <= seat < len(game["seats"]):
+    if not _is_index(seat, len(game["seats"])):
         return "You have no Seat in this Game"
     if move["type"] in SELECTION_MOVES:
         return _selection_rejection(game, seat, move)
@@ -297,7 +299,7 @@ def _auction_rejection(game, seat, move):
     if amount < low:
         return f"Bid at least {low}"
     if amount > high:
-        if game["discard"][0]["type"] == "Gold":
+        if _paid_in_cards(game):
             return f"You may bid at most {high}: the cards in your hand"
         return f"You may bid at most {high}: the gold you have"
     return None
@@ -308,8 +310,14 @@ def _bid_range(game, seat):
     phase's handleBid: at least 1 and more than the current bid; at most the
     Seat's gold, or for a Gold card (paid for in cards) its hand size."""
     holder = game["seats"][seat]
-    high = len(holder["hand"]) if game["discard"][0]["type"] == "Gold" else holder["gold"]
+    high = len(holder["hand"]) if _paid_in_cards(game) else holder["gold"]
     return game["auction"]["bid"] + 1, high
+
+
+def _paid_in_cards(game):
+    """Whether the card at auction is paid for in cards from the hand (a
+    Gold card) rather than in gold (any other card), as in React's payment."""
+    return game["discard"][0]["type"] == "Gold"
 
 
 def _bid(game, seat, amount):
@@ -345,14 +353,21 @@ def _win(game, seat):
     """`seat` has won the card at auction for the current bid, and the Game
     waits for it to pay (payment is #52). Until then no Seat may bid."""
     auction = game["auction"]
-    auction["winner"] = {"seat": seat, "card": game["discard"][0], "bid": auction["bid"]}
+    # The card won is still the one at the front of the discard pile.
+    auction["winner"] = {"seat": seat, "bid": auction["bid"]}
     game["current_seat"] = seat
 
 
 def _discard_unsold(game):
-    """As finishAuction with no winner: the card leaves the Game, and the
-    next card goes up with the bidding order one Seat on, or, if that was
-    the last card, the Game goes to scoring."""
+    """As finishAuction with no winner: the card leaves the Game."""
+    _next_card(game)
+
+
+def _next_card(game):
+    """However the card at auction was resolved, it leaves the discard pile
+    and the next card goes up with the bidding order one Seat on (React's
+    auctionTurnOffset + 1), or, if that was the last card, the Game goes to
+    scoring."""
     game["discard"].pop(0)
     if not game["discard"]:
         game["phase"] = "scoring"
@@ -381,13 +396,16 @@ def _auction_view(game):
     if game["phase"] != "auction" or auction is None:
         return None
     n = len(game["seats"])
+    card = dict(game["discard"][0])
+    winner = auction["winner"]
     return {
-        "card": game["discard"][0],
+        "card": card,
+        "pay_in": "cards" if _paid_in_cards(game) else "gold",
         "bidding_order": [(auction["offset"] + i) % n for i in range(n)],
         "active": list(auction["active"]),
         "bid": auction["bid"],
         "highest_bidder": auction["highest_bidder"],
-        "winner": auction["winner"],
+        "winner": {**winner, "card": dict(card)} if winner else None,
     }
 
 
