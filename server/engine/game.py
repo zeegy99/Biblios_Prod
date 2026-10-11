@@ -8,6 +8,7 @@ A Game is a plain JSON-serialisable dict; treat it as opaque outside this
 module and read it only through player_view.
 """
 
+import copy
 import random
 
 # Both orders are the React ones: RESOURCE_TYPES is the deck build order (it
@@ -16,6 +17,8 @@ RESOURCE_TYPES = ["Religion", "Science", "Military", "Art", "Herbs"]
 DICE_TYPES = ["Art", "Herbs", "Military", "Religion", "Science"]
 TIE_BREAKERS = list("ABCDEFGHIJK")
 SPECIAL_TYPES = ["Plus", "Minus", "Both"]
+# What the donor may do with each ordinary card it drew.
+DONATION_MOVES = ["keep", "discard", "donate"]
 
 DEFAULT_RESOURCE = {"1": 5, "2": 4, "3": 2, "4": 2}
 DEFAULT_GOLD = {"1": 5, "2": 5, "3": 5}
@@ -39,6 +42,7 @@ def create_game(seats, deck_settings, seed, now):
         "dice": [{"resource_type": t, "value": rng.randint(2, 4)} for t in DICE_TYPES],
         "current_seat": 0,
         "donation": None,
+        "last_donor": None,
         "turn_started_at": now,
     }
     _start_donation_turn(game)
@@ -62,6 +66,7 @@ def player_view(game, seat):
         "shared_pool": list(game["shared_pool"]),
         "dice": [dict(d) for d in game["dice"]],
         "current_seat": game["current_seat"],
+        "last_donor": game["last_donor"],
         "donation": _donation_view(game, seat),
         "legal_moves": legal_moves(game, seat),
     }
@@ -86,16 +91,70 @@ def legal_moves(game, seat):
             if i not in donation["dice_chosen"]
         ]
 
+    return [{"type": t} for t in DONATION_MOVES if _rejection(game, seat, {"type": t}) is None]
+
+
+def apply_move(game, seat, move):
+    """Apply `move` by `seat`. Returns (new Game, None) if it is legal, or
+    (None, reason) if it is not; the given Game is never changed. A donation
+    Move names no card: it always deals with the donor's current card, the
+    only one the donor holds and sees."""
+    reason = _rejection(game, seat, move)
+    if reason:
+        return None, reason
+    game = copy.deepcopy(game)
+    donation = game["donation"]
+    card = donation["cards"].pop(0)
+    if move["type"] == "keep":
+        donation["kept"] = card
+    elif move["type"] == "discard":
+        donation["discarded"] = card
+    else:
+        donation["donated"].append(card)
+        game["shared_pool"].append({**card, "pooledBy": game["seats"][seat]["name"]})
     if not donation["cards"]:
-        return []
-    moves = []
-    if donation["kept"] is None:
-        moves.append({"type": "keep"})
-    if donation["discarded"] is None:
-        moves.append({"type": "discard"})
-    if len(donation["donated"]) < _cards_to_draw(game) - 2:
-        moves.append({"type": "donate"})
-    return moves
+        _finish_donation_turn(game)
+    return game, None
+
+
+def _rejection(game, seat, move):
+    """Why `seat` may not make `move` right now, or None if it may."""
+    if not isinstance(move, dict) or move.get("type") not in DONATION_MOVES:
+        return "Unknown Move"
+    if not isinstance(seat, int) or not 0 <= seat < len(game["seats"]):
+        return "You have no Seat in this Game"
+    donation = game["donation"]
+    if game["phase"] != "donation" or donation is None:
+        return "It is not the donation phase"
+    if seat != game["current_seat"]:
+        return "It is not your turn to donate"
+    if donation["specials"]:
+        return "Play the special card on the dice first"
+    if move["type"] == "keep" and donation["kept"] is not None:
+        return "You have already kept a card this turn"
+    if move["type"] == "discard" and donation["discarded"] is not None:
+        return "You have already discarded a card this turn"
+    if move["type"] == "donate" and len(donation["donated"]) >= _cards_to_draw(game) - 2:
+        return "You have already donated enough cards to the shared pool"
+    return None
+
+
+def _finish_donation_turn(game):
+    """As the React donation phase's confirmTurn: the kept card joins the
+    donor's hand (adding its gold), the discarded card the discard pile, the
+    donor is remembered as the last donor, and the next Seat starts the
+    shared selection."""
+    donation = game["donation"]
+    donor = game["seats"][game["current_seat"]]
+    kept = donation["kept"]
+    donor["hand"].append(kept)
+    if kept["type"] == "Gold":
+        donor["gold"] += kept["value"]
+    game["discard"].append(donation["discarded"])
+    game["donation"] = None
+    game["last_donor"] = game["current_seat"]
+    game["phase"] = "shared_selection"
+    game["current_seat"] = (game["current_seat"] + 1) % len(game["seats"])
 
 
 def _cards_to_draw(game):

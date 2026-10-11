@@ -120,3 +120,64 @@ test("an unflagged start is unchanged: one start_game for the Room with no Playe
     clients.forEach(({ socket }) => socket.disconnect());
   }
 });
+
+// Starts a flagged Game for `clients` in `room` and resolves to each Seat's first Player View.
+async function startFlaggedGame(room, clients) {
+  await joinAll(room, clients);
+  const starts = clients.map(({ socket }) => once(socket, "start_game"));
+  clients[0].socket.emit("start_game", { room, deckSettings: DECK_SETTINGS, serverRules: true });
+  return (await Promise.all(starts)).map((p) => p.playerView);
+}
+
+// Resolves to the events `socket` received within `ms`.
+function collect(socket, event, ms = 300) {
+  const got = [];
+  const handler = (payload) => got.push(payload);
+  socket.on(event, handler);
+  return new Promise((resolve) =>
+    setTimeout(() => {
+      socket.off(event, handler);
+      resolve(got);
+    }, ms),
+  );
+}
+
+test("a legal Move sends every Seat its new Player View; a rejected one reaches only its sender", async () => {
+  const clients = [
+    { socket: connectAs("zeg"), name: "Zeg" },
+    { socket: connectAs("bob"), name: "Bob" },
+    { socket: connectAs(null), name: "Guest" },
+  ];
+  try {
+    // Specials must be played on the dice first (#49), so restart in a fresh
+    // Room (a fresh shuffle) until the donor draws none.
+    let room, views;
+    for (let tries = 0; !views || (views[0].donation.special && tries < 20); tries++) {
+      room = `server-rules-moves-${tries}`;
+      views = await startFlaggedGame(room, clients);
+    }
+    expect(views[0].legal_moves).toContainEqual({ type: "donate" });
+
+    const updates = clients.map(({ socket }) => once(socket, "player_view"));
+    clients[0].socket.emit("move", { room, move: { type: "donate" } });
+    const after = await Promise.all(updates);
+    after.forEach((view, seat) => {
+      expect(view.you).toBe(seat);
+      expect(view.shared_pool).toHaveLength(1);
+      expect(view.donation.cards_count).toBe(3);
+    });
+
+    // Bob is not the donor: only Bob hears about it, and nobody's view changes.
+    const rejections = clients.map(({ socket }) => collect(socket, "move_rejected"));
+    const views2 = clients.map(({ socket }) => collect(socket, "player_view"));
+    clients[1].socket.emit("move", { room, move: { type: "keep" } });
+    const [zegRej, bobRej, guestRej] = await Promise.all(rejections);
+    expect(bobRej).toHaveLength(1);
+    expect(bobRej[0].reason).toMatch(/turn/);
+    expect(zegRej).toEqual([]);
+    expect(guestRej).toEqual([]);
+    (await Promise.all(views2)).forEach((got) => expect(got).toEqual([]));
+  } finally {
+    clients.forEach(({ socket }) => socket.disconnect());
+  }
+});

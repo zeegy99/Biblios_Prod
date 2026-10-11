@@ -4,7 +4,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from engine import create_game, player_view
+from engine import apply_move, create_game, player_view
 
 SEATS = [
     {"player_id": "user:1", "name": "Zeg"},
@@ -153,3 +153,139 @@ def test_blank_deck_settings_count_as_zero():
 
 def _specials_drawn(donor_view):
     return donor_view["donation"].get("specials_drawn", 0)
+
+
+# --- Donation Moves (#48) ---------------------------------------------------
+
+
+def _plain_game():
+    """A Game whose first donor drew no special cards."""
+    return create_game(SEATS, DECK_SETTINGS, seed=_seed_where_first_donor_draws(False), now=NOW)
+
+
+def _apply(game, seat, move):
+    new_game, reason = apply_move(game, seat, move)
+    assert reason is None, reason
+    return new_game
+
+
+def _rejected(game, seat, move):
+    before = json.dumps(game, sort_keys=True)
+    new_game, reason = apply_move(game, seat, move)
+    assert new_game is None
+    assert isinstance(reason, str) and reason
+    assert json.dumps(game, sort_keys=True) == before, "a rejected Move must change nothing"
+    return reason
+
+
+def test_keeping_moves_on_to_the_next_card_and_hides_it_from_others():
+    game = _plain_game()
+    first = player_view(game, 0)["donation"]["card"]
+    game = _apply(game, 0, {"type": "keep"})
+    donor, other = player_view(game, 0), player_view(game, 1)
+    assert donor["donation"]["kept"] == first
+    assert donor["donation"]["cards_count"] == len(SEATS)
+    assert sorted(m["type"] for m in donor["legal_moves"]) == ["discard", "donate"]
+    assert other["donation"]["cards_count"] == len(SEATS)
+    assert all_cards_in(other) == []
+
+
+def test_donating_puts_the_card_in_the_shared_pool_for_everyone():
+    game = _plain_game()
+    card = player_view(game, 0)["donation"]["card"]
+    game = _apply(game, 0, {"type": "donate"})
+    for view in views_for(game):
+        assert [{k: c[k] for k in card} for c in view["shared_pool"]] == [card]
+        assert view["shared_pool"][0]["pooledBy"] == "Zeg"
+
+
+def test_a_donor_may_donate_only_seats_minus_one_cards():
+    game = _plain_game()
+    for _ in range(len(SEATS) - 1):
+        game = _apply(game, 0, {"type": "donate"})
+    assert sorted(m["type"] for m in player_view(game, 0)["legal_moves"]) == ["discard", "keep"]
+    assert "shared pool" in _rejected(game, 0, {"type": "donate"})
+
+
+def test_a_donor_may_keep_only_one_card():
+    game = _apply(_plain_game(), 0, {"type": "keep"})
+    assert "kept" in _rejected(game, 0, {"type": "keep"})
+
+
+def test_a_donor_may_discard_only_one_card():
+    game = _apply(_plain_game(), 0, {"type": "discard"})
+    assert "discarded" in _rejected(game, 0, {"type": "discard"})
+
+
+def test_finishing_the_donation_gives_the_kept_card_and_starts_shared_selection():
+    game = _plain_game()
+    cards = []
+    for move in ["donate", "keep", "discard", "donate"]:
+        cards.append(player_view(game, 0)["donation"]["card"])
+        game = _apply(game, 0, {"type": move})
+    kept = cards[1]
+
+    views = views_for(game)
+    for view in views:
+        assert view["phase"] == "shared_selection"
+        assert view["current_seat"] == 1
+        assert view["last_donor"] == 0
+        assert view["donation"] is None
+        assert view["discard_size"] == 1
+        assert len(view["shared_pool"]) == 2
+        assert [s["hand_size"] for s in view["seats"]] == [1, 0, 0]
+        assert view["seats"][0]["gold"] == (kept["value"] if kept["type"] == "Gold" else 0)
+    assert views[0]["hand"] == [kept]
+    assert views[1]["hand"] == [] and views[2]["hand"] == []
+
+
+def test_keeping_a_gold_card_adds_its_value_to_the_donors_gold():
+    for seed in range(500):
+        game = create_game(SEATS, DECK_SETTINGS, seed=seed, now=NOW)
+        card = player_view(game, 0)["donation"]["card"]
+        if not player_view(game, 0)["donation"]["special"] and card["type"] == "Gold":
+            break
+    else:
+        raise AssertionError("no such seed")
+    for move in ["keep", "discard", "donate", "donate"]:
+        game = _apply(game, 0, {"type": move})
+    assert player_view(game, 0)["seats"][0]["gold"] == card["value"]
+
+
+def test_a_move_from_a_seat_that_is_not_donating_is_rejected():
+    game = _plain_game()
+    assert "turn" in _rejected(game, 1, {"type": "keep"})
+
+
+def test_a_move_from_a_seat_that_does_not_exist_is_rejected():
+    _rejected(_plain_game(), 7, {"type": "keep"})
+
+
+def test_dealing_with_ordinary_cards_waits_for_the_special_card():
+    game = create_game(SEATS, DECK_SETTINGS, seed=_seed_where_first_donor_draws(True), now=NOW)
+    assert "special" in _rejected(game, 0, {"type": "keep"})
+
+
+def test_a_donation_move_outside_the_donation_phase_is_rejected():
+    game = _plain_game()
+    for move in ["donate", "keep", "discard", "donate"]:
+        game = _apply(game, 0, {"type": move})
+    assert "donation" in _rejected(game, 1, {"type": "keep"})
+
+
+def test_unknown_and_malformed_moves_are_rejected():
+    game = _plain_game()
+    _rejected(game, 0, {"type": "steal"})
+    _rejected(game, 0, {})
+    _rejected(game, 0, "keep")
+    _rejected(game, 0, None)
+
+
+def test_the_same_moves_on_the_same_seed_give_the_same_game():
+    def play():
+        game = _plain_game()
+        for move in ["keep", "donate", "discard"]:
+            game = _apply(game, 0, {"type": move})
+        return views_for(game)
+
+    assert play() == play()

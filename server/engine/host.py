@@ -6,13 +6,16 @@ on stdout, echoing the request's `id`. Games live only in this process's memory.
 Requests:
   {"id", "op": "create_game", "game_id", "seats", "deck_settings", "seed", "now"}
       -> {"id", "ok": true, "views": [Player View per Seat]}
+  {"id", "op": "apply_move", "game_id", "seat", "move"}
+      -> {"id", "ok": true, "views": [Player View per Seat]} if the Move is legal
+      -> {"id", "ok": true, "rejected": "<reason>"} if not (the Game is unchanged)
 Failures -> {"id", "ok": false, "error": "<reason>"}
 """
 
 import json
 import sys
 
-from engine import create_game, player_view
+from engine import apply_move, create_game, player_view
 
 
 def handle(games, request):
@@ -23,8 +26,21 @@ def handle(games, request):
             raise ValueError(f"Game {game_id} already exists")
         game = create_game(request["seats"], request.get("deck_settings"), request["seed"], request["now"])
         games[game_id] = game
-        return {"views": [player_view(game, seat) for seat in range(len(game["seats"]))]}
+        return {"views": _views(game)}
+    if op == "apply_move":
+        game_id = request["game_id"]
+        if game_id not in games:
+            raise ValueError(f"No Game {game_id}")
+        game, reason = apply_move(games[game_id], request["seat"], request["move"])
+        if reason:
+            return {"rejected": reason}
+        games[game_id] = game
+        return {"views": _views(game)}
     raise ValueError(f"Unknown op: {op}")
+
+
+def _views(game):
+    return [player_view(game, seat) for seat in range(len(game["seats"]))]
 
 
 def main():

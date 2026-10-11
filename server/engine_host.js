@@ -65,6 +65,12 @@ function createEngineHost() {
       });
       return views;
     },
+    // Resolves to { views } (one Player View per Seat) if the Move was applied,
+    // or { rejected: reason } if the engine refused it.
+    async applyMove({ gameId, seat, move }) {
+      const { views, rejected } = await request("apply_move", { game_id: gameId, seat, move });
+      return rejected ? { rejected } : { views };
+    },
     stop() {
       if (child) {
         child.stdin.end();

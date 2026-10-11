@@ -37,6 +37,22 @@ const GameRunner = ({ playerName }) => {
   // In a server-rules Room the Game lives on the server: we only render this
   // Seat's Player View and never shuffle, roll or sync state ourselves.
   const [playerView, setPlayerView] = useState(null);
+  // Why the server refused this Seat's last Move; cleared by the next Player View.
+  const [moveRejection, setMoveRejection] = useState(null);
+
+  useEffect(() => {
+    const onPlayerView = (view) => {
+      setPlayerView(view);
+      setMoveRejection(null);
+    };
+    const onMoveRejected = ({ reason }) => setMoveRejection(reason);
+    socket.on("player_view", onPlayerView);
+    socket.on("move_rejected", onMoveRejected);
+    return () => {
+      socket.off("player_view", onPlayerView);
+      socket.off("move_rejected", onMoveRejected);
+    };
+  }, []);
 
   //Test
   const [deck, setDeck] = useState([]); // Start empty; build later with receivedSettings
@@ -404,6 +420,9 @@ useEffect(() => {
         <p style={{ textAlign: "center" }}>
           Remaining deck: {playerView.deck_size} cards · Discard: {playerView.discard_size} cards
         </p>
+        {moveRejection && (
+          <p role="alert" style={{ textAlign: "center", color: "crimson" }}>Move refused: {moveRejection}</p>
+        )}
         {playerView.phase === "donation" && <ServerDonationPhase view={playerView} />}
         <div style={{ marginTop: "30px", textAlign: "center" }}>
           <h4>Your Hand ↓</h4>

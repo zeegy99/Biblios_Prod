@@ -121,7 +121,38 @@ async function startServerRulesGame(room, players, deckSettings) {
   }
 }
 
+// Which of `game`'s Seats `socket` holds, or -1. A Seat is found by
+// Player Identity, or for a Guest by the socket it joined with.
+function seatOf(game, socket) {
+  const playerId = socket.data.player?.playerId;
+  return game.seats.findIndex((s) => (playerId !== undefined && s.playerId === playerId) || s.socketId === socket.id);
+}
+
+// Sends a Move to the engine. If it is applied every Seat gets its new Player
+// View; if not, only the sender hears why and nothing changes.
+async function handleMove(socket, room, move) {
+  const game = gamesInRoom[room];
+  const seat = game ? seatOf(game, socket) : -1;
+  if (seat === -1) {
+    socket.emit("move_rejected", { reason: "You have no Seat in a server-rules Game in this Room." });
+    return;
+  }
+  try {
+    const { views, rejected } = await engine.applyMove({ gameId: game.gameId, seat, move });
+    if (rejected) {
+      socket.emit("move_rejected", { reason: rejected });
+      return;
+    }
+    game.seats.forEach((s, i) => io.to(s.socketId).emit("player_view", views[i]));
+  } catch (e) {
+    console.error(`Could not apply a Move in ${room}:`, e);
+    socket.emit("move_rejected", { reason: "The server could not apply the Move." });
+  }
+}
+
 io.on("connection", (socket) => {
+
+  socket.on("move", (payload) => handleMove(socket, payload?.room, payload?.move));
 
   
 
