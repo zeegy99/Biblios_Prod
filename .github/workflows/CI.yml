@@ -19,6 +19,11 @@ jobs:
                 cache: npm
                 cache-dependency-path: server/package-lock.json
 
+            # The socket tests run the real Python Game engine as a child process (ADR-0002).
+            - uses: actions/setup-python@v5
+              with:
+                python-version: 3.11
+
             - working-directory: server
               run: npm ci
 

@@ -5,6 +5,7 @@ import AuctionPhase from "./auction_phase";
 import ResultsScreen from "./results";
 import ScoringPhase from "./scoring_phase";
 import SharedPoolSelection from "./shared_selection";
+import ServerDonationPhase from "./server_donation_phase";
 import { buildDeck } from "./deck.jsx";
 import { rollDice } from "../utils/setup";
 import socket from "../socket";
@@ -32,6 +33,10 @@ const GameRunner = ({ playerName }) => {
   const [sharedSelectionIndex, setSharedSelectionIndex] = useState(0);
   const [dice, setDice] = useState(null);
   const [phase, setPhase] = useState("donation");
+
+  // In a server-rules Room the Game lives on the server: we only render this
+  // Seat's Player View and never shuffle, roll or sync state ourselves.
+  const [playerView, setPlayerView] = useState(null);
 
   //Test
   const [deck, setDeck] = useState([]); // Start empty; build later with receivedSettings
@@ -303,7 +308,15 @@ useEffect(() => {
     const cachedStart = localStorage.getItem("start_game_payload");
     if (cachedStart) {
      
-      const { players: rawPlayers, deckSettings: receivedSettings } = JSON.parse(cachedStart);
+      const { players: rawPlayers, deckSettings: receivedSettings, serverRules, playerView: startView } = JSON.parse(cachedStart);
+      if (serverRules) {
+        setPlayerView(startView);
+        localStorage.removeItem("start_game_payload");
+        localStorage.removeItem("last_game_state");
+        return () => {
+          socket.off("sync_game_state", handleGameState);
+        };
+      }
       setDeckSettings(receivedSettings);  // 👈 Save for deck building
 
 
@@ -367,6 +380,40 @@ useEffect(() => {
 
 
 
+
+  if (playerView) {
+    return (
+      <div>
+        <h1 className="game-title">Biblios Game</h1>
+        <button style={{marginLeft: "200px", marginTop: "10px"}} className={'menu-button'} onClick={toggleRulesPage}>
+          Rules
+        </button>
+        {rulesPage && <RulesPage onClose={() => setRulesPage(false)} />}
+        <p style={{ textAlign: "center" }}>Current Phase: {playerView.phase} (server rules)</p>
+        <h3 style={{ textAlign: "center" }}>🎲 Dice Values</h3>
+        <ul style={{ display: "flex", justifyContent: "center", listStyle: "none", padding: 0, gap: "12px" }}>
+          {playerView.dice.map((die) => (
+            <li
+              key={die.resource_type}
+              style={{ padding: "8px 12px", border: "1px solid #ccc", borderRadius: "8px", backgroundColor: "#f9f9f9", minWidth: "80px", textAlign: "center" }}
+            >
+              <strong>{die.resource_type}</strong>: {die.value}
+            </li>
+          ))}
+        </ul>
+        <p style={{ textAlign: "center" }}>
+          Remaining deck: {playerView.deck_size} cards · Discard: {playerView.discard_size} cards
+        </p>
+        {playerView.phase === "donation" && <ServerDonationPhase view={playerView} />}
+        <div style={{ marginTop: "30px", textAlign: "center" }}>
+          <h4>Your Hand ↓</h4>
+          <ul style={{ display: "flex", justifyContent: "center", listStyle: "none", padding: 0, gap: "10px" }}>
+            <PlayerHand hand={playerView.hand} isCurrentPlayer={true} />
+          </ul>
+        </div>
+      </div>
+    );
+  }
 
   if (!players.length || !players[currentPlayerIndex]) {
     return <div>Waiting for game state to initialize...</div>;

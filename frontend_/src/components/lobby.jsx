@@ -8,6 +8,11 @@ import Fart from "../sound/fart-5-228245.mp3";
 
 const playerId = getOrCreatePlayerId();
 
+// Server rules are hidden until every slice ships: the toggle only appears
+// when the lobby is opened with ?authoritative=1.
+const serverRulesAvailable =
+  new URLSearchParams(window.location.search).get("authoritative") === "1";
+
 
 const Lobby = ({ playerName, setPlayerName }) => {
   const [players, setPlayers] = useState([]);
@@ -28,6 +33,7 @@ const [res4, setRes4] = useState(0);
 const [hasManuallyAdjusted, setHasManuallyAdjusted] = useState(false);
 const [showCardSettings, setShowCardSettings] = useState(false);
 const [updateMessage, setUpdateMessage] = useState("");
+const [serverRules, setServerRules] = useState(false);
 
 
 useEffect(() => {
@@ -122,6 +128,10 @@ useEffect(() => {
     }, 50);
   });
 
+  socket.on("start_game_failed", ({ message }) => {
+    alert(message);
+  });
+
   socket.on("game_state", (data) => {
     localStorage.setItem("playerName", playerName);
     navigate("/game");
@@ -130,6 +140,7 @@ useEffect(() => {
   return () => {
     socket.off("player_list");
     socket.off("start_game");
+    socket.off("start_game_failed");
     socket.off("game_state");
   };
 }, [playerName, room]);
@@ -146,7 +157,11 @@ useEffect(() => {
     };
     console.log("Start Game button clicked with deckSettings", deckSettings);
     localStorage.setItem("prevRoomCode", room)
-    socket.emit("start_game", { room: room, deckSettings });
+    socket.emit("start_game", {
+      room: room,
+      deckSettings,
+      ...(serverRulesAvailable && serverRules ? { serverRules: true } : {}),
+    });
   };
 
 
@@ -215,6 +230,17 @@ useEffect(() => {
       ) : isHost ? (
         <>
           <button onClick={handleStartGame}>Start Game</button>
+
+          {serverRulesAvailable && (
+            <label style={{ display: "block", marginTop: "10px" }}>
+              <input
+                type="checkbox"
+                checked={serverRules}
+                onChange={(e) => setServerRules(e.target.checked)}
+              />
+              {" "}Server rules (beta)
+            </label>
+          )}
 
           <br></br>
 

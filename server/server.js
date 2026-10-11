@@ -3,7 +3,9 @@ const http = require("http");
 const cors = require("cors");
 const path = require("path");
 
+const crypto = require("crypto");
 const { Server } = require("socket.io");
+const { createEngineHost } = require("./engine_host");
 
 const app = express();
 app.use(cors());
@@ -77,7 +79,13 @@ function startServer(port) {
   });
 }
 
-module.exports = { app, server, io, startServer, setResolveSession, resolveSessionViaFlask };
+const engine = createEngineHost();
+
+function stopEngine() {
+  engine.stop();
+}
+
+module.exports = { app, server, io, startServer, setResolveSession, resolveSessionViaFlask, stopEngine };
 if (require.main === module) {
   startServer(PORT);
 }
@@ -85,6 +93,33 @@ if (require.main === module) {
 
 const playersInRoom = {};
 const currentGameState = {};
+// Server-authoritative Games by Room: { gameId, seats: [{ playerId, socketId }] }.
+const gamesInRoom = {};
+
+// Starts a Game in the engine and sends each Seat only its own Player View.
+// The server-rules choice is fixed here for the whole Game.
+async function startServerRulesGame(room, players, deckSettings) {
+  const gameId = crypto.randomUUID();
+  // Seats are bound to Player Identity; until Guests carry one, a Guest's Seat
+  // is bound to the socket it joined with.
+  const seats = players.map((p) => ({ playerId: p.playerId ?? `guest:${p.id}`, socketId: p.id }));
+  try {
+    const views = await engine.createGame({
+      gameId,
+      seats: seats.map((s, i) => ({ player_id: s.playerId, name: players[i].name })),
+      deckSettings,
+      seed: crypto.randomInt(0, 2 ** 47),
+      now: Date.now(),
+    });
+    gamesInRoom[room] = { gameId, seats };
+    seats.forEach((seat, i) => {
+      io.to(seat.socketId).emit("start_game", { players, deckSettings, serverRules: true, playerView: views[i] });
+    });
+  } catch (e) {
+    console.error(`Could not start a server-rules Game in ${room}:`, e);
+    io.to(room).emit("start_game_failed", { message: "The server could not start the Game." });
+  }
+}
 
 io.on("connection", (socket) => {
 
@@ -124,11 +159,15 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("start_game", ({ room, deckSettings }) => {
+  socket.on("start_game", ({ room, deckSettings, serverRules }) => {
 
   deckSettingsInRoom[room] = deckSettings;
 
   const players = playersInRoom[room] || [];
+  if (serverRules === true) {
+    startServerRulesGame(room, players, deckSettings);
+    return;
+  }
   io.to(room).emit("start_game", { players, deckSettings });
   });
 
