@@ -58,6 +58,10 @@ _Avoid_: slot, player index, socket
 The rank-based rating Signed-in Players earn from finished Games: placings are worth a fixed step per place above or below the median. Guests take placings (so they affect Signed-in Players' changes) but have no Elo themselves. A Game's result is recorded at most once. (Not the classical Elo formula, despite the name.)
 _Avoid_: score, points (those are in-game)
 
+**Lost Game**:
+A Game that ended without a result because the server lost its state (the Game engine crashed). Its Seats are told and sent back to the lobby; no Elo is recorded and it cannot be Rejoined.
+_Avoid_: aborted game, cancelled game, abandoned game (that is a Game every Seat left)
+
 **Player View**:
 What one seat is allowed to see of a Game: the shared/public parts plus their own hand, with other players' hands and the deck order hidden. The server only ever sends Player Views, never the full Game.
 _Avoid_: game state (when you mean what a client receives)

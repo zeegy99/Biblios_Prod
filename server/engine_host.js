@@ -14,6 +14,8 @@ function withEnded(views, ended) {
 // exit. Restarts after quick exits in a row back off (doubling up to
 // RESTART_MAX_DELAY_MS), so a missing interpreter or a host that dies on start
 // is not respawned in a tight loop; the first restart is always immediate.
+// Requests deliberately bypass the back-off: a request with no child running
+// spawns one at once, so a new Game can always start right away.
 const QUICK_EXIT_MS = 10 * 1000;
 const RESTART_BASE_DELAY_MS = 1000;
 const RESTART_MAX_DELAY_MS = 30 * 1000;
@@ -23,20 +25,19 @@ const RESTART_MAX_DELAY_MS = 30 * 1000;
 // away (or after the back-off above) so new Games can start.
 function createEngineHost({ onCrash = () => {} } = {}) {
   let child = null;
+  // The requests written to `child` and not yet answered, by id. Each child
+  // has its own map, so a child dying fails only the requests it was sent.
+  let pending = null;
   let nextId = 1;
-  const pending = new Map();
   let quickExitsInARow = 0;
   let restartTimer = null;
-
-  function failAll(error) {
-    for (const { reject } of pending.values()) reject(error);
-    pending.clear();
-  }
 
   function start() {
     clearTimeout(restartTimer);
     restartTimer = null;
     const spawnedAt = Date.now();
+    const requests = new Map();
+    pending = requests;
     child = spawn(PYTHON, ["-u", "-m", "engine.host"], {
       cwd: __dirname,
       stdio: ["pipe", "pipe", "inherit"],
@@ -49,9 +50,9 @@ function createEngineHost({ onCrash = () => {} } = {}) {
         console.error("Engine sent a malformed line:", line);
         return;
       }
-      const request = pending.get(response.id);
+      const request = requests.get(response.id);
       if (!request) return;
-      pending.delete(response.id);
+      requests.delete(response.id);
       if (response.ok) request.resolve(response);
       else request.reject(new Error(response.error));
     });
@@ -63,9 +64,11 @@ function createEngineHost({ onCrash = () => {} } = {}) {
     function onGone(error) {
       if (gone) return;
       gone = true;
-      failAll(error);
+      for (const { reject } of requests.values()) reject(error);
+      requests.clear();
       if (child !== started) return; // stop() asked for this
       child = null;
+      pending = null;
       console.error(`${error.message}; restarting it.`);
       quickExitsInARow = Date.now() - spawnedAt < QUICK_EXIT_MS ? quickExitsInARow + 1 : 0;
       const delay = quickExitsInARow <= 1
@@ -75,11 +78,18 @@ function createEngineHost({ onCrash = () => {} } = {}) {
         if (!child) start();
       }, delay);
       restartTimer.unref();
-      onCrash(error);
+      try {
+        onCrash(error);
+      } catch (e) {
+        console.error("Engine crash handling failed:", e);
+      }
     }
+    // `error` also fires when signalling a live child fails; only a child
+    // that never spawned (no pid) is gone because of it, otherwise its
+    // `exit` still comes.
     child.on("error", (e) => {
       console.error("Engine process error:", e);
-      onGone(new Error(`Engine process error: ${e.message}`));
+      if (started.pid === undefined) onGone(new Error(`Engine process error: ${e.message}`));
     });
     child.on("exit", (code, signal) => {
       onGone(new Error(`Engine exited (code ${code}, signal ${signal})`));
@@ -128,6 +138,7 @@ function createEngineHost({ onCrash = () => {} } = {}) {
         child.stdin.end();
         child.kill();
         child = null;
+        pending = null;
       }
     },
   };

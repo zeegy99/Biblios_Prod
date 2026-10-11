@@ -1,10 +1,12 @@
-const { server, startServer, setResolveSession, setReportResult, stopEngine, enginePid } = require("../server.js");
+const { server, io, startServer, setResolveSession, setReportResult, stopEngine, enginePid } = require("../server.js");
 const ioClient = require("socket.io-client");
 const TEST_PORT = 4006;
 
 const DECK_SETTINGS = { gold: { 1: 5, 2: 5, 3: 5 }, resource: { 1: 5, 2: 4, 3: 2, 4: 2 } };
 
 const reports = [];
+// When set, the next Move the server receives kills the engine child.
+let killOnNextMove = false;
 
 beforeAll((done) => {
   setResolveSession(async (cookieHeader) => {
@@ -16,6 +18,16 @@ beforeAll((done) => {
   });
   setReportResult(async (report) => {
     reports.push(report);
+  });
+  // Registered after the server's own handlers, so this runs in the same tick
+  // right after the server has written the Move to the engine: the Move is
+  // then certainly in flight when the engine dies.
+  io.on("connection", (socket) => {
+    socket.on("move", () => {
+      if (!killOnNextMove) return;
+      killOnNextMove = false;
+      process.kill(enginePid());
+    });
   });
   startServer(TEST_PORT);
   done();
@@ -40,6 +52,18 @@ function once(socket, event) {
 // Resolves once `condition()` holds, checking every few milliseconds.
 async function until(condition) {
   while (!condition()) await new Promise((resolve) => setTimeout(resolve, 10));
+}
+
+// Lets any report a lost Game might (wrongly) trigger reach the reporter.
+function settle() {
+  return new Promise((resolve) => setTimeout(resolve, 200));
+}
+
+// Sends `move` from `clients[seat]` and resolves to every Seat's next Player View.
+async function moveAndWait(clients, room, seat, move) {
+  const next = clients.map(({ socket }) => once(socket, "player_view"));
+  clients[seat].socket.emit("move", { room, move });
+  return Promise.all(next);
 }
 
 // Joins every client to `room` in order, waiting until all of them are listed.
@@ -90,6 +114,7 @@ test("when the engine dies every Seat is told its Game was lost, with no result 
 
     const told = await killEngine(clients);
     told.forEach((payload) => expect(payload).toEqual({ room, reason: expect.any(String) }));
+    await settle();
     expect(reports).toEqual([]);
   } finally {
     clients.forEach(({ socket }) => socket.disconnect());
@@ -107,6 +132,10 @@ test("the engine is restarted by itself, and a new flagged Game starts in a fres
 
     const views = await startFlaggedGame("crash-after", next);
     expect(views.map((v) => v.you)).toEqual([0, 1, 2]);
+    // The restarted engine holds the new Game: its Moves are played.
+    const after = await moveAndWait(next, "crash-after", 0, views[0].legal_moves[0]);
+    expect(after[0].you).toBe(0);
+    await settle();
     expect(reports).toEqual([]);
   } finally {
     [...clients, ...next].forEach(({ socket }) => socket.disconnect());
@@ -146,24 +175,23 @@ test("a Rejoin into a lost Game gets no Player View, saying the Game was lost", 
   }
 });
 
-test("a Move in flight when the engine dies leaves no Game behind", async () => {
+test("a Move in flight when the engine dies is rejected because the Game was lost", async () => {
   const clients = threeSeats();
   try {
     const room = "crash-in-flight";
     const views = await startFlaggedGame(room, clients);
 
-    // The Move may be answered before the crash or rejected by it; either
-    // way the Game is then lost and later Moves are refused.
-    const answered = new Promise((resolve) => {
-      clients[0].socket.once("player_view", resolve);
-      clients[0].socket.once("move_rejected", resolve);
-    });
+    const lost = clients.map(({ socket }) => once(socket, "game_lost"));
+    const rejected = once(clients[0].socket, "move_rejected");
+    killOnNextMove = true;
     clients[0].socket.emit("move", { room, move: views[0].legal_moves[0] });
-    await Promise.all([killEngine(clients), answered]);
 
-    const rejected = once(clients[1].socket, "move_rejected");
-    clients[1].socket.emit("move", { room, move: { type: "take", card: 0 } });
     expect((await rejected).reason).toMatch(/lost/);
+    await Promise.all(lost);
+    const again = once(clients[1].socket, "move_rejected");
+    clients[1].socket.emit("move", { room, move: { type: "take", card: 0 } });
+    expect((await again).reason).toMatch(/lost/);
+    await settle();
     expect(reports).toEqual([]);
   } finally {
     clients.forEach(({ socket }) => socket.disconnect());
