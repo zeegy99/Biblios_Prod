@@ -523,7 +523,7 @@ def test_illegal_takes_are_rejected():
     for card in [2, -1, None, "0", 0.0, True, [0]]:
         assert "shared pool" in _rejected(game, 1, {"type": "take", "card": card})
     assert "shared pool" in _rejected(game, 1, {"type": "take"})
-    _rejected(game, 9, {"type": "take", "card": 0})
+    assert "Seat" in _rejected(game, 9, {"type": "take", "card": 0})
     assert "donation" in _rejected(game, 1, {"type": "keep"})
 
 
@@ -616,6 +616,8 @@ def test_a_lone_seat_with_no_one_to_take_goes_straight_on_to_its_next_donation()
         game = create_game(SEATS[:1], DECK_SETTINGS, seed=seed, now=NOW)
         if not player_view(game, 0)["donation"]["special"]:
             break
+    else:
+        raise AssertionError("no such seed")
     deck_size = player_view(game, 0)["deck_size"]
     # One Seat draws two cards and donates none of them.
     game = _apply(_apply(game, 0, {"type": "keep"}), 0, {"type": "discard"})

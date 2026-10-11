@@ -88,7 +88,10 @@ test("a flagged start gives every Seat a Player View with only its own hand", as
       expect(view.donation.card).toBeUndefined();
       expect(view.donation.cards_count).toBe(4);
       expect(view.legal_moves).toEqual([]);
-      expect(allCardsIn(view)).toEqual([]);
+      expect(view.hand).toEqual([]);
+      view.seats.forEach((s) => expect(s.hand).toBeUndefined());
+      // A special card being played is face up for every Seat (#49); nothing else drawn is.
+      expect(allCardsIn(view)).toEqual(view.donation.special ? [view.donation.special] : []);
     });
 
     // Every Seat sees the same server-rolled dice.
@@ -168,14 +171,12 @@ test("a legal Move sends every Seat its new Player View; a rejected one reaches 
     });
 
     // Bob is not the donor: only Bob hears about it, and nobody's view changes.
-    const rejections = clients.map(({ socket }) => collect(socket, "move_rejected"));
+    const others = [0, 2].map((i) => collect(clients[i].socket, "move_rejected"));
     const views2 = clients.map(({ socket }) => collect(socket, "player_view"));
+    const bobRej = once(clients[1].socket, "move_rejected");
     clients[1].socket.emit("move", { room, move: { type: "keep" } });
-    const [zegRej, bobRej, guestRej] = await Promise.all(rejections);
-    expect(bobRej).toHaveLength(1);
-    expect(bobRej[0].reason).toMatch(/turn/);
-    expect(zegRej).toEqual([]);
-    expect(guestRej).toEqual([]);
+    expect((await bobRej).reason).toMatch(/turn/);
+    (await Promise.all(others)).forEach((got) => expect(got).toEqual([]));
     (await Promise.all(views2)).forEach((got) => expect(got).toEqual([]));
   } finally {
     clients.forEach(({ socket }) => socket.disconnect());
@@ -208,13 +209,12 @@ test("playing a special card changes the dice in every Seat's Player View; an il
     }
 
     // A die that does not exist: only the donor hears, nobody's view changes.
-    const rejections = clients.map(({ socket }) => collect(socket, "move_rejected"));
+    const others = [1, 2].map((i) => collect(clients[i].socket, "move_rejected"));
     const quiet = clients.map(({ socket }) => collect(socket, "player_view"));
+    const zegRej = once(clients[0].socket, "move_rejected");
     clients[0].socket.emit("move", { room, move: { type: "modify_die", die: 9 } });
-    const [zegRej, bobRej, guestRej] = await Promise.all(rejections);
-    expect(zegRej).toHaveLength(1);
-    expect(bobRej).toEqual([]);
-    expect(guestRej).toEqual([]);
+    expect((await zegRej).reason).toMatch(/die/);
+    (await Promise.all(others)).forEach((got) => expect(got).toEqual([]));
     (await Promise.all(quiet)).forEach((got) => expect(got).toEqual([]));
 
     const before = views[0].dice[0].value;
@@ -241,6 +241,7 @@ test("taking from the shared pool reaches every Seat; a take out of turn reaches
     let view = (await startFlaggedGame(room, clients))[0];
     // The donor plays its whole turn, always making its first legal Move.
     while (view.phase === "donation") {
+      expect(view.legal_moves.length).toBeGreaterThan(0);
       const next = clients.map(({ socket }) => once(socket, "player_view"));
       clients[0].socket.emit("move", { room, move: view.legal_moves[0] });
       view = (await Promise.all(next))[0];
@@ -251,14 +252,12 @@ test("taking from the shared pool reaches every Seat; a take out of turn reaches
     expect(pool).toHaveLength(2);
 
     // The Guest's turn has not come: only the Guest hears, nobody's view changes.
-    const rejections = clients.map(({ socket }) => collect(socket, "move_rejected"));
+    const others = [0, 1].map((i) => collect(clients[i].socket, "move_rejected"));
     const quiet = clients.map(({ socket }) => collect(socket, "player_view"));
+    const guestRej = once(clients[2].socket, "move_rejected");
     clients[2].socket.emit("move", { room, move: { type: "take", card: 0 } });
-    const [zegRej, bobRej, guestRej] = await Promise.all(rejections);
-    expect(guestRej).toHaveLength(1);
-    expect(guestRej[0].reason).toMatch(/turn/);
-    expect(zegRej).toEqual([]);
-    expect(bobRej).toEqual([]);
+    expect((await guestRej).reason).toMatch(/turn/);
+    (await Promise.all(others)).forEach((got) => expect(got).toEqual([]));
     (await Promise.all(quiet)).forEach((got) => expect(got).toEqual([]));
 
     const updates = clients.map(({ socket }) => once(socket, "player_view"));

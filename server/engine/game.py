@@ -169,7 +169,7 @@ def _special_rejection(game, move):
     if choosing:
         return "Choose a direction (increase or decrease) first"
     die = move.get("die")
-    if not isinstance(die, int) or isinstance(die, bool) or not 0 <= die < len(game["dice"]):
+    if not _is_index(die, len(game["dice"])):
         return "There is no such die"
     if die in donation["dice_chosen"]:
         return "You have already changed that die with this card"
@@ -184,7 +184,7 @@ def _selection_rejection(game, seat, move):
     if seat != game["current_seat"]:
         return "It is not your turn to take a card"
     card = move.get("card")
-    if not isinstance(card, int) or isinstance(card, bool) or not 0 <= card < len(game["shared_pool"]):
+    if not _is_index(card, len(game["shared_pool"])):
         return "There is no such card in the shared pool"
     return None
 
@@ -214,7 +214,12 @@ def _pass_selection_to(game, seat):
 def _finish_shared_selection(game):
     """As the React game manager's shared selection onFinish: the shared pool
     is cleared and the Seat after the last donor starts a donation turn, or,
-    if the deck no longer holds a full draw, the Game goes to the auction."""
+    if the deck no longer holds a full draw, the Game goes to the auction.
+
+    Going to the auction, current_seat is left at last_donor + 1 (React's
+    auctionStarterIndex). That is NOT the auction's bidding order: React's
+    auction rotates the Seats by auctionTurnOffset, which starts at 0. #51
+    decides which one starts the bidding."""
     game["shared_pool"] = []
     game["current_seat"] = (game["last_donor"] + 1) % len(game["seats"])
     if len(game["deck"]) < _cards_to_draw(game):
@@ -223,6 +228,12 @@ def _finish_shared_selection(game):
         return
     game["phase"] = "donation"
     _start_donation_turn(game)
+
+
+def _is_index(value, size):
+    """Whether a Move field `value` is a real index into a list of `size`
+    (an int, not a bool, in range), so malformed values never raise."""
+    return isinstance(value, int) and not isinstance(value, bool) and 0 <= value < size
 
 
 def _play_special(game, move):
