@@ -5,6 +5,11 @@ const readline = require("readline");
 // responses are JSON lines matched by id; see engine/host.py for the ops.
 const PYTHON = process.env.ENGINE_PYTHON || (process.platform === "win32" ? "python" : "python3");
 
+// { views }, plus `ended` only when the engine said the Game is over.
+function withEnded(views, ended) {
+  return ended ? { views, ended } : { views };
+}
+
 function createEngineHost() {
   let child = null;
   let nextId = 1;
@@ -64,7 +69,7 @@ function createEngineHost() {
         seed,
         now,
       });
-      return ended ? { views, ended } : { views };
+      return withEnded(views, ended);
     },
     // Resolves to { views } (one Player View per Seat) if the Move was applied,
     // plus `ended` if it ended the Game (reported once: the engine then
@@ -72,7 +77,7 @@ function createEngineHost() {
     async applyMove({ gameId, seat, move }) {
       const { views, rejected, ended } = await request("apply_move", { game_id: gameId, seat, move });
       if (rejected) return { rejected };
-      return ended ? { views, ended } : { views };
+      return withEnded(views, ended);
     },
     stop() {
       if (child) {

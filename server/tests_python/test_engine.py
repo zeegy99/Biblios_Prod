@@ -1172,7 +1172,9 @@ def test_when_the_auction_ends_the_game_is_scored_and_every_seat_sees_the_same_r
         game = _all_pass(game)
     views = views_for(game)
     # Each Seat still sees only its own hand; together they are the Game's hands.
-    hands = [{"name": v["seats"][v["you"]]["name"], "gold": v["seats"][v["you"]]["gold"], "hand": v["hand"]} for v in views]
+    hands = [
+        {**SEATS[v["you"]], "gold": v["seats"][v["you"]]["gold"], "hand": v["hand"]} for v in views
+    ]
     expected = score(hands, views[0]["dice"])
     for view in views:
         assert view["phase"] == "results"
@@ -1202,3 +1204,18 @@ def test_a_finished_game_gives_its_placings_by_player_identity():
     # Player Identities stay out of the Player Views.
     for view in views_for(game):
         assert "user:1" not in json.dumps(view)
+
+
+def test_a_guest_takes_its_place_but_has_no_elo_change():
+    # Guests have no Elo (CONTEXT.md), but still push the others' changes.
+    seats = [
+        {"player_id": "guest:abc", "name": "Ann", "gold": 0, "hand": [_card("Art", 1)]},
+        {"player_id": "user:1", "name": "Zeg", "gold": 0, "hand": []},
+        {"player_id": "user:2", "name": "Bob", "gold": 0, "hand": []},
+    ]
+    results = score(seats, _rolled(Art=2))
+    assert [(s["name"], s["rank"], s["elo"]) for s in results["standings"]] == [
+        ("Ann", 1, None), ("Zeg", 2, 0), ("Bob", 3, -10),
+    ]
+    assert results["log"][-1] == "Final Rankings: Ann: #1, elo: —, Zeg: #2, elo: 0, Bob: #3, elo: -10"
+    assert "guest:abc" not in json.dumps(results)

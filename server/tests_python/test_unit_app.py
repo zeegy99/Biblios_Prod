@@ -388,6 +388,9 @@ class Test_game_result:
         {"game_id": "g", "placings": [{"player_id": "user:7", "rank": 2}]},
         {"game_id": "g", "placings": [{"player_id": "user:7", "rank": True}]},
         {"game_id": "g", "placings": ["user:7"]},
+        {"game_id": "g", "placings": [{"player_id": "user:7", "rank": 1}, {"player_id": "user:7", "rank": 2}]},
+        {"game_id": "g", "placings": [{"player_id": 7, "rank": 1}]},
+        {"game_id": "g", "placings": [{"rank": 1}]},
     ])
     def test_malformed_report_returns_400_without_touching_db(self, client, mocker, body):
         connect = mocker.patch("app.psycopg2.connect")
@@ -404,6 +407,7 @@ class Test_game_result:
         resp = self.post(client, {"game_id": "g", "placings": self.PLACINGS})
 
         assert resp.status_code == 500
-        assert resp.get_json() == {"error": "db down"}
+        # The database's own message is logged, not sent back.
+        assert resp.get_json() == {"error": "Could not record the Game result"}
         conn.commit.assert_not_called()
         conn.close.assert_called_once()

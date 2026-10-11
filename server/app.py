@@ -303,7 +303,7 @@ def game_result_secret_error():
 
 
 @app.route("/api/internal/game_result", methods=["POST"])
-def game_result():
+def record_game_result_route():
     """Node reports a finished Game: {game_id, placings: [{player_id, rank}]}.
     Applies the Elo formula (the engine's, the same one every Seat was
     shown) to each Signed-in Player ("user:<id>") by place; Guests take
@@ -319,8 +319,10 @@ def game_result():
 
     try:
         return record_game_result(game_id, placings)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        # Logged here; the caller only learns that it failed (and may retry).
+        app.logger.exception("Could not record the result of Game %s", game_id)
+        return jsonify({"error": "Could not record the Game result"}), 500
 
 
 def record_game_result(game_id, placings):
@@ -338,7 +340,7 @@ def record_game_result(game_id, placings):
             )
             if cursor.fetchone() is None:
                 return jsonify({"recorded": False}), 200
-            for placing in sorted(placings, key=lambda p: p["rank"]):
+            for placing in placings:
                 user_id = signed_in_user_id(placing.get("player_id"))
                 if user_id is None:
                     continue
@@ -357,10 +359,12 @@ def record_game_result(game_id, placings):
 
 def valid_placings(placings):
     """Whether `placings` is a list of {player_id, rank} ranking its Seats
-    1..n, each rank once."""
+    1..n, each rank once, each Player Identity (a string) once."""
     if not isinstance(placings, list) or not placings:
         return False
-    if not all(isinstance(p, dict) and type(p.get("rank")) is int for p in placings):
+    if not all(isinstance(p, dict) and type(p.get("rank")) is int and isinstance(p.get("player_id"), str) for p in placings):
+        return False
+    if len({p["player_id"] for p in placings}) != len(placings):
         return False
     return sorted(p["rank"] for p in placings) == list(range(1, len(placings) + 1))
 

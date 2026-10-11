@@ -683,9 +683,10 @@ ELO_STEP = 10
 
 def score(seats, dice):
     """Score a finished Game as the React scoring phase does, die by die in
-    dice order. `seats` are [{name, hand, gold}] in Seat order. Returns the
-    log every Seat sees (React's lines) and the standings in rank order:
-    [{seat, name, points, gold, rank, elo}]."""
+    dice order. `seats` are [{name, hand, gold, player_id}] in Seat order.
+    Returns the log every Seat sees (React's lines) and the standings in rank
+    order: [{seat, name, points, gold, rank, elo}], where a Guest's elo is
+    None. Player Identities are not in the result."""
     log = []
     points = [0] * len(seats)
     for die in dice:
@@ -717,7 +718,7 @@ def score(seats, dice):
         log.append(f"Tie-breakers also tied on {resource}. {split} point(s) to each: {names}")
     order = sorted(range(len(seats)), key=lambda i: (-points[i], -seats[i]["gold"]))
     standings = [
-        {"seat": i, "name": seats[i]["name"], "points": points[i], "gold": seats[i]["gold"], "rank": r + 1, "elo": elo_change(r, len(seats))}
+        {"seat": i, "name": seats[i]["name"], "points": points[i], "gold": seats[i]["gold"], "rank": r + 1, "elo": None if _is_guest(seats[i]) else elo_change(r, len(seats))}
         for r, i in enumerate(order)
     ]
     # As React's finishScoring: the most points win, then the most gold.
@@ -729,8 +730,14 @@ def score(seats, dice):
         log.append(f"🏆 {standings[0]['name']} wins by gold tiebreaker!")
     else:
         log.append("🏆 Tie between: " + ", ".join(s["name"] for s in winners))
-    log.append("Final Rankings: " + ", ".join(f"{s['name']}: #{s['rank']}, elo: {s['elo']}" for s in standings))
+    log.append("Final Rankings: " + ", ".join(f"{s['name']}: #{s['rank']}, elo: {'—' if s['elo'] is None else s['elo']}" for s in standings))
     return {"log": log, "standings": standings}
+
+
+def _is_guest(seat):
+    """Whether the Seat is a Guest's, who has no Elo (CONTEXT.md) though it
+    still takes its place."""
+    return str(seat.get("player_id", "")).startswith("guest:")
 
 
 def elo_change(index, n):

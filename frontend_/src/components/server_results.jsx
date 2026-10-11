@@ -44,12 +44,12 @@ const ServerResults = ({ view }) => {
               <td style={cellStyle}>{s.name}</td>
               <td style={cellStyle}>{s.points}</td>
               <td style={cellStyle}>{s.gold}</td>
-              <td style={cellStyle}>{s.elo > 0 ? `+${s.elo}` : s.elo}</td>
+              <td style={cellStyle}>{s.elo === null ? "—" : s.elo > 0 ? `+${s.elo}` : s.elo}</td>
             </tr>
           ))}
         </tbody>
       </table>
-      <p style={{ fontSize: "0.9em", color: "gray" }}>Elo changes apply to signed-in players only.</p>
+      <p style={{ fontSize: "0.9em", color: "gray" }}>Guests have no Elo (—), but their places count.</p>
 
       <button onClick={goToHome}>🔄 Return to Home</button>
     </div>

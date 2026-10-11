@@ -6,6 +6,7 @@ const path = require("path");
 const crypto = require("crypto");
 const { Server } = require("socket.io");
 const { createEngineHost } = require("./engine_host");
+const { createFlaskReporter } = require("./result_reporter");
 
 const app = express();
 app.use(cors());
@@ -35,7 +36,6 @@ const io = new Server(server, {
 const PORT = process.env.PORT || 3001;
 const AUTH_URL = process.env.AUTH_URL || "http://localhost:5000";
 const AUTH_TIMEOUT_MS = 3000;
-const REPORT_TIMEOUT_MS = 10000;
 
 // Asks Flask who owns the Session in this cookie header (ADR-0001).
 // Returns { user_id, username } for a valid Session, otherwise null.
@@ -61,28 +61,11 @@ function setResolveSession(fn) {
   resolveSession = fn;
 }
 
-// Reports a finished Game ({ gameId, placings: [{ player_id, rank }] }) to
-// Flask's internal results endpoint, which applies Elo once per Game id. It
-// authenticates with the shared secret GAME_RESULT_SECRET; without it nothing
-// is sent. A failure is logged and never reaches the Game.
-async function reportResultToFlask({ gameId, placings }, authUrl = AUTH_URL) {
-  const secret = process.env.GAME_RESULT_SECRET;
-  if (!secret) {
-    console.error(`GAME_RESULT_SECRET is not set: the result of Game ${gameId} was not reported.`);
-    return;
-  }
-  try {
-    const res = await fetch(`${authUrl}/api/internal/game_result`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Game-Result-Secret": secret },
-      body: JSON.stringify({ game_id: gameId, placings }),
-      signal: AbortSignal.timeout(REPORT_TIMEOUT_MS),
-    });
-    if (!res.ok) console.error(`Flask refused the result of Game ${gameId}: HTTP ${res.status}`);
-  } catch (e) {
-    console.error(`Could not report the result of Game ${gameId}:`, e);
-  }
-}
+// Reports each finished Game to Flask, which applies Elo (see result_reporter.js).
+const reportResultToFlask = createFlaskReporter({
+  url: `${AUTH_URL}/api/internal/game_result`,
+  secret: () => process.env.GAME_RESULT_SECRET,
+});
 
 let reportResult = reportResultToFlask;
 

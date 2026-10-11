@@ -136,6 +136,11 @@ async function startFlaggedGame(room, clients, deckSettings = DECK_SETTINGS) {
   return (await Promise.all(starts)).map((p) => p.playerView);
 }
 
+// Resolves once `condition()` holds, checking every few milliseconds.
+async function until(condition) {
+  while (!condition()) await new Promise((resolve) => setTimeout(resolve, 10));
+}
+
 // Resolves to the events `socket` received within `ms`.
 function collect(socket, event, ms = 300) {
   const got = [];
@@ -408,18 +413,43 @@ test("a finished Game is scored for every Seat and reported once with its placin
     });
     const { standings } = views[0].results;
     expect(standings.map((s) => s.rank)).toEqual([1, 2, 3]);
-    expect(standings.map((s) => s.elo)).toEqual([10, 0, -10]);
+    // The Guest (Seat 2) takes its place but has no Elo.
+    expect(standings.map((s) => s.elo)).toEqual([10, 0, -10].map((elo, i) => (standings[i].seat === 2 ? null : elo)));
 
-    // A Move after the end changes nothing and reports nothing more.
+    // The report arrives; a Move after the end is refused and, given time
+    // to settle, reports nothing more.
+    await until(() => ours().length > 0);
     const rej = once(clients[0].socket, "move_rejected");
     clients[0].socket.emit("move", { room, move: { type: "pass" } });
     await rej;
+    await new Promise((resolve) => setTimeout(resolve, 200));
 
     const ids = ["user:1", "user:2", guestId];
     expect(ours()).toHaveLength(1);
     const [report] = ours();
     expect(typeof report.gameId).toBe("string");
     expect(report.placings).toEqual(standings.map((s) => ({ player_id: ids[s.seat], rank: s.rank })));
+  } finally {
+    clients.forEach(({ socket }) => socket.disconnect());
+  }
+});
+
+test("a Game over as soon as it starts (an empty deck) is reported once", async () => {
+  const clients = [
+    { socket: connectAs("zeg"), name: "Zeg" },
+    { socket: connectAs(null), name: "Guest" },
+  ];
+  try {
+    // Only the special cards: the first draw comes up short with nothing discarded.
+    const empty = { gold: { 1: 0, 2: 0, 3: 0 }, resource: { 1: 0, 2: 0, 3: 0, 4: 0 } };
+    const views = await startFlaggedGame("server-rules-empty", clients, empty);
+    views.forEach((view) => expect(view.phase).toBe("results"));
+    const guestId = `guest:${clients[1].socket.id}`;
+    const ours = () => reports.filter((r) => r.placings.some((p) => p.player_id === guestId));
+    await until(() => ours().length > 0);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(ours()).toHaveLength(1);
+    expect(ours()[0].placings.map((p) => p.player_id).sort()).toEqual([guestId, "user:1"].sort());
   } finally {
     clients.forEach(({ socket }) => socket.disconnect());
   }
