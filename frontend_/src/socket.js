@@ -31,8 +31,9 @@ export function reconnectSocket() {
 }
 
 // The Room this socket holds a seat in, or null. The socket server gives a seat
-// on join_game / rejoin_game and takes it away on leave_game or when the
-// connection drops, so we follow exactly those.
+// on join_game / rejoin_game (unless it answers rejoin_failed) and takes it away
+// on leave_game. When the connection drops the server keeps the seat for a
+// Rejoin, but this socket no longer holds it.
 let currentRoom = null;
 const roomListeners = new Set();
 
@@ -51,6 +52,10 @@ socket.onAnyOutgoing((event, payload) => {
 });
 
 socket.on("disconnect", () => {
+  setCurrentRoom(null);
+});
+
+socket.on("rejoin_failed", () => {
   setCurrentRoom(null);
 });
 

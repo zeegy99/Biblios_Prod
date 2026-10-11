@@ -1,6 +1,7 @@
 
-import React, { useState } from "react";
-import { useParams } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import socket from "../socket";
 import GameRunner from "./game_manager";
 import ChatBox from "./chatbox";
 import "./game_layout.css";
@@ -10,6 +11,18 @@ const Play = ({ playerName, playerList }) => {
   const [messages, setMessages] = useState([]);
 
   const { room } = useParams();
+  const navigate = useNavigate();
+
+  // A Rejoin the server couldn't match to a seat: there is no game to show.
+  useEffect(() => {
+    const handleRejoinFailed = () => {
+      alert("No game to rejoin.");
+      navigate("/");
+    };
+    socket.on("rejoin_failed", handleRejoinFailed);
+    return () => socket.off("rejoin_failed", handleRejoinFailed);
+  }, [navigate]);
+
   return (
     <div className="game-container">
       <div className="game-main">
