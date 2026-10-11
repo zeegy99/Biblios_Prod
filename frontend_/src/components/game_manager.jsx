@@ -108,6 +108,22 @@ const GameRunner = ({ playerName }) => {
   const navigate = useNavigate();
    const [rulesPage, setRulesPage] = useState(false);
 
+  // The server lost this Room's Game (its engine crashed): forget the
+  // server-rules state and go back to the lobby.
+  useEffect(() => {
+    const onGameLost = ({ room: lostRoom, reason }) => {
+      if (lostRoom !== room) return;
+      setPlayerView(null);
+      setMoveRejection(null);
+      sessionStorage.removeItem("start_game_payload");
+      localStorage.removeItem("last_game_state");
+      alert(reason);
+      navigate("/lobby");
+    };
+    socket.on("game_lost", onGameLost);
+    return () => socket.off("game_lost", onGameLost);
+  }, [room, navigate]);
+
   const toggleRulesPage = () => {
     setRulesPage((prev) => {
   
