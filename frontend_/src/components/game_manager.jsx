@@ -8,6 +8,7 @@ import SharedPoolSelection from "./shared_selection";
 import ServerDonationPhase from "./server_donation_phase";
 import ServerSharedSelection from "./server_shared_selection";
 import ServerAuctionPhase from "./server_auction_phase";
+import ServerResults from "./server_results";
 import { buildDeck } from "./deck.jsx";
 import { rollDice } from "../utils/setup";
 import socket from "../socket";
@@ -428,9 +429,8 @@ useEffect(() => {
         {playerView.phase === "donation" && <ServerDonationPhase view={playerView} />}
         {playerView.phase === "shared_selection" && <ServerSharedSelection view={playerView} />}
         {playerView.phase === "auction" && <ServerAuctionPhase view={playerView} />}
-        {playerView.phase === "scoring" && (
-          <p style={{ textAlign: "center" }}>The auction is over: scoring comes next.</p>
-        )}
+        {/* The server scores the Game and reports Elo: never ScoringPhase here. */}
+        {playerView.phase === "results" && <ServerResults view={playerView} />}
         <div style={{ marginTop: "30px", textAlign: "center" }}>
           <h4>Your Hand ↓</h4>
           <ul style={{ display: "flex", justifyContent: "center", listStyle: "none", padding: 0, gap: "10px" }}>
