@@ -320,6 +320,25 @@ class Test_send_keybinds:
         assert resp.status_code == 401
         assert self._saved_keybinds() == []
 
+    @pytest.mark.parametrize("bad_key", ["NOT_A_KEYBIND", "x = 'y', username"])
+    def test_unknown_key_on_insert_returns_400_and_saves_nothing(self, client, signin_user, bad_key):
+        sign_in(client, signin_user)
+
+        resp = client.post("/api/send_keybinds", json={"settings": {"KEEP_CARD": ["X"], bad_key: ["Q"]}})
+
+        assert resp.status_code == 400
+        assert self._saved_keybinds() == []
+
+    @pytest.mark.parametrize("bad_key", ["NOT_A_KEYBIND", "x = 'y', username"])
+    def test_unknown_key_on_update_returns_400_and_changes_nothing(self, client, signin_user, bad_key):
+        sign_in(client, signin_user)
+        client.post("/api/send_keybinds", json={"settings": self.SETTINGS})
+
+        resp = client.post("/api/send_keybinds", json={"settings": {"DONATE_CARD": ["Y"], bad_key: ["Q"]}})
+
+        assert resp.status_code == 400
+        assert self._saved_keybinds() == [("signin_user", "Z", "X")]
+
 def session_ids_of(user_id):
     conn = psycopg2.connect(os.environ["DATABASE_URL"])
     cur = conn.cursor()
