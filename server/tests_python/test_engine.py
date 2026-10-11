@@ -473,3 +473,163 @@ def test_special_moves_without_a_special_card_are_rejected():
     game = _plain_game()
     assert "special" in _rejected(game, 0, {"type": "modify_die", "die": 0})
     assert "special" in _rejected(game, 0, {"type": "choose_direction", "direction": "plus"})
+
+
+# --- Shared selection (#50) ---------------------------------------------------
+
+
+def _finish_donation(game, seats=SEATS):
+    """Play the current donor's whole turn: any special cards on the first
+    legal dice, then keep, discard and donate the rest."""
+    donor = player_view(game, 0)["current_seat"]
+    while player_view(game, donor)["phase"] == "donation":
+        moves = player_view(game, donor)["legal_moves"]
+        types = [m["type"] for m in moves]
+        move = next((m for m in moves if m["type"] in ("choose_direction", "modify_die")), None)
+        if move is None:
+            move = {"type": "keep" if "keep" in types else "discard" if "discard" in types else "donate"}
+        game = _apply(game, donor, move)
+    return game
+
+
+def _selection_game():
+    """A Game in shared selection after the first donor's turn."""
+    return _finish_donation(_plain_game())
+
+
+def test_the_selecting_seat_takes_a_card_from_the_shared_pool_into_its_hand():
+    game = _selection_game()
+    pool = player_view(game, 1)["shared_pool"]
+    game = _apply(game, 1, {"type": "take", "card": 1})
+    views = views_for(game)
+    assert views[1]["hand"] == [pool[1]]
+    for view in views:
+        assert view["shared_pool"] == [pool[0]]
+        assert view["current_seat"] == 2
+        assert view["phase"] == "shared_selection"
+        assert [s["hand_size"] for s in view["seats"]] == [1, 1, 0]
+
+
+def test_only_the_selecting_seat_may_take_and_any_pool_card_is_offered():
+    views = views_for(_selection_game())
+    assert views[1]["legal_moves"] == [{"type": "take", "card": 0}, {"type": "take", "card": 1}]
+    assert views[0]["legal_moves"] == [] and views[2]["legal_moves"] == []
+
+
+def test_illegal_takes_are_rejected():
+    game = _selection_game()
+    assert "turn" in _rejected(game, 2, {"type": "take", "card": 0})
+    assert "turn" in _rejected(game, 0, {"type": "take", "card": 0})
+    for card in [2, -1, None, "0", 0.0, True, [0]]:
+        assert "shared pool" in _rejected(game, 1, {"type": "take", "card": card})
+    assert "shared pool" in _rejected(game, 1, {"type": "take"})
+    _rejected(game, 9, {"type": "take", "card": 0})
+    assert "donation" in _rejected(game, 1, {"type": "keep"})
+
+
+def test_taking_a_gold_card_adds_its_value_to_the_takers_gold():
+    for seed in range(500):
+        game = create_game(SEATS, DECK_SETTINGS, seed=seed, now=NOW)
+        if player_view(game, 0)["donation"]["special"]:
+            continue
+        game = _finish_donation(game)
+        pool = player_view(game, 1)["shared_pool"]
+        gold = [i for i, c in enumerate(pool) if c["type"] == "Gold"]
+        if gold:
+            break
+    else:
+        raise AssertionError("no such seed")
+    game = _apply(game, 1, {"type": "take", "card": gold[0]})
+    assert player_view(game, 0)["seats"][1]["gold"] == pool[gold[0]]["value"]
+
+
+def test_a_take_outside_shared_selection_is_rejected():
+    assert "shared selection" in _rejected(_plain_game(), 0, {"type": "take", "card": 0})
+
+
+def test_when_every_other_seat_has_taken_the_next_seat_starts_donating():
+    game = _selection_game()
+    deck_size = player_view(game, 0)["deck_size"]
+    game = _apply(game, 1, {"type": "take", "card": 0})
+    game = _apply(game, 2, {"type": "take", "card": 0})
+    views = views_for(game)
+    for view in views:
+        assert view["phase"] == "donation"
+        assert view["current_seat"] == 1
+        assert view["shared_pool"] == []
+        assert view["donation"]["donor"] == 1
+        assert view["deck_size"] < deck_size
+        assert [s["hand_size"] for s in view["seats"]] == [1, 1, 1]
+    assert views[1]["donation"]["cards_count"] == len(SEATS) + 1
+    assert views[1]["legal_moves"]
+    assert views[0]["legal_moves"] == [] and views[2]["legal_moves"] == []
+
+
+SMALL_DECK = {"gold": {"1": 0, "2": 0, "3": 0}, "resource": {"1": 1, "2": 0, "3": 0, "4": 0}}
+
+
+def _small_selection_game(deck_left):
+    """A Game with a 5-resource-card deck in shared selection, whose deck
+    then holds `deck_left(size)` cards."""
+    for seed in range(500):
+        game = _finish_donation(create_game(SEATS, SMALL_DECK, seed=seed, now=NOW))
+        if deck_left(player_view(game, 0)["deck_size"]):
+            return game
+    raise AssertionError("no such seed")
+
+
+def _take_all(game):
+    while player_view(game, 0)["phase"] == "shared_selection":
+        seat = player_view(game, 0)["current_seat"]
+        game = _apply(game, seat, {"type": "take", "card": 0})
+    return game
+
+
+def test_when_the_deck_is_short_of_a_full_draw_the_game_moves_to_the_auction():
+    game = _small_selection_game(lambda size: size < len(SEATS) + 1)
+    deck_size = player_view(game, 0)["deck_size"]
+    game = _take_all(game)
+    for view in views_for(game):
+        assert view["phase"] == "auction"
+        assert view["shared_pool"] == []
+        assert view["donation"] is None
+        assert view["legal_moves"] == []
+        # React checks the deck before drawing: nothing more is drawn.
+        assert view["deck_size"] == deck_size
+        assert view["current_seat"] == 1
+        assert view["discard_size"] == 1
+        assert [s["hand_size"] for s in view["seats"]] == [1, 1, 1]
+
+
+def test_with_two_seats_one_take_hands_the_donation_to_the_other_seat():
+    seats = SEATS[:2]
+    game = _finish_donation(create_game(seats, DECK_SETTINGS, seed=_seed_where_first_donor_draws(False), now=NOW))
+    assert player_view(game, 1)["legal_moves"] == [{"type": "take", "card": 0}]
+    game = _apply(game, 1, {"type": "take", "card": 0})
+    view = player_view(game, 1)
+    assert (view["phase"], view["current_seat"]) == ("donation", 1)
+    assert view["legal_moves"]
+
+
+def test_a_lone_seat_with_no_one_to_take_goes_straight_on_to_its_next_donation():
+    for seed in range(500):
+        game = create_game(SEATS[:1], DECK_SETTINGS, seed=seed, now=NOW)
+        if not player_view(game, 0)["donation"]["special"]:
+            break
+    deck_size = player_view(game, 0)["deck_size"]
+    # One Seat draws two cards and donates none of them.
+    game = _apply(_apply(game, 0, {"type": "keep"}), 0, {"type": "discard"})
+    view = player_view(game, 0)
+    assert (view["phase"], view["current_seat"]) == ("donation", 0)
+    assert view["deck_size"] < deck_size
+    assert view["legal_moves"]
+
+
+def test_when_the_next_draw_comes_up_short_of_ordinary_cards_the_game_moves_to_the_auction():
+    # Only one ordinary card is left, but enough specials to make a full draw.
+    game = _small_selection_game(lambda size: size >= len(SEATS) + 1)
+    game = _take_all(game)
+    for view in views_for(game):
+        assert view["phase"] == "auction"
+        assert view["donation"] is None
+        assert view["legal_moves"] == []

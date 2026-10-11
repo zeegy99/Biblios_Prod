@@ -22,6 +22,8 @@ DONATION_MOVES = ["keep", "discard", "donate"]
 # How the donor plays a special card on the dice.
 SPECIAL_MOVES = ["choose_direction", "modify_die"]
 DIRECTIONS = {"plus": +1, "minus": -1}
+# How a Seat takes a card from the shared pool.
+SELECTION_MOVES = ["take"]
 
 DEFAULT_RESOURCE = {"1": 5, "2": 4, "3": 2, "4": 2}
 DEFAULT_GOLD = {"1": 5, "2": 5, "3": 5}
@@ -77,6 +79,10 @@ def player_view(game, seat):
 
 def legal_moves(game, seat):
     """The Moves `seat` may make right now."""
+    if game["phase"] == "shared_selection":
+        candidates = [{"type": "take", "card": i} for i in range(len(game["shared_pool"]))]
+        return [m for m in candidates if _rejection(game, seat, m) is None]
+
     donation = game["donation"]
     if game["phase"] != "donation" or donation is None or seat != game["current_seat"]:
         return []
@@ -99,6 +105,9 @@ def apply_move(game, seat, move):
     if reason:
         return None, reason
     game = copy.deepcopy(game)
+    if move["type"] in SELECTION_MOVES:
+        _take(game, seat, move)
+        return game, None
     if move["type"] in SPECIAL_MOVES:
         _play_special(game, move)
         return game, None
@@ -118,10 +127,12 @@ def apply_move(game, seat, move):
 
 def _rejection(game, seat, move):
     """Why `seat` may not make `move` right now, or None if it may."""
-    if not isinstance(move, dict) or move.get("type") not in DONATION_MOVES + SPECIAL_MOVES:
+    if not isinstance(move, dict) or move.get("type") not in DONATION_MOVES + SPECIAL_MOVES + SELECTION_MOVES:
         return "Unknown Move"
     if not isinstance(seat, int) or not 0 <= seat < len(game["seats"]):
         return "You have no Seat in this Game"
+    if move["type"] in SELECTION_MOVES:
+        return _selection_rejection(game, seat, move)
     donation = game["donation"]
     if game["phase"] != "donation" or donation is None:
         return "It is not the donation phase"
@@ -165,6 +176,55 @@ def _special_rejection(game, move):
     return None
 
 
+def _selection_rejection(game, seat, move):
+    """Why `seat` may not take a card from the shared pool right now, or
+    None if it may (the React shared selection phase's Take buttons)."""
+    if game["phase"] != "shared_selection":
+        return "It is not the shared selection phase"
+    if seat != game["current_seat"]:
+        return "It is not your turn to take a card"
+    card = move.get("card")
+    if not isinstance(card, int) or isinstance(card, bool) or not 0 <= card < len(game["shared_pool"]):
+        return "There is no such card in the shared pool"
+    return None
+
+
+def _take(game, seat, move):
+    """As the React shared selection phase's handleChoice: the chosen card
+    leaves the shared pool for the Seat's hand (a Gold card adding its value
+    to the Seat's gold) and the next Seat chooses."""
+    taker = game["seats"][seat]
+    card = game["shared_pool"].pop(move["card"])
+    taker["hand"].append(card)
+    if card["type"] == "Gold":
+        taker["gold"] += card["value"]
+    _pass_selection_to(game, seat + 1)
+
+
+def _pass_selection_to(game, seat):
+    """The turn to take passes to `seat`, unless that is back at the last
+    donor or the shared pool is empty: then the shared selection ends (as
+    the React phase calls onFinish), so no Seat is left waiting to take from
+    an empty pool."""
+    game["current_seat"] = seat % len(game["seats"])
+    if game["current_seat"] == game["last_donor"] or not game["shared_pool"]:
+        _finish_shared_selection(game)
+
+
+def _finish_shared_selection(game):
+    """As the React game manager's shared selection onFinish: the shared pool
+    is cleared and the Seat after the last donor starts a donation turn, or,
+    if the deck no longer holds a full draw, the Game goes to the auction."""
+    game["shared_pool"] = []
+    game["current_seat"] = (game["last_donor"] + 1) % len(game["seats"])
+    if len(game["deck"]) < _cards_to_draw(game):
+        # React checks the deck before drawing, so nothing more is drawn.
+        game["phase"] = "auction"
+        return
+    game["phase"] = "donation"
+    _start_donation_turn(game)
+
+
 def _play_special(game, move):
     """As the React donation phase's dice buttons: a Both card first takes a
     direction; then each chosen die moves one step (Plus up to 6, Minus down
@@ -202,7 +262,7 @@ def _finish_donation_turn(game):
     game["donation"] = None
     game["last_donor"] = game["current_seat"]
     game["phase"] = "shared_selection"
-    game["current_seat"] = (game["current_seat"] + 1) % len(game["seats"])
+    _pass_selection_to(game, game["current_seat"] + 1)
 
 
 def _cards_to_draw(game):

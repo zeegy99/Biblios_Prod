@@ -6,6 +6,7 @@ import ResultsScreen from "./results";
 import ScoringPhase from "./scoring_phase";
 import SharedPoolSelection from "./shared_selection";
 import ServerDonationPhase from "./server_donation_phase";
+import ServerSharedSelection from "./server_shared_selection";
 import { buildDeck } from "./deck.jsx";
 import { rollDice } from "../utils/setup";
 import socket from "../socket";
@@ -424,6 +425,12 @@ useEffect(() => {
           <p role="alert" style={{ textAlign: "center", color: "crimson" }}>Move refused: {moveRejection}</p>
         )}
         {playerView.phase === "donation" && <ServerDonationPhase view={playerView} />}
+        {playerView.phase === "shared_selection" && <ServerSharedSelection view={playerView} />}
+        {playerView.phase === "auction" && (
+          <p style={{ textAlign: "center" }}>
+            The donations are over: the {playerView.discard_size} discarded cards go to auction.
+          </p>
+        )}
         <div style={{ marginTop: "30px", textAlign: "center" }}>
           <h4>Your Hand ↓</h4>
           <ul style={{ display: "flex", justifyContent: "center", listStyle: "none", padding: 0, gap: "10px" }}>

@@ -229,3 +229,48 @@ test("playing a special card changes the dice in every Seat's Player View; an il
     clients.forEach(({ socket }) => socket.disconnect());
   }
 });
+
+test("taking from the shared pool reaches every Seat; a take out of turn reaches only its sender", async () => {
+  const clients = [
+    { socket: connectAs("zeg"), name: "Zeg" },
+    { socket: connectAs("bob"), name: "Bob" },
+    { socket: connectAs(null), name: "Guest" },
+  ];
+  try {
+    const room = "server-rules-selection";
+    let view = (await startFlaggedGame(room, clients))[0];
+    // The donor plays its whole turn, always making its first legal Move.
+    while (view.phase === "donation") {
+      const next = clients.map(({ socket }) => once(socket, "player_view"));
+      clients[0].socket.emit("move", { room, move: view.legal_moves[0] });
+      view = (await Promise.all(next))[0];
+    }
+    expect(view.phase).toBe("shared_selection");
+    expect(view.current_seat).toBe(1);
+    const pool = view.shared_pool;
+    expect(pool).toHaveLength(2);
+
+    // The Guest's turn has not come: only the Guest hears, nobody's view changes.
+    const rejections = clients.map(({ socket }) => collect(socket, "move_rejected"));
+    const quiet = clients.map(({ socket }) => collect(socket, "player_view"));
+    clients[2].socket.emit("move", { room, move: { type: "take", card: 0 } });
+    const [zegRej, bobRej, guestRej] = await Promise.all(rejections);
+    expect(guestRej).toHaveLength(1);
+    expect(guestRej[0].reason).toMatch(/turn/);
+    expect(zegRej).toEqual([]);
+    expect(bobRej).toEqual([]);
+    (await Promise.all(quiet)).forEach((got) => expect(got).toEqual([]));
+
+    const updates = clients.map(({ socket }) => once(socket, "player_view"));
+    clients[1].socket.emit("move", { room, move: { type: "take", card: 0 } });
+    (await Promise.all(updates)).forEach((after, seat) => {
+      expect(after.you).toBe(seat);
+      expect(after.shared_pool).toEqual([pool[1]]);
+      expect(after.current_seat).toBe(2);
+      expect(after.seats[1].hand_size).toBe(1);
+      if (seat === 1) expect(after.hand).toEqual([pool[0]]);
+    });
+  } finally {
+    clients.forEach(({ socket }) => socket.disconnect());
+  }
+});
