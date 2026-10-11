@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/auth_context";
 import SignOutButton from "../auth/sign_out_button";
 import RulesPage from "./rulespage";
+import RejoinButton from "./rejoin_button";
 import "./leaderboard.css";
 import "./settings.css";
 import {DEFAULT_KEYBINDS} from "./keybinds_defaults.js";
@@ -23,7 +24,6 @@ const Settings = () => {
   const [volume, setVolume] = useState(50);
   const { username, isSignedIn } = useAuth();
   const savedName = localStorage.getItem("playerName");
-  const [elo, setElo] = useState(null);
   const navigate = useNavigate();
   const [showBox, setShowBox] = useState(false);
   const [rulesPage, setRulesPage] = useState(false);
@@ -44,18 +44,6 @@ const Settings = () => {
   const [takeCard4, settakeCard4] = useState(DEFAULT_KEYBINDS["TAKE_CARD_4"]);
 
 
-  useEffect(() => {
-    if (isSignedIn) {
-      fetch("/api/get_elo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: username.trim() })
-      })
-        .then(res => res.json())
-        .then(data => setElo(data.elo ?? "N/A"))
-        .catch(() => setElo("Error"));
-    }
-  }, [isSignedIn, username]);
 
   const sendKeybinds = () => {
     fetch("/api/send_keybinds", {
@@ -80,10 +68,6 @@ const Settings = () => {
 
 
   
-  // Rejoin is not supported from this page yet.
-  const handleRejoin = () => {
-    alert("No game to rejoin.");
-  };
 
 
 
@@ -141,13 +125,7 @@ const Settings = () => {
       <header className="home-header">
         <div className="logo">BIBLIOS</div>
         <div className="nav-buttons">
-          <button
-            className="login-header"
-            style={{ backgroundColor: "#e53935", color: "white" }}
-            onClick={handleRejoin}
-          >
-            Rejoin
-          </button>
+          <RejoinButton />
 
           <button
             className="login-header"

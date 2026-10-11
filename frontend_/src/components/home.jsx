@@ -4,7 +4,7 @@ import Timer from "../timer.jsx";
 import "./lobby.css";
 import RulesPage from "./rulespage";
 import { useAuth } from "../auth/auth_context";
-import { useInRoom, IN_ROOM_MESSAGE } from "../use_in_room";
+import { useInRoomGuard } from "../use_in_room";
 
 
 const generateRoomCode = () =>
@@ -28,7 +28,7 @@ const Home = ({ setPlayerName }) => {
   const navigate = useNavigate();
   const { isSignedIn, loading } = useAuth();
   // Sign-in isn't offered while the player holds a seat in a Room.
-  const inRoom = useInRoom();
+  const inRoomGuard = useInRoomGuard();
 
   useEffect(() => {
     const localStorageVol = localStorage.getItem("Volume") || 50;
@@ -114,8 +114,7 @@ const Home = ({ setPlayerName }) => {
   </button>
 
         
-  <button className={'naming-button'} onClick={toSigninPage} disabled={inRoom}
-    title={inRoom ? IN_ROOM_MESSAGE : undefined}>Log In</button>
+  <button className={'naming-button'} onClick={toSigninPage} {...inRoomGuard}>Log In</button>
 </div>
 
   </header>
@@ -156,8 +155,7 @@ const Home = ({ setPlayerName }) => {
       
 
       {!savedName && ( //here
-        <button className="secondary-button" onClick={toSigninPage} disabled={inRoom}
-          title={inRoom ? IN_ROOM_MESSAGE : undefined}>
+        <button className="secondary-button" onClick={toSigninPage} {...inRoomGuard}>
           Go to Sign In Page
         </button>
       )}
