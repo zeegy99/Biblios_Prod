@@ -26,16 +26,9 @@ const handleRejoin = () => {
     alert("No game to rejoin.");
     return;
   }
-  console.log("before the rejoin_game emit")
-
-  // Emit rejoin request
-  socket.emit("rejoin_game", {
-    room: roomCode,
-    signin_username: username,
-    playerName: playerName,
-  });
-
-  console.log("after the socket emit")
+  // The server finds this player's seat by their Player Identity. If there is
+  // none, it answers rejoin_failed and the game screen sends us back home.
+  socket.emit("rejoin_game", { room: roomCode });
 
   // Navigate back to the game
   navigate(`/game/${roomCode}`);
