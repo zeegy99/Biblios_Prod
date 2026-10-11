@@ -40,6 +40,28 @@ _Avoid_: alias, playerName (as an identity), username (unless you mean the accou
 A named lobby that players join, identified by a room code, in which one game is played.
 _Avoid_: lobby (for the identifier), match
 
+### Games
+
+**Game**:
+One play-through of Biblios inside a Room. The server holds the true state of every Game, including all randomness (shuffles, dice); clients never decide the state, they only propose Moves.
+_Avoid_: match, game state blob, sync
+
+**Move**:
+A player's request to change a Game, expressed as an intent (e.g. donate this card, bid 4, pass). The server either applies it or rejects it as illegal; a rejected Move changes nothing.
+_Avoid_: action, sync, state update
+
+**Seat**:
+A player's fixed place in a Game, bound to their Player Identity when the Game starts. Disconnecting never frees a Seat; the same Player Identity can always Rejoin it.
+_Avoid_: slot, player index, socket
+
+**Elo**:
+The rank-based rating Signed-in Players earn from finished Games: placings are worth a fixed step per place above or below the median. Guests take placings (so they affect Signed-in Players' changes) but have no Elo themselves. A Game's result is recorded at most once. (Not the classical Elo formula, despite the name.)
+_Avoid_: score, points (those are in-game)
+
+**Player View**:
+What one seat is allowed to see of a Game: the shared/public parts plus their own hand, with other players' hands and the deck order hidden. The server only ever sends Player Views, never the full Game.
+_Avoid_: game state (when you mean what a client receives)
+
 **Rejoin**:
-A player with an existing seat in a Room reconnecting and getting the current game state back.
+A player with an existing seat in a Room reconnecting and getting their current Player View back from the server.
 _Avoid_: reconnect (for the game-level action)
