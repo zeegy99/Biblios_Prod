@@ -104,11 +104,14 @@ const ServerAuctionPhase = ({ view }) => {
 };
 
 // The winner's own hand, to choose the cards it pays with. What the payment
-// must be comes from the pay Move's descriptor; the totals shown are only a
-// guide, and the server checks the payment.
+// must be comes from the pay Move's descriptor. Greying out cards that can't
+// be chosen (the won Gold card; non-Gold cards for a gold payment) and the
+// gold total are display aids only: the server checks the payment.
 const PaymentPicker = ({ hand, payMove, chosen, setChosen, onPay }) => {
-  const excluded = payMove.excluding || [];
+  const excluding = payMove.excluding || [];
+  const unavailable = (i) => excluding.includes(i) || (payMove.pay_in === "gold" && hand[i].type !== "Gold");
   const toggle = (i) => setChosen((prev) => (prev.includes(i) ? prev.filter((c) => c !== i) : [...prev, i]));
+  // Display aid: the gold the chosen cards come to.
   const goldChosen = chosen.reduce((sum, i) => sum + (hand[i]?.type === "Gold" ? hand[i].value : 0), 0);
   return (
     <div>
@@ -121,12 +124,12 @@ const PaymentPicker = ({ hand, payMove, chosen, setChosen, onPay }) => {
         {hand.map((card, i) => (
           <div
             key={i}
-            onClick={() => !excluded.includes(i) && toggle(i)}
+            onClick={() => !unavailable(i) && toggle(i)}
             style={{
               border: chosen.includes(i) ? "2px solid red" : "1px solid gray",
               margin: "5px",
-              cursor: excluded.includes(i) ? "not-allowed" : "pointer",
-              opacity: excluded.includes(i) ? 0.5 : 1,
+              cursor: unavailable(i) ? "not-allowed" : "pointer",
+              opacity: unavailable(i) ? 0.5 : 1,
             }}
           >
             <Card card={card} />
