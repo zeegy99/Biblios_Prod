@@ -85,6 +85,20 @@ const GameRunner = ({ playerName }) => {
   const [finalResults, setFinalResults] = useState([]);
   const { room } = useParams();
 
+  // Why the server gave no Seat back on Rejoin (e.g. a Guest after a refresh).
+  const [rejoinRefusal, setRejoinRefusal] = useState(null);
+
+  useEffect(() => {
+    const onRejoinResult = ({ room: rejoined, playerView: view, reason }) => {
+      if (rejoined !== room) return;
+      if (view) setPlayerView(view);
+      else setRejoinRefusal(reason);
+    };
+    socket.on("rejoin_result", onRejoinResult);
+    return () => socket.off("rejoin_result", onRejoinResult);
+  }, [room]);
+
+
   //For special dice cards
   const [specialCardToPlay, setSpecialCardToPlay] = useState(null);
 
@@ -374,6 +388,11 @@ useEffect(() => {
 
       sessionStorage.removeItem("start_game_payload");
       localStorage.removeItem("last_game_state");  // <-- ✅ add this
+    } else {
+      // No start payload: this is a refresh or a return to the game screen.
+      // In a server-rules Room the server gives back this Seat's Player View
+      // (Rejoin, by the Session of this connection) or says we have none.
+      socket.emit("rejoin_game", { room: `${room}` });
     }
 
     if (!hasSynced.current) {
@@ -400,6 +419,9 @@ useEffect(() => {
 
 
 
+  // Seats whose connection dropped; they keep their Seat and may Rejoin.
+  const disconnectedNames = playersOnline.filter((p) => p?.disconnected).map((p) => p.name);
+
   if (playerView) {
     return (
       <div>
@@ -409,6 +431,9 @@ useEffect(() => {
         </button>
         {rulesPage && <RulesPage onClose={() => setRulesPage(false)} />}
         <p style={{ textAlign: "center" }}>Current Phase: {playerView.phase} (server rules)</p>
+        {disconnectedNames.length > 0 && (
+          <p style={{ textAlign: "center", color: "gray" }}>Disconnected: {disconnectedNames.join(", ")}</p>
+        )}
         <h3 style={{ textAlign: "center" }}>🎲 Dice Values</h3>
         <ul style={{ display: "flex", justifyContent: "center", listStyle: "none", padding: 0, gap: "12px" }}>
           {playerView.dice.map((die) => (
@@ -437,6 +462,15 @@ useEffect(() => {
             <PlayerHand hand={playerView.hand} isCurrentPlayer={true} />
           </ul>
         </div>
+      </div>
+    );
+  }
+
+  if (rejoinRefusal) {
+    return (
+      <div style={{ textAlign: "center" }}>
+        <p>{rejoinRefusal}</p>
+        <button className={'menu-button'} onClick={handleRestart}>Back to the lobby</button>
       </div>
     );
   }

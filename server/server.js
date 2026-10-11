@@ -106,8 +106,17 @@ if (require.main === module) {
 
 const playersInRoom = {};
 const currentGameState = {};
-// Server-authoritative Games by Room: { gameId, seats: [{ playerId, socketId }] }.
+// Server-authoritative Games by Room: { gameId, seats, views }. Each Seat is
+// { playerId, name, socketId, disconnectedAt }: socketId is where its Player
+// Views go (moved on Rejoin), disconnectedAt is when its socket dropped (null
+// while connected; the abandoned-Game rule of #55 builds on it). `views` are
+// the Player Views the engine last returned, one per Seat, so Rejoin needs no
+// extra engine request.
 const gamesInRoom = {};
+// Finished Games by Room, in the same shape, kept for a while after the end so
+// a Seat that refreshes on the results screen can Rejoin it.
+const finishedGamesInRoom = {};
+const FINISHED_GAME_KEPT_MS = 10 * 60 * 1000;
 
 // Starts a Game in the engine and sends each Seat only its own Player View.
 // The server-rules choice is fixed here for the whole Game.
@@ -115,16 +124,22 @@ async function startServerRulesGame(room, players, deckSettings) {
   const gameId = crypto.randomUUID();
   // Seats are bound to Player Identity; until Guests carry one, a Guest's Seat
   // is bound to the socket it joined with.
-  const seats = players.map((p) => ({ playerId: p.playerId ?? `guest:${p.id}`, socketId: p.id }));
+  const seats = players.map((p) => ({
+    playerId: p.playerId ?? `guest:${p.id}`,
+    name: p.name,
+    socketId: p.id,
+    disconnectedAt: null,
+  }));
   try {
     const { views, ended } = await engine.createGame({
       gameId,
-      seats: seats.map((s, i) => ({ player_id: s.playerId, name: players[i].name })),
+      seats: seats.map((s) => ({ player_id: s.playerId, name: s.name })),
       deckSettings,
       seed: crypto.randomInt(0, 2 ** 47),
       now: Date.now(),
     });
-    gamesInRoom[room] = { gameId, seats };
+    delete finishedGamesInRoom[room];
+    gamesInRoom[room] = { gameId, seats, views };
     seats.forEach((seat, i) => {
       io.to(seat.socketId).emit("start_game", { players, deckSettings, serverRules: true, playerView: views[i] });
     });
@@ -137,12 +152,29 @@ async function startServerRulesGame(room, players, deckSettings) {
 
 // The engine has ended `game` (and forgotten it, so this happens once per
 // Game): the Room no longer has a Game in progress, and the result is
-// reported with the Seats' Player Identities.
+// reported with the Seats' Player Identities. The finished Game is kept for
+// FINISHED_GAME_KEPT_MS so its Seats can still Rejoin the results.
 function finishGame(room, game, { placings }) {
-  if (gamesInRoom[room] === game) delete gamesInRoom[room];
+  if (gamesInRoom[room] === game) {
+    delete gamesInRoom[room];
+    finishedGamesInRoom[room] = game;
+    setTimeout(() => {
+      if (finishedGamesInRoom[room] === game) delete finishedGamesInRoom[room];
+    }, FINISHED_GAME_KEPT_MS).unref();
+    dropDisconnectedPlayers(room);
+  }
   Promise.resolve()
     .then(() => reportResult({ gameId: game.gameId, placings }))
     .catch((e) => console.error(`Could not report the result of Game ${game.gameId}:`, e));
+}
+
+// Once no Game is in progress, players still disconnected leave the Room's
+// list as they would have on disconnect (they can still Rejoin the results).
+function dropDisconnectedPlayers(room) {
+  if (!playersInRoom[room]) return;
+  playersInRoom[room] = playersInRoom[room].filter((p) => !p.disconnected);
+  if (playersInRoom[room].length === 0) delete playersInRoom[room];
+  else io.to(room).emit("player_list", playersInRoom[room]);
 }
 
 // Which of `game`'s Seats `socket` holds, or -1. A Seat is found by
@@ -167,12 +199,41 @@ async function handleMove(socket, room, move) {
       socket.emit("move_rejected", { reason: rejected });
       return;
     }
+    game.views = views;
     game.seats.forEach((s, i) => io.to(s.socketId).emit("player_view", views[i]));
     if (ended) finishGame(room, game, ended);
   } catch (e) {
     console.error(`Could not apply a Move in ${room}:`, e);
     socket.emit("move_rejected", { reason: "The server could not apply the Move." });
   }
+}
+
+// Rejoin: gives a Signed-in Player back their Seat in `room`'s Game (in
+// progress or just finished) and its current Player View. The Seat is found
+// only by the Player Identity of the connection, never by the payload; a
+// Guest's Seat is bound to the socket it joined with, so it cannot be
+// Rejoined until Guest Tokens exist. Anyone without a Seat gets no view.
+function rejoinSeat(socket, room, game) {
+  const playerId = socket.data.player?.playerId;
+  const seat = playerId === undefined ? -1 : game.seats.findIndex((s) => s.playerId === playerId);
+  if (seat === -1) {
+    socket.emit("rejoin_result", { room, playerView: null, reason: "You have no Seat in this Room's Game." });
+    return;
+  }
+  const held = game.seats[seat];
+  held.socketId = socket.id;
+  held.disconnectedAt = null;
+  socket.join(room);
+  if (!playersInRoom[room]) playersInRoom[room] = [];
+  const listed = playersInRoom[room].find((p) => p.playerId === playerId);
+  if (listed) {
+    listed.id = socket.id;
+    delete listed.disconnected;
+  } else {
+    playersInRoom[room].push({ id: socket.id, playerId, name: held.name });
+  }
+  io.to(room).emit("player_list", playersInRoom[room]);
+  socket.emit("rejoin_result", { room, playerView: game.views[seat] });
 }
 
 io.on("connection", (socket) => {
@@ -274,7 +335,26 @@ socket.on("leave_game", ({ room, playerId }) => {
   socket.on("disconnect", () => {
   console.log("User disconnected:", socket.id);
 
+  // A Seat in a Game in progress survives the disconnect: it stays listed in
+  // its Room, marked disconnected, until it is Rejoined.
+  const seatedIn = new Set();
+  for (const room in gamesInRoom) {
+    for (const seat of gamesInRoom[room].seats) {
+      if (seat.socketId === socket.id) {
+        seat.disconnectedAt = Date.now();
+        seatedIn.add(room);
+      }
+    }
+  }
+
   for (const room in playersInRoom) {
+    if (seatedIn.has(room)) {
+      playersInRoom[room].forEach((p) => {
+        if (p.id === socket.id) p.disconnected = true;
+      });
+      io.to(room).emit("player_list", playersInRoom[room]);
+      continue;
+    }
     playersInRoom[room] = playersInRoom[room].filter(p => p.id !== socket.id);
 
     if (playersInRoom[room].length === 0) {
@@ -290,7 +370,15 @@ socket.on("leave_game", ({ room, playerId }) => {
 
 
   //Rejoining
-  socket.on("rejoin_game", ({ room, signin_username, playerName }) => {
+  socket.on("rejoin_game", ({ room, signin_username, playerName } = {}) => {
+  // Flagged Rooms: Rejoin by Player Identity (see rejoinSeat).
+  const game = gamesInRoom[room] ?? finishedGamesInRoom[room];
+  if (game) {
+    rejoinSeat(socket, room, game);
+    return;
+  }
+
+  // Unflagged Rooms keep the old behaviour until #57.
   console.log(`${playerName} attempting to rejoin ${room}`);
 
   socket.emit("add_playerlist", ({ playerName }))
