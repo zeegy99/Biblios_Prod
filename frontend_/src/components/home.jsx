@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Navigate, useNavigate } from "react-router-dom";import { getOrCreatePlayerId } from "../utils/playerId";
+import { Navigate, useNavigate } from "react-router-dom";
 import Timer from "../timer.jsx";
 import "./lobby.css";
 import RulesPage from "./rulespage";
@@ -10,7 +10,6 @@ import { useInRoom, IN_ROOM_MESSAGE } from "../use_in_room";
 const generateRoomCode = () =>
   Math.random().toString(36).substring(2, 7).toUpperCase();
 
-const playerId = getOrCreatePlayerId();
 
 
 const Home = ({ setPlayerName }) => {

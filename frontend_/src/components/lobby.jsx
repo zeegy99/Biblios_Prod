@@ -3,10 +3,7 @@ import { useNavigate } from "react-router-dom";
 import socket from "../socket";
 import "./lobby.css";
 import RulesPage from "./rulespage"; 
-import { getOrCreatePlayerId } from "../utils/playerId";
 import Fart from "../sound/fart-5-228245.mp3";
-
-const playerId = getOrCreatePlayerId();
 
 
 const Lobby = ({ playerName, setPlayerName }) => {
@@ -43,8 +40,7 @@ useEffect(() => {
   }
 
   
-  console.log("I am going to socket.emit in the back button", room, playerId)
-  socket.emit("leave_game", {room: room, playerId: playerId})
+  socket.emit("leave_game", { room })
   localStorage.removeItem("roomCode");
   navigate("/");
     };
@@ -105,7 +101,7 @@ useEffect(() => {
   const hasJoined = sessionStorage.getItem(joinedKey);
 
   if (!hasJoined) {
-    socket.emit("join_game", { room, playerName, playerId });
+    socket.emit("join_game", { room, playerName });
     sessionStorage.setItem(joinedKey, "true");
   }
 
@@ -171,8 +167,7 @@ useEffect(() => {
   }
 
   
-  console.log("I am going to socket.emit", room, playerId)
-  socket.emit("leave_game", {room: room, playerId: playerId})
+  socket.emit("leave_game", { room })
   localStorage.removeItem("roomCode");
   navigate("/");
 };
