@@ -127,16 +127,10 @@ useEffect(() => {
     alert(message);
   });
 
-  socket.on("game_state", (data) => {
-    localStorage.setItem("playerName", playerName);
-    navigate("/game");
-  });
-
   return () => {
     socket.off("player_list");
     socket.off("start_game");
     socket.off("start_game_failed");
-    socket.off("game_state");
   };
 }, [playerName, room]);
 

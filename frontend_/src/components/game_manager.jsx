@@ -125,7 +125,9 @@ const GameRunner = ({ playerName }) => {
         )}
         {playerView.phase === "donation" && <ServerDonationPhase view={playerView} />}
         {playerView.phase === "shared_selection" && <ServerSharedSelection view={playerView} />}
-        {playerView.phase === "auction" && <ServerAuctionPhase view={playerView} />}
+        {/* Keyed on the turn, so a half-typed bid or half-chosen payment never
+            carries over into the next card, bidder or payment. */}
+        {playerView.phase === "auction" && <ServerAuctionPhase key={playerView.turn} view={playerView} />}
         {/* The server scores the Game and reports Elo. */}
         {playerView.phase === "results" && <ServerResults view={playerView} />}
         <div style={{ marginTop: "30px", textAlign: "center" }}>
