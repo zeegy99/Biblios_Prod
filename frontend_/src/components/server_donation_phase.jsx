@@ -17,7 +17,8 @@ const ServerDonationPhase = ({ view }) => {
   const legal = (type, extra = {}) =>
     legalMoves.find((m) => m.type === type && Object.entries(extra).every(([k, v]) => m[k] === v));
 
-  const sendMove = (move) => socket.emit("move", { room, move });
+  // Each Move names the turn of the view it was made from (see the engine).
+  const sendMove = (move) => socket.emit("move", { room, move: { ...move, turn: view.turn } });
 
   const moveButton = (label, type, extra) => {
     const move = legal(type, extra);
@@ -31,7 +32,7 @@ const ServerDonationPhase = ({ view }) => {
   return (
     <div>
       <h3>{donorName}'s Donation Turn</h3>
-      <DeadlineTimer deadline={view.deadline} />
+      <DeadlineTimer deadline={view.deadline} duration={view.duration} />
 
       {/* A special card is played face up: every Seat sees it and the dice
           it changes; only the donor's controls are ever enabled. */}

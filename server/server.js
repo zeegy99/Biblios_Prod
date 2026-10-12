@@ -95,7 +95,18 @@ function startServer(port) {
 }
 
 // If the engine dies unexpectedly it is restarted and every Game it held is lost.
-const engine = createEngineHost({ onCrash: () => loseAllGames() });
+let engine = createEngineHost({ onCrash: () => loseAllGames() });
+
+// Test hook, in the style of setResolveSession: replaces the engine host with
+// `wrap(engine)` (e.g. to make one request fail) and returns a function that
+// puts the previous one back.
+function wrapEngine(wrap) {
+  const previous = engine;
+  engine = wrap(engine);
+  return () => {
+    engine = previous;
+  };
+}
 
 function stopEngine() {
   for (const room in gamesInRoom) clearTimers(gamesInRoom[room]);
@@ -115,7 +126,7 @@ function enginePid() {
   return engine.pid;
 }
 
-module.exports = { app, server, io, startServer, setResolveSession, resolveSessionViaFlask, setReportResult, setTurnDurations, setAbandonAfter, stopEngine, enginePid };
+module.exports = { app, server, io, startServer, setResolveSession, resolveSessionViaFlask, setReportResult, setTurnDurations, setAbandonAfter, wrapEngine, stopEngine, enginePid };
 if (require.main === module) {
   startServer(PORT);
 }
@@ -139,7 +150,7 @@ const FINISHED_GAME_KEPT_MS = 10 * 60 * 1000;
 // why the Game is gone (`goneReason`).
 const goneGamesInRoom = Object.create(null);
 // A Game in progress whose Seats have all been disconnected this long is
-// discarded with no result reported (see abandonIfEveryoneLeft).
+// discarded with no result reported (see whenEveryoneLeft).
 let abandonAfterMs = 10 * 60 * 1000;
 
 function setAbandonAfter(ms) {
@@ -172,8 +183,19 @@ async function startServerRulesGame(room, players, deckSettings) {
     seats.forEach((seat, i) => {
       io.to(seat.socketId).emit("start_game", { players, deckSettings, serverRules: true, playerView: views[i] });
     });
-    if (ended) finishGame(room, game, ended);
-    else scheduleDeadline(room, game);
+    if (ended) {
+      finishGame(room, game, ended);
+      return;
+    }
+    scheduleDeadline(room, game);
+    // A Seat whose socket dropped while the engine created the Game was not
+    // seated yet when it disconnected.
+    const now = Date.now();
+    const dropped = seats.filter((s) => !io.sockets.sockets.has(s.socketId));
+    dropped.forEach((s) => {
+      s.disconnectedAt = now;
+    });
+    if (dropped.length) whenEveryoneLeft(room, game);
   } catch (e) {
     console.error(`Could not start a server-rules Game in ${room}:`, e);
     io.to(room).emit("start_game_failed", { message: "The server could not start the Game." });
@@ -216,12 +238,23 @@ const GAME_LOST_REASON = "The Game was lost because the game server restarted.";
 const GAME_ABANDONED_REASON = "The Game was abandoned: every player had left it.";
 
 function loseAllGames() {
-  for (const room in gamesInRoom) {
-    const game = gamesInRoom[room];
-    removeGame(room, game, GAME_LOST_REASON);
-    game.seats.forEach((s) => io.to(s.socketId).emit("game_lost", { room, reason: GAME_LOST_REASON }));
-    dropDisconnectedPlayers(room);
-  }
+  for (const room in gamesInRoom) loseGame(room, gamesInRoom[room]);
+}
+
+// One Game is lost the same way: its Seats are told, no result is reported.
+function loseGame(room, game) {
+  removeGame(room, game, GAME_LOST_REASON);
+  game.seats.forEach((s) => io.to(s.socketId).emit("game_lost", { room, reason: GAME_LOST_REASON }));
+  dropDisconnectedPlayers(room);
+}
+
+// The engine failed a request about a Game it should still hold, so its
+// state can no longer be trusted: the Game is lost (as in a crash) and the
+// engine is told to forget it.
+function loseAfterEngineFailure(room, game, error) {
+  console.error(`The engine failed on Game ${game.gameId} in ${room}; it is lost:`, error);
+  loseGame(room, game);
+  engine.discardGame({ gameId: game.gameId }).catch(() => {});
 }
 
 // The Game in progress in `room` ends without a result (so no Elo): it is
@@ -237,21 +270,55 @@ function removeGame(room, game, reason) {
   }, FINISHED_GAME_KEPT_MS).unref();
 }
 
-// Once every Seat of the Game in progress in `room` is disconnected, it is
-// discarded unless one of them Rejoins within abandonAfterMs of the last one
-// leaving: the engine forgets it and no result is reported. Default Moves
-// carry on meanwhile. The timer is unref'd.
-function abandonIfEveryoneLeft(room, game) {
+function everyoneLeft(game) {
+  return game.seats.every((s) => s.disconnectedAt !== null);
+}
+
+// Once every Seat of the Game in progress in `room` is disconnected, its
+// deadline is paused (no default Moves while nobody is there, so it cannot
+// finish and report Elo unattended) and it is discarded unless one of them
+// Rejoins within abandonAfterMs of the last one leaving: the engine forgets
+// it and no result is reported. The timer is unref'd.
+function whenEveryoneLeft(room, game) {
+  if (!everyoneLeft(game) || gamesInRoom[room] !== game) return;
+  pauseDeadline(room, game);
   clearTimeout(game.abandonTimer);
-  if (game.seats.some((s) => s.disconnectedAt === null)) return;
   const lastLeft = Math.max(...game.seats.map((s) => s.disconnectedAt));
   game.abandonTimer = setTimeout(() => {
-    if (gamesInRoom[room] !== game || game.seats.some((s) => s.disconnectedAt === null)) return;
+    if (gamesInRoom[room] !== game || !everyoneLeft(game)) return;
     removeGame(room, game, GAME_ABANDONED_REASON);
     dropDisconnectedPlayers(room);
     engine.discardGame({ gameId: game.gameId }).catch((e) => console.error(`Could not discard Game ${game.gameId}:`, e));
   }, Math.max(0, lastLeft + abandonAfterMs - Date.now()));
   game.abandonTimer.unref();
+}
+
+// No wake-up while paused; the engine drops the deadline from the views.
+function pauseDeadline(room, game) {
+  if (game.paused) return;
+  game.paused = true;
+  clearDeadline(game);
+  engine
+    .pauseDeadline({ gameId: game.gameId })
+    .then(({ views }) => {
+      if (gamesInRoom[room] === game && game.paused) game.views = views;
+    })
+    .catch((e) => {
+      if (gamesInRoom[room] === game) loseAfterEngineFailure(room, game, e);
+    });
+}
+
+// A Seat is back: the current step gets its full time again from now, and
+// every Seat gets the new view.
+async function resumeDeadline(room, game) {
+  game.paused = false;
+  try {
+    const { views } = await engine.resumeDeadline({ gameId: game.gameId, now: Date.now() });
+    if (gamesInRoom[room] !== game || game.paused) return;
+    showViews(room, game, views);
+  } catch (e) {
+    if (gamesInRoom[room] === game) loseAfterEngineFailure(room, game, e);
+  }
 }
 
 function clearTimers(game) {
@@ -319,10 +386,12 @@ function showViews(room, game, views, ended) {
 }
 
 // One wake-up per Game, at the deadline in its latest Player Views (every
-// Seat's view carries the same one); it replaces any earlier wake-up. The
-// timer is unref'd so it never keeps the process alive on its own.
+// Seat's view carries the same one); it replaces any earlier wake-up. None
+// while the Game is paused. The timer is unref'd so it never keeps the
+// process alive on its own.
 function scheduleDeadline(room, game) {
   clearDeadline(game);
+  if (game.paused) return;
   const deadline = game.views[0]?.deadline;
   if (typeof deadline !== "number") return;
   game.deadlineTimer = setTimeout(() => {
@@ -339,16 +408,18 @@ function clearDeadline(game) {
 
 // The wake-up: the engine plays the waiting Seat's default Move if its
 // deadline has passed (no Move in flight beat it to it), and every Seat gets
-// the new view. Either way the next deadline is scheduled.
+// the new view. Either way the next deadline is scheduled. If the engine
+// fails on a Game still in progress, the Game is lost rather than left frozen.
 async function handleDeadline(room, game) {
-  if (gamesInRoom[room] !== game) return;
+  if (gamesInRoom[room] !== game || game.paused) return;
   let result;
   try {
     result = await engine.handleDeadline({ gameId: game.gameId, now: Date.now() });
   } catch (e) {
     // The Game ended, was lost or was discarded meanwhile: nothing to do.
     if (gamesInRoom[room] !== game) return;
-    throw e;
+    loseAfterEngineFailure(room, game, e);
+    return;
   }
   if (gamesInRoom[room] !== game) return;
   if (result.applied) showViews(room, game, result.views, result.ended);
@@ -363,7 +434,7 @@ async function handleDeadline(room, game) {
 // Unlike seatOf there is deliberately no socket-id fallback: Rejoin comes on
 // a new socket, so a socket id could only match a Seat this very socket
 // already holds, and must never hand a Guest's Seat to anyone.
-function rejoinSeat(socket, room, game) {
+async function rejoinSeat(socket, room, game) {
   const playerId = socket.data.player?.playerId;
   const seat = seatOfPlayer(game, socket);
   if (seat === -1) {
@@ -374,6 +445,15 @@ function rejoinSeat(socket, room, game) {
   held.socketId = socket.id;
   held.disconnectedAt = null;
   clearTimeout(game.abandonTimer);
+  if (game.paused) {
+    // The first Seat back restarts the paused deadline; its view comes back
+    // with the restarted one (as do the other Seats').
+    await resumeDeadline(room, game);
+    if (game.goneReason) {
+      socket.emit("rejoin_result", { room, playerView: null, reason: game.goneReason });
+      return;
+    }
+  }
   socket.join(room);
   if (!playersInRoom[room]) playersInRoom[room] = [];
   const listed = playersInRoom[room].find((p) => p.playerId === playerId);
@@ -518,7 +598,7 @@ onRoomEvent("leave_game", ({ room, playerId }) => {
       }
     }
   }
-  for (const room of seatedIn) abandonIfEveryoneLeft(room, gamesInRoom[room]);
+  for (const room of seatedIn) whenEveryoneLeft(room, gamesInRoom[room]);
 
   for (const room in playersInRoom) {
     if (seatedIn.has(room)) {
@@ -548,13 +628,11 @@ onRoomEvent("leave_game", ({ room, playerId }) => {
   // Game answers only its own Seats; anyone else falls through below.
   const live = gamesInRoom[room];
   if (live) {
-    rejoinSeat(socket, room, live);
-    return;
+    return rejoinSeat(socket, room, live);
   }
   const finished = finishedGamesInRoom[room];
   if (finished && seatOfPlayer(finished, socket) !== -1) {
-    rejoinSeat(socket, room, finished);
-    return;
+    return rejoinSeat(socket, room, finished);
   }
   const gone = goneGamesInRoom[room];
   if (gone && seatOfPlayer(gone, socket) !== -1) {

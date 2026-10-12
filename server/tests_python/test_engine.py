@@ -4,7 +4,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from engine import apply_move, create_game, game_result, handle_deadline, player_view, score
+from engine import apply_move, create_game, game_result, handle_deadline, pause_deadline, player_view, resume_deadline, score
 
 SEATS = [
     {"player_id": "user:1", "name": "Zeg"},
@@ -171,15 +171,23 @@ def _plain_game():
     return create_game(SEATS, DECK_SETTINGS, seed=_seed_where_first_donor_draws(False), now=NOW)
 
 
+def _for_this_turn(game, move):
+    """`move` naming the Game's current turn, as a client echoes it from its
+    Player View (unless the test names a turn itself)."""
+    if isinstance(move, dict) and "turn" not in move:
+        return {**move, "turn": player_view(game, 0)["turn"]}
+    return move
+
+
 def _apply(game, seat, move, now=NOW):
-    new_game, reason = apply_move(game, seat, move, now)
+    new_game, reason = apply_move(game, seat, _for_this_turn(game, move), now)
     assert reason is None, reason
     return new_game
 
 
 def _rejected(game, seat, move):
     before = json.dumps(game, sort_keys=True)
-    new_game, reason = apply_move(game, seat, move, NOW)
+    new_game, reason = apply_move(game, seat, _for_this_turn(game, move), NOW)
     assert new_game is None
     assert isinstance(reason, str) and reason
     assert json.dumps(game, sort_keys=True) == before, "a rejected Move must change nothing"
@@ -1416,3 +1424,48 @@ def test_a_game_left_alone_is_played_to_the_end_by_default_moves_the_same_way_ev
         assert game_result(game) is not None
         assert defaults > 20
         assert views_for(_played_by_deadlines(seed)[0]) == views_for(game)
+
+
+# --- Review of #55: turns, pausing, durations ---------------------------------
+
+
+def test_every_applied_move_including_a_default_one_starts_a_new_turn():
+    game = _plain_game()
+    assert [v["turn"] for v in views_for(game)] == [0, 0, 0]
+    game = _apply(game, 0, {"type": "keep"})
+    assert player_view(game, 1)["turn"] == 1
+    game = _overdue(game)
+    assert player_view(game, 2)["turn"] == 2
+
+
+def test_a_move_for_a_turn_that_is_over_is_rejected():
+    # The donor's time ran out on its first card; its late discard, meant for
+    # that card, must not land on the next card it has never seen.
+    game = _plain_game()
+    game = _overdue(game)
+    assert "turn is over" in _rejected(game, 0, {"type": "discard", "turn": 0})
+    for turn in [None, "1", True, 1.0]:
+        _rejected(game, 0, {"type": "discard", "turn": turn})
+    reason = apply_move(game, 0, {"type": "discard"}, NOW)[1]
+    assert reason and "turn" in reason
+    assert _apply(game, 0, {"type": "discard", "turn": 1})
+
+
+def test_a_paused_deadline_never_passes_until_it_is_resumed_from_then():
+    game = _plain_game()
+    paused = pause_deadline(game)
+    assert player_view(game, 0)["deadline"] == NOW + 30 * SECOND  # the given Game is unchanged
+    assert player_view(paused, 0)["deadline"] is None
+    assert handle_deadline(paused, NOW + 3600 * SECOND) == (paused, False)
+    resumed = resume_deadline(paused, NOW + 100 * SECOND)
+    assert player_view(resumed, 0)["deadline"] == NOW + 130 * SECOND
+    assert player_view(resumed, 0)["turn"] == player_view(game, 0)["turn"]
+
+
+def test_a_view_carries_the_full_length_of_the_current_step():
+    game = _plain_game()
+    assert player_view(game, 0)["duration"] == 30 * SECOND
+    game = _finish_donation(game)
+    assert player_view(game, 0)["duration"] == 10 * SECOND
+    game, _ = _played_by_deadlines(0)
+    assert player_view(game, 0)["duration"] is None

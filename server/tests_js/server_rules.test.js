@@ -1,5 +1,6 @@
 const { server, startServer, setResolveSession, setReportResult, stopEngine } = require("../server.js");
 const ioClient = require("socket.io-client");
+const { echoTurn } = require("./echo_turn");
 const TEST_PORT = 4004;
 
 // Every Game result Node reports, captured instead of being sent to Flask.
@@ -23,10 +24,12 @@ afterAll((done) => {
 });
 
 function connectAs(sid) {
-  return ioClient(`http://localhost:${TEST_PORT}`, {
-    forceNew: true,
-    extraHeaders: sid ? { cookie: `sid=${sid}` } : {},
-  });
+  return echoTurn(
+    ioClient(`http://localhost:${TEST_PORT}`, {
+      forceNew: true,
+      extraHeaders: sid ? { cookie: `sid=${sid}` } : {},
+    }),
+  );
 }
 
 function once(socket, event) {

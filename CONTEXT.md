@@ -59,8 +59,20 @@ The rank-based rating Signed-in Players earn from finished Games: placings are w
 _Avoid_: score, points (those are in-game)
 
 **Lost Game**:
-A Game that ended without a result because the server lost its state (the Game engine crashed). Its Seats are told and sent back to the lobby; no Elo is recorded and it cannot be Rejoined.
+A Game that ended without a result because the server lost its state (the Game engine crashed, or failed on that Game). Its Seats are told and sent back to the lobby; no Elo is recorded and it cannot be Rejoined.
 _Avoid_: aborted game, cancelled game, abandoned game (that is a Game every Seat left)
+
+**Turn Deadline**:
+The time by which the Seat a Game is waiting for must make its Move. The server sets it (each accepted Move starts a fresh one for the next step) and puts it in every Player View; the client only counts down to it. It is paused while every Seat is disconnected and restarts in full when one Rejoins.
+_Avoid_: timer (that is the client's display), timeout (for the deadline itself)
+
+**Default Move**:
+The Move the server plays for a Seat whose Turn Deadline has passed, so an absent player never stalls a Game: keep / discard / donate the donation card (the first allowed), the first allowed direction and dice for a special card, a random shared-pool card, a pass when bidding, and the cheapest valid payment.
+_Avoid_: bot move, auto-play, timeout action
+
+**Abandoned Game**:
+A Game in progress whose Seats have all been disconnected for 10 minutes. The server discards it: no result is reported, so no Elo is recorded, and it can no longer be Rejoined.
+_Avoid_: lost game (that is a Game whose state the server lost), dead game, idle game
 
 **Player View**:
 What one seat is allowed to see of a Game: the shared/public parts plus their own hand, with other players' hands and the deck order hidden. The server only ever sends Player Views, never the full Game.

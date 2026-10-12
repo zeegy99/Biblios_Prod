@@ -24,7 +24,7 @@ const ServerSharedSelection = ({ view }) => {
           ? `${selector}'s Turn - Shared Pool Selection`
           : `Shared Pool by ${seats[view.last_donor]?.name} (watching selection)`}
       </h3>
-      <DeadlineTimer deadline={view.deadline} />
+      <DeadlineTimer deadline={view.deadline} duration={view.duration} />
       {isSelector ? <p>Select a card:</p> : <p>⏳ Waiting for {selector} to choose a card...</p>}
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", justifyContent: "center", alignItems: "center" }}>
@@ -35,7 +35,7 @@ const ServerSharedSelection = ({ view }) => {
               <Card card={card} />
               <p style={{ fontSize: "0.9em", color: "gray" }}>Pooled by {card.pooledBy || "?"}</p>
               {isSelector && (
-                <button disabled={!move} onClick={() => move && socket.emit("move", { room, move })}>
+                <button disabled={!move} onClick={() => move && socket.emit("move", { room, move: { ...move, turn: view.turn } })}>
                   Take
                 </button>
               )}

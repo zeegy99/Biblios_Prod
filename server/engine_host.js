@@ -136,7 +136,17 @@ function createEngineHost({ onCrash = () => {} } = {}) {
       if (!applied) return { applied: false };
       return { applied: true, ...withEnded(views, ended) };
     },
-    // The engine forgets the Game (it was abandoned); nothing is reported.
+    // Stops the Game's deadline (every Seat is away); resolves to { views }.
+    async pauseDeadline({ gameId }) {
+      const { views } = await request("pause_deadline", { game_id: gameId });
+      return { views };
+    },
+    // Restarts the current step's deadline from `now`; resolves to { views }.
+    async resumeDeadline({ gameId, now }) {
+      const { views } = await request("resume_deadline", { game_id: gameId, now });
+      return { views };
+    },
+    // The engine forgets the Game (abandoned or lost); nothing is reported.
     async discardGame({ gameId }) {
       await request("discard", { game_id: gameId });
     },

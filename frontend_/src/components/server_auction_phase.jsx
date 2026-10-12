@@ -26,14 +26,15 @@ const ServerAuctionPhase = ({ view }) => {
   const clamp = (amount) => Math.min(bidRange.max, Math.max(bidRange.min, amount));
   const amount = bidRange ? clamp(parseInt(bidInput, 10) || bidRange.min) : null;
 
-  const sendMove = (move) => socket.emit("move", { room, move });
+  // Each Move names the turn of the view it was made from (see the engine).
+  const sendMove = (move) => socket.emit("move", { room, move: { ...move, turn: view.turn } });
 
   if (auction.winner) {
     const winner = seats[auction.winner.seat]?.name;
     return (
       <div style={{ textAlign: "center" }}>
         <h3>Auction</h3>
-        <DeadlineTimer deadline={view.deadline} />
+        <DeadlineTimer deadline={view.deadline} duration={view.duration} />
         <Card card={auction.winner.card} />
         <p>
           {auction.winner.seat === view.you ? "You win" : `${winner} wins`} the card for {auction.winner.bid}
@@ -60,7 +61,7 @@ const ServerAuctionPhase = ({ view }) => {
   return (
     <div style={{ textAlign: "center" }}>
       <h3>Auction</h3>
-      <DeadlineTimer deadline={view.deadline} />
+      <DeadlineTimer deadline={view.deadline} duration={view.duration} />
       <p style={{ fontWeight: "bold", fontSize: "1.2rem" }}>👉 {bidder}'s turn to bid</p>
       <p>Bidding order: {auction.bidding_order.map((i) => seats[i]?.name).join(" → ")}</p>
       <div style={{ display: "flex", justifyContent: "center" }}>

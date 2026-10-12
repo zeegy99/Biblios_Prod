@@ -61,6 +61,10 @@ def create_game(seats, deck_settings, seed, now, durations=None):
         "last_donor": None,
         "auction": None,
         "results": None,
+        # Counts the Moves applied so far (default Moves too). A Move names
+        # the turn it was meant for, so one that arrives after its turn is
+        # over (e.g. after a default Move) never lands on a later card.
+        "turn": 0,
         "deadline": None,
         "durations": {**TURN_DURATIONS, **(durations or {})},
         # The seeded generator carries on through the Game (for the default
@@ -78,6 +82,24 @@ def _restart_clock(game, now):
     with gets the full time); a finished Game has none."""
     step = _step(game)
     game["deadline"] = None if step is None else now + game["durations"][step]
+
+
+def pause_deadline(game):
+    """The Game with no deadline running (the host pauses it while every
+    Seat is away), so handle_deadline does nothing until resume_deadline."""
+    return {**game, "deadline": None}
+
+
+def resume_deadline(game, now):
+    """The Game with the current step's full time starting again at `now`."""
+    game = dict(game)
+    _restart_clock(game, now)
+    return game
+
+
+def _duration(game):
+    step = _step(game)
+    return None if step is None else game["durations"][step]
 
 
 def _step(game):
@@ -114,8 +136,13 @@ def player_view(game, seat):
         "auction": _auction_view(game),
         # Once the Game is over, the same results for every Seat.
         "results": copy.deepcopy(game["results"]),
-        # When (ms) the server plays the current Seat's default Move, or None.
+        # Which turn it is: a Move from this view names it (see apply_move).
+        "turn": game["turn"],
+        # When (ms) the server plays the current Seat's default Move, or None,
+        # and the full length (ms) of the current step, so a timer can be
+        # drawn however late the view arrives.
         "deadline": game["deadline"],
+        "duration": _duration(game),
         "legal_moves": legal_moves(game, seat),
     }
 
@@ -180,15 +207,32 @@ def apply_move(game, seat, move, now):
     """Apply `move` by `seat` at time `now` (ms). Returns (new Game, None) if
     it is legal, or (None, reason) if it is not; the given Game is never
     changed. A donation Move names no card: it always deals with the donor's
-    current card, the only one the donor holds and sees. The new Game's
-    deadline starts from `now`."""
-    reason = _rejection(game, seat, move)
+    current card, the only one the donor holds and sees. The Move must name
+    the Game's current turn (the `turn` of the Player View it was made
+    from), so a Move made before a default Move cannot land on what that
+    default Move changed. The new Game's deadline starts from `now`."""
+    reason = _turn_rejection(game, move) or _rejection(game, seat, move)
     if reason:
         return None, reason
     game = copy.deepcopy(game)
     _make_move(game, seat, move)
+    game["turn"] += 1
     _restart_clock(game, now)
     return game, None
+
+
+def _turn_rejection(game, move):
+    """Why `move` is not for the Game's current turn, or None if it is.
+    Kept out of _rejection, which judges the Moves legal_moves lists for
+    whatever turn it is."""
+    if not isinstance(move, dict):
+        return None
+    turn = move.get("turn")
+    if not isinstance(turn, int) or isinstance(turn, bool):
+        return "Say which turn the Move is for"
+    if turn != game["turn"]:
+        return "That turn is over"
+    return None
 
 
 def _make_move(game, seat, move):
@@ -230,11 +274,13 @@ def handle_deadline(game, now):
     next deadline rather than all at once."""
     if game["deadline"] is None or now < game["deadline"]:
         return game, False
-    game = copy.deepcopy(game)
     seat = game["current_seat"]
-    new_game, reason = apply_move(game, seat, _default_move(game, seat), now)
+    move, rng = _default_move(game, seat)
+    # A default Move goes through apply_move like any other, for this turn.
+    new_game, reason = apply_move(game, seat, {**move, "turn": game["turn"]}, now)
     if reason:
         raise AssertionError(f"Default Move rejected: {reason}")
+    new_game["rng"] = rng
     return new_game, True
 
 
@@ -244,20 +290,20 @@ def _default_move(game, seat):
     direction (increase) and then the first dice it may change; an ordinary
     card is kept, else discarded, else donated. In the shared selection it
     is a random pool card, as the React timer's Bot.shared_selection, drawn
-    from the Game's seeded generator (so `game` is changed: pass a copy).
-    A bidder passes, and a winner makes the cheapest payment."""
+    from the Game's seeded generator. A bidder passes, and a winner makes
+    the cheapest payment. Returns the Move and the generator's state after
+    it (`game` is not changed)."""
     if _step(game) == "bid":
-        return {"type": "pass"}
+        return {"type": "pass"}, game["rng"]
     if _step(game) == "payment":
-        return {"type": "pay", "cards": _cheapest_payment(game, seat)}
+        return {"type": "pay", "cards": _cheapest_payment(game, seat)}, game["rng"]
     moves = legal_moves(game, seat)
     if game["phase"] == "shared_selection":
         rng = random.Random()
         rng.setstate(_from_json_state(game["rng"]))
         move = moves[rng.randrange(len(moves))]
-        game["rng"] = _rng_state(rng)
-        return move
-    return moves[0]
+        return move, _rng_state(rng)
+    return moves[0], game["rng"]
 
 
 def _cheapest_payment(game, seat):

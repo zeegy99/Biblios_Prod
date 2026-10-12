@@ -1,5 +1,6 @@
 const { server, startServer, setResolveSession, setReportResult, stopEngine } = require("../server.js");
 const ioClient = require("socket.io-client");
+const { echoTurn } = require("./echo_turn");
 const TEST_PORT = 4005;
 
 const DECK_SETTINGS = { gold: { 1: 5, 2: 5, 3: 5 }, resource: { 1: 5, 2: 4, 3: 2, 4: 2 } };
@@ -24,10 +25,12 @@ afterAll((done) => {
 });
 
 function connectAs(sid) {
-  return ioClient(`http://localhost:${TEST_PORT}`, {
-    forceNew: true,
-    extraHeaders: sid ? { cookie: `sid=${sid}` } : {},
-  });
+  return echoTurn(
+    ioClient(`http://localhost:${TEST_PORT}`, {
+      forceNew: true,
+      extraHeaders: sid ? { cookie: `sid=${sid}` } : {},
+    }),
+  );
 }
 
 function once(socket, event) {

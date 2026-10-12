@@ -12,6 +12,10 @@ Requests:
   {"id", "op": "handle_deadline", "game_id", "now"}
       -> {"id", "ok": true, "applied": true, "views": [...]} if a default Move was played
       -> {"id", "ok": true, "applied": false} if the deadline has not passed
+  {"id", "op": "pause_deadline", "game_id"}
+      -> {"id", "ok": true, "views": [...]} with no deadline running (every Seat is away)
+  {"id", "op": "resume_deadline", "game_id", "now"}
+      -> {"id", "ok": true, "views": [...]} with the current step's deadline restarted from `now`
   {"id", "op": "discard", "game_id"}
       -> {"id", "ok": true} once the Game is forgotten (abandoned: no result)
 When a Game is over, its response also carries
@@ -23,7 +27,15 @@ Failures -> {"id", "ok": false, "error": "<reason>"}
 import json
 import sys
 
-from engine import apply_move, create_game, game_result, handle_deadline, player_view
+from engine import (
+    apply_move,
+    create_game,
+    game_result,
+    handle_deadline,
+    pause_deadline,
+    player_view,
+    resume_deadline,
+)
 
 
 def handle(games, request):
@@ -46,6 +58,10 @@ def handle(games, request):
         if not applied:
             return {"applied": False}
         return {"applied": True, **_store(games, request["game_id"], game)}
+    if op == "pause_deadline":
+        return _store(games, request["game_id"], pause_deadline(_game(games, request)))
+    if op == "resume_deadline":
+        return _store(games, request["game_id"], resume_deadline(_game(games, request), request["now"]))
     if op == "discard":
         games.pop(request["game_id"], None)
         return {}

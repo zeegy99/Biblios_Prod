@@ -1,5 +1,6 @@
-const { server, startServer, setResolveSession, setReportResult, setTurnDurations, setAbandonAfter, stopEngine } = require("../server.js");
+const { server, startServer, setResolveSession, setReportResult, setTurnDurations, setAbandonAfter, wrapEngine, stopEngine } = require("../server.js");
 const ioClient = require("socket.io-client");
+const { echoTurn } = require("./echo_turn");
 const TEST_PORT = 4007;
 
 const DECK_SETTINGS = { gold: { 1: 5, 2: 5, 3: 5 }, resource: { 1: 5, 2: 4, 3: 2, 4: 2 } };
@@ -25,10 +26,12 @@ afterAll((done) => {
 });
 
 function connectAs(sid) {
-  return ioClient(`http://localhost:${TEST_PORT}`, {
-    forceNew: true,
-    extraHeaders: sid ? { cookie: `sid=${sid}` } : {},
-  });
+  return echoTurn(
+    ioClient(`http://localhost:${TEST_PORT}`, {
+      forceNew: true,
+      extraHeaders: sid ? { cookie: `sid=${sid}` } : {},
+    }),
+  );
 }
 
 function once(socket, event) {
@@ -142,7 +145,64 @@ async function rejoinAs(sid, room) {
   return { socket, answer: await answer };
 }
 
+// Only for asserting that nothing happens within a while.
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// A connection with no Seat that joins `room` after its Game has started, so
+// it hears every player_list the Room gets; `lists` holds them in order.
+async function watch(room) {
+  const socket = connectAs(null);
+  const lists = [];
+  socket.on("player_list", (list) => lists.push(list));
+  const listed = once(socket, "player_list");
+  socket.emit("join_game", { room, playerName: "Watcher" });
+  await listed;
+  return { socket, lists };
+}
+
+// Disconnects every client and resolves once the server has marked each of
+// `names` disconnected (as the watcher hears it).
+async function everyoneLeaves(clients, watcher, names) {
+  clients.forEach(({ socket }) => socket.disconnect());
+  await until(() => {
+    const list = watcher.lists.at(-1) || [];
+    return names.every((name) => list.some((p) => p.name === name && p.disconnected));
+  });
+}
+
+// Resolves once the Room's list holds only the watcher: the Game is gone and
+// its disconnected players with it.
+function gameGone(watcher) {
+  return until(() => {
+    const list = watcher.lists.at(-1) || [];
+    return list.length === 1 && list[0].name === "Watcher";
+  });
+}
+
+// The reports of the Game in which `guest` held a Seat.
+function reportsFor(guest) {
+  const guestId = `guest:${guest.id}`;
+  return () => reports.filter((r) => r.placings.some((p) => p.player_id === guestId));
+}
+
+test("a Move made from a view whose turn is over is rejected", async () => {
+  setTurnDurations(undefined);
+  const clients = threeSeats();
+  try {
+    const room = "deadline-stale-turn";
+    const views = await startFlaggedGame(room, clients);
+    expect(views[0].turn).toBe(0);
+    const next = clients.map(({ socket }) => once(socket, "player_view"));
+    clients[0].socket.emit("move", { room, move: views[0].legal_moves[0] });
+    (await Promise.all(next)).forEach((view) => expect(view.turn).toBe(1));
+
+    const rejected = once(clients[0].socket, "move_rejected");
+    clients[0].socket.emit("move", { room, move: { ...views[0].legal_moves[0], turn: 0 } });
+    expect((await rejected).reason).toMatch(/turn is over/);
+  } finally {
+    clients.forEach(({ socket }) => socket.disconnect());
+  }
+});
 
 test("a Game whose Seats have all been disconnected for the abandon period is discarded with no report", async () => {
   setTurnDurations(undefined);
@@ -152,16 +212,17 @@ test("a Game whose Seats have all been disconnected for the abandon period is di
   try {
     const room = "deadline-abandoned";
     await startFlaggedGame(room, clients);
-    const guestId = `guest:${clients[2].socket.id}`;
-    clients.forEach(({ socket }) => socket.disconnect());
-    // Nobody is left to hear the discard, so wait well past the period.
-    await sleep(600);
+    const ours = reportsFor(clients[2].socket);
+    const watcher = await watch(room);
+    extra.push(watcher.socket);
+    await everyoneLeaves(clients, watcher, ["Zeg", "Bob", "Guest"]);
+    await gameGone(watcher);
 
     const { socket, answer } = await rejoinAs("zeg", room);
     extra.push(socket);
     expect(answer.playerView).toBeNull();
     expect(answer.reason).toMatch(/abandoned/);
-    expect(reports.filter((r) => r.placings.some((p) => p.player_id === guestId))).toEqual([]);
+    expect(ours()).toEqual([]);
   } finally {
     [...clients.map((c) => c.socket), ...extra].forEach((socket) => socket.disconnect());
   }
@@ -175,17 +236,126 @@ test("a Seat Rejoining within the abandon period keeps the Game going", async ()
   try {
     const room = "deadline-not-abandoned";
     const views = await startFlaggedGame(room, clients);
-    clients.forEach(({ socket }) => socket.disconnect());
+    const watcher = await watch(room);
+    extra.push(watcher.socket);
+    // Every Seat is gone and the server knows it: the abandon timer runs.
+    await everyoneLeaves(clients, watcher, ["Zeg", "Bob", "Guest"]);
 
     const zeg = await rejoinAs("zeg", room);
     extra.push(zeg.socket);
-    expect(zeg.answer.playerView).toEqual(views[0]);
+    expect(zeg.answer.playerView.turn).toBe(views[0].turn);
+    // Well past the abandon period, the Game is still there.
     await sleep(800);
-
     const bob = await rejoinAs("bob", room);
     extra.push(bob.socket);
-    expect(bob.answer.playerView).toEqual(views[1]);
+    expect(bob.answer.playerView).not.toBeNull();
+    expect(bob.answer.playerView.turn).toBe(views[1].turn);
   } finally {
+    [...clients.map((c) => c.socket), ...extra].forEach((socket) => socket.disconnect());
+  }
+});
+
+test("while every Seat is away no default Moves are played, and a Rejoin restarts the deadline from then", async () => {
+  setTurnDurations({ donation: 100, special: 100, shared_selection: 100, bid: 100, payment: 100 });
+  setAbandonAfter(60 * 1000);
+  const clients = threeSeats();
+  const extra = [];
+  try {
+    const room = "deadline-paused";
+    await startFlaggedGame(room, clients, GOLD_ONLY);
+    const ours = reportsFor(clients[2].socket);
+    const watcher = await watch(room);
+    extra.push(watcher.socket);
+    await everyoneLeaves(clients, watcher, ["Zeg", "Bob", "Guest"]);
+    // Long enough for default Moves to finish this short Game, were they played.
+    await sleep(1500);
+    expect(ours()).toEqual([]);
+
+    const rejoinedAt = Date.now();
+    const zeg = await rejoinAs("zeg", room);
+    extra.push(zeg.socket);
+    const view = zeg.answer.playerView;
+    expect(view.phase).not.toBe("results");
+    expect(view.deadline - view.duration).toBeGreaterThanOrEqual(rejoinedAt);
+    // With a Seat back, the Game moves on by itself again.
+    const next = await once(zeg.socket, "player_view");
+    expect(next.turn).toBe(view.turn + 1);
+  } finally {
+    [...clients.map((c) => c.socket), ...extra].forEach((socket) => socket.disconnect());
+  }
+});
+
+test("a Seat whose connection dropped while its Game was being created counts as disconnected", async () => {
+  setTurnDurations(undefined);
+  setAbandonAfter(100);
+  const clients = [
+    { socket: connectAs("zeg"), name: "Zeg" },
+    { socket: connectAs("bob"), name: "Bob" },
+  ];
+  const extra = [];
+  // Bob drops while the engine is creating the Game; the server has handled
+  // it (Zeg hears the Room's list change) before the Game exists.
+  const restore = wrapEngine((engine) =>
+    Object.assign(Object.create(engine), {
+      async createGame(args) {
+        const created = await engine.createGame(args);
+        const heard = once(clients[0].socket, "player_list");
+        clients[1].socket.disconnect();
+        await heard;
+        return created;
+      },
+    }),
+  );
+  try {
+    const room = "deadline-dropped-at-start";
+    await joinAll(room, clients);
+    const started = once(clients[0].socket, "start_game");
+    clients[0].socket.emit("start_game", { room, deckSettings: DECK_SETTINGS, serverRules: true });
+    await started;
+    restore();
+    const watcher = await watch(room);
+    extra.push(watcher.socket);
+    // Zeg leaving now leaves no Seat connected, so the Game is abandoned.
+    await everyoneLeaves([clients[0]], watcher, ["Zeg"]);
+    await gameGone(watcher);
+    const { socket, answer } = await rejoinAs("bob", room);
+    extra.push(socket);
+    expect(answer.reason).toMatch(/abandoned/);
+  } finally {
+    restore();
+    [...clients.map((c) => c.socket), ...extra].forEach((socket) => socket.disconnect());
+  }
+});
+
+test("a Game whose deadline the engine fails to handle is lost, with no report", async () => {
+  setTurnDurations({ donation: 100, special: 100 });
+  const restore = wrapEngine((engine) =>
+    Object.assign(Object.create(engine), {
+      async handleDeadline() {
+        throw new Error("The engine could not handle the deadline");
+      },
+    }),
+  );
+  const clients = threeSeats();
+  const extra = [];
+  try {
+    const room = "deadline-engine-fails";
+    const lost = clients.map(({ socket }) => once(socket, "game_lost"));
+    await startFlaggedGame(room, clients);
+    const ours = reportsFor(clients[2].socket);
+    (await Promise.all(lost)).forEach((payload) => {
+      expect(payload.room).toBe(room);
+      expect(payload.reason).toMatch(/lost/);
+    });
+    restore();
+    const { socket, answer } = await rejoinAs("bob", room);
+    extra.push(socket);
+    expect(answer.playerView).toBeNull();
+    expect(answer.reason).toMatch(/lost/);
+    await sleep(200);
+    expect(ours()).toEqual([]);
+  } finally {
+    restore();
     [...clients.map((c) => c.socket), ...extra].forEach((socket) => socket.disconnect());
   }
 });
