@@ -136,6 +136,10 @@ function createEngineHost({ onCrash = () => {} } = {}) {
       if (!applied) return { applied: false };
       return { applied: true, ...withEnded(views, ended) };
     },
+    // The engine forgets the Game (it was abandoned); nothing is reported.
+    async discardGame({ gameId }) {
+      await request("discard", { game_id: gameId });
+    },
     // The engine child's process id, or undefined while none is running
     // (tests kill it to simulate a crash).
     get pid() {

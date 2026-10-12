@@ -12,6 +12,8 @@ Requests:
   {"id", "op": "handle_deadline", "game_id", "now"}
       -> {"id", "ok": true, "applied": true, "views": [...]} if a default Move was played
       -> {"id", "ok": true, "applied": false} if the deadline has not passed
+  {"id", "op": "discard", "game_id"}
+      -> {"id", "ok": true} once the Game is forgotten (abandoned: no result)
 When a Game is over, its response also carries
   "ended": {"placings": [{"player_id", "rank"}]} (rank order), exactly once:
 the Game is then dropped from memory, so no later request can end it again.
@@ -44,6 +46,9 @@ def handle(games, request):
         if not applied:
             return {"applied": False}
         return {"applied": True, **_store(games, request["game_id"], game)}
+    if op == "discard":
+        games.pop(request["game_id"], None)
+        return {}
     raise ValueError(f"Unknown op: {op}")
 
 

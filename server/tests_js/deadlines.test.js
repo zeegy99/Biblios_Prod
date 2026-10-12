@@ -1,4 +1,4 @@
-const { server, startServer, setResolveSession, setReportResult, setTurnDurations, stopEngine } = require("../server.js");
+const { server, startServer, setResolveSession, setReportResult, setTurnDurations, setAbandonAfter, stopEngine } = require("../server.js");
 const ioClient = require("socket.io-client");
 const TEST_PORT = 4007;
 
@@ -130,5 +130,62 @@ test("a Game nobody plays is played to the end by default Moves and reported exa
     expect(ours()[0].placings.map((p) => p.rank).sort()).toEqual([1, 2, 3]);
   } finally {
     clients.forEach(({ socket }) => socket.disconnect());
+  }
+});
+
+// Opens a new connection with `sid` and asks to Rejoin `room`; resolves to
+// the new socket and the server's answer.
+async function rejoinAs(sid, room) {
+  const socket = connectAs(sid);
+  const answer = once(socket, "rejoin_result");
+  socket.emit("rejoin_game", { room });
+  return { socket, answer: await answer };
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+test("a Game whose Seats have all been disconnected for the abandon period is discarded with no report", async () => {
+  setTurnDurations(undefined);
+  setAbandonAfter(100);
+  const clients = threeSeats();
+  const extra = [];
+  try {
+    const room = "deadline-abandoned";
+    await startFlaggedGame(room, clients);
+    const guestId = `guest:${clients[2].socket.id}`;
+    clients.forEach(({ socket }) => socket.disconnect());
+    // Nobody is left to hear the discard, so wait well past the period.
+    await sleep(600);
+
+    const { socket, answer } = await rejoinAs("zeg", room);
+    extra.push(socket);
+    expect(answer.playerView).toBeNull();
+    expect(answer.reason).toMatch(/abandoned/);
+    expect(reports.filter((r) => r.placings.some((p) => p.player_id === guestId))).toEqual([]);
+  } finally {
+    [...clients.map((c) => c.socket), ...extra].forEach((socket) => socket.disconnect());
+  }
+});
+
+test("a Seat Rejoining within the abandon period keeps the Game going", async () => {
+  setTurnDurations(undefined);
+  setAbandonAfter(400);
+  const clients = threeSeats();
+  const extra = [];
+  try {
+    const room = "deadline-not-abandoned";
+    const views = await startFlaggedGame(room, clients);
+    clients.forEach(({ socket }) => socket.disconnect());
+
+    const zeg = await rejoinAs("zeg", room);
+    extra.push(zeg.socket);
+    expect(zeg.answer.playerView).toEqual(views[0]);
+    await sleep(800);
+
+    const bob = await rejoinAs("bob", room);
+    extra.push(bob.socket);
+    expect(bob.answer.playerView).toEqual(views[1]);
+  } finally {
+    [...clients.map((c) => c.socket), ...extra].forEach((socket) => socket.disconnect());
   }
 });
