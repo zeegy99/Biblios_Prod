@@ -2,7 +2,6 @@ import React, {useState, useEffect} from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import "./lobby.css";
 import RulesPage from "./rulespage"; 
-import socket from "../socket";
 import { useAuth } from "../auth/auth_context";
 import SignOutButton from "../auth/sign_out_button";
 
@@ -26,18 +25,8 @@ const handleRejoin = () => {
     alert("No game to rejoin.");
     return;
   }
-  console.log("before the rejoin_game emit")
-
-  // Emit rejoin request
-  socket.emit("rejoin_game", {
-    room: roomCode,
-    signin_username: username,
-    playerName: playerName,
-  });
-
-  console.log("after the socket emit")
-
-  // Navigate back to the game
+  // The game screen asks the server for this Seat back (rejoin_game { room },
+  // by the Session of the connection) when it opens without a start payload.
   navigate(`/game/${roomCode}`);
 };
 

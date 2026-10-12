@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { Navigate, useNavigate } from "react-router-dom";import { getOrCreatePlayerId } from "../utils/playerId";
-import Timer from "../timer.jsx";
 import "./lobby.css";
 import RulesPage from "./rulespage";
 import { useAuth } from "../auth/auth_context";
