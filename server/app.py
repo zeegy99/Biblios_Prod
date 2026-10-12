@@ -8,7 +8,9 @@ import os, smtplib, ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import hashlib
+import hmac
 from typing import NamedTuple
+from engine.game import elo_change
 load_dotenv()
 
 app = Flask(__name__)
@@ -253,39 +255,106 @@ def signout():
     return resp
 
 
-@app.route("/api/update_elo", methods=["POST", "OPTIONS"])
+@app.route("/api/update_elo", methods=["POST"])
 def update_elo():
-    if request.method == "OPTIONS":
-        return '', 200
+    """Gone since #57: Elo changes only through finished server-rules Games,
+    which Node reports to /api/internal/game_result. Kept so that a client
+    still running an old bundle gets a clear refusal; it touches nothing.
+    Safe to delete outright (with its tests) once no browser can still hold
+    a bundle from before #57, e.g. a release or two later."""
+    return jsonify({"error": "Elo is applied by the game server; this endpoint is gone"}), 410
 
-    # The account always comes from the Session; any username in the body is ignored
-    account, error = require_session_account()
+
+def game_result_secret_error():
+    """The gate for Node's internal Game results endpoint: Node proves itself
+    with the shared secret GAME_RESULT_SECRET in the X-Game-Result-Secret
+    header, not with a Session. Returns an error response, or None if the
+    secret matches. With no secret configured nothing is accepted."""
+    expected = os.getenv("GAME_RESULT_SECRET")
+    if not expected:
+        return jsonify({"error": "Game results are not configured"}), 503
+    given = request.headers.get("X-Game-Result-Secret") or ""
+    if not hmac.compare_digest(given.encode(), expected.encode()):
+        return jsonify({"error": "Not authenticated"}), 401
+    return None
+
+
+@app.route("/api/internal/game_result", methods=["POST"])
+def record_game_result_route():
+    """Node reports a finished Game: {game_id, placings: [{player_id, rank}]}.
+    Applies the Elo formula (the engine's, the same one every Seat was
+    shown) to each Signed-in Player ("user:<id>") by place; Guests take
+    their places but have no Elo."""
+    error = game_result_secret_error()
     if error:
         return error
 
-    data = request.json
-    username = account.username
-    elo_change = data.get("eloChange")
+    data = request.get_json(silent=True) or {}
+    game_id, placings = data.get("game_id"), data.get("placings")
+    if not isinstance(game_id, str) or not game_id or not valid_placings(placings):
+        return jsonify({"error": "Send a game_id and placings ranking every Seat 1..n"}), 400
 
     try:
-        
-        conn = psycopg2.connect(DATABASE_URL)
+        return record_game_result(game_id, placings)
+    except Exception:
+        # Logged here; the caller only learns that it failed (and may retry).
+        app.logger.exception("Could not record the result of Game %s", game_id)
+        return jsonify({"error": "Could not record the Game result"}), 500
+
+
+def record_game_result(game_id, placings):
+    """Records the Game id and applies its Elo changes in one transaction;
+    a Game id already recorded changes nothing."""
+    conn = psycopg2.connect(DATABASE_URL)
+    try:
         cursor = conn.cursor()
-
-        cursor.execute(
-            "UPDATE elo SET elo_score = elo_score + %s WHERE username = %s",
-            (elo_change, username)
-        )
-
-        conn.commit()
-        cursor.close()
+        try:
+            # Recording the Game id first, in the same transaction as the Elo
+            # changes, makes a repeat report (even a concurrent one) a no-op.
+            cursor.execute(
+                "INSERT INTO game_results (game_id) VALUES (%s) ON CONFLICT DO NOTHING RETURNING game_id",
+                (game_id,)
+            )
+            if cursor.fetchone() is None:
+                return jsonify({"recorded": False}), 200
+            for placing in placings:
+                user_id = signed_in_user_id(placing.get("player_id"))
+                if user_id is None:
+                    continue
+                cursor.execute(
+                    """UPDATE elo SET elo_score = elo_score + %s
+                       FROM users WHERE users.id = %s AND elo.username = users.username""",
+                    (elo_change(placing["rank"] - 1, len(placings)), user_id)
+                )
+            conn.commit()
+        finally:
+            cursor.close()
+    finally:
         conn.close()
+    return jsonify({"recorded": True}), 200
 
-        return jsonify({"message": "Elo updated"}), 200
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-    
+def valid_placings(placings):
+    """Whether `placings` is a list of {player_id, rank} ranking its Seats
+    1..n, each rank once, each Player Identity (a string) once."""
+    if not isinstance(placings, list) or not placings:
+        return False
+    if not all(isinstance(p, dict) and type(p.get("rank")) is int and isinstance(p.get("player_id"), str) for p in placings):
+        return False
+    if len({p["player_id"] for p in placings}) != len(placings):
+        return False
+    return sorted(p["rank"] for p in placings) == list(range(1, len(placings) + 1))
+
+
+def signed_in_user_id(player_id):
+    """The user id in a Signed-in Player's Player Identity ("user:<id>"), or
+    None for a Guest or anything else."""
+    if not isinstance(player_id, str) or not player_id.startswith("user:"):
+        return None
+    raw = player_id[len("user:"):]
+    return int(raw) if raw.isascii() and raw.isdigit() else None
+
+
 @app.route("/api/get_elo", methods=["POST", "OPTIONS"])
 def get_elo():
     if request.method == "OPTIONS":

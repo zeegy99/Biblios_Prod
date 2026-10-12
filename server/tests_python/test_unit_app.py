@@ -195,56 +195,28 @@ class Test_signin:
         assert resp.get_json()['message'] == "Login successful"
         
 class Test_update_elo:
-    def test_update_elo_options_preflight(self, client):
-        resp = client.open("/api/update_elo", method="OPTIONS")
-        assert resp.status_code == 200
+    """Elo comes only from finished server-rules Games (#53); since #57 the
+    client-facing endpoint refuses every request and touches nothing."""
 
-    def test_no_sid_returns_401(self, client, mocker):
-        helper = mocker.patch("app.get_session_account")
+    def test_signed_in_request_is_refused_with_410_and_changes_nothing(self, client, mocker):
+        helper = mocker.patch("app.get_session_account", return_value=SessionAccount(user_id=7, username="alice"))
         connect = mocker.patch("app.psycopg2.connect")
+        client.set_cookie("sid", "good-sid")
 
         resp = client.post("/api/update_elo", json={'eloChange': 10})
 
+        assert resp.status_code == 410
+        assert "error" in resp.get_json()
         helper.assert_not_called()
         connect.assert_not_called()
-        assert resp.status_code == 401
-        assert resp.get_json() == {"error": "Not authenticated"}
 
-    def test_invalid_session_returns_401(self, client, mocker):
-        mocker.patch("app.get_session_account", return_value=None)
+    def test_request_without_session_is_refused_with_410(self, client, mocker):
         connect = mocker.patch("app.psycopg2.connect")
-        client.set_cookie("sid", "stale-sid")
-
-        resp = client.post("/api/update_elo", json={'eloChange': 10})
-
-        connect.assert_not_called()
-        assert resp.status_code == 401
-        assert resp.get_json() == {"error": "Session expired or invalid"}
-
-    def test_session_lookup_error_returns_500(self, client, mocker):
-        mocker.patch("app.get_session_account", side_effect=Exception("db down"))
-        client.set_cookie("sid", "good-sid")
-
-        resp = client.post("/api/update_elo", json={'eloChange': 10})
-
-        assert resp.status_code == 500
-        assert resp.get_json() == {"error": "db down"}
-
-    def test_changes_session_accounts_elo_and_ignores_body_username(self, client, mocker, db):
-        conn, cursor = db
-        helper = mocker.patch("app.get_session_account", return_value=SessionAccount(user_id=7, username="alice"))
-        client.set_cookie("sid", "good-sid")
 
         resp = client.post("/api/update_elo", json={'username': 'mallory', 'eloChange': 10})
 
-        helper.assert_called_once_with("good-sid")
-        cursor.execute.assert_called_once_with(
-            "UPDATE elo SET elo_score = elo_score + %s WHERE username = %s",
-            (10, "alice")
-        )
-        conn.commit.assert_called_once()
-        assert resp.status_code == 200
-        assert resp.json['message'] == "Elo updated"
+        assert resp.status_code == 410
+        connect.assert_not_called()
 
 #Adding More Unit-Tests In the Future
 
@@ -358,3 +330,56 @@ class Test_signout:
         conn.close.assert_called_once()
 
 
+
+
+class Test_game_result:
+    SECRET = "unit-test-secret"
+    PLACINGS = [{"player_id": "user:7", "rank": 1}, {"player_id": "guest:x", "rank": 2}]
+
+    @pytest.fixture(autouse=True)
+    def secret(self, monkeypatch):
+        monkeypatch.setenv("GAME_RESULT_SECRET", self.SECRET)
+
+    def post(self, client, body, secret=SECRET):
+        return client.post("/api/internal/game_result", json=body, headers={"X-Game-Result-Secret": secret})
+
+    def test_wrong_secret_returns_401_without_touching_db(self, client, mocker):
+        connect = mocker.patch("app.psycopg2.connect")
+
+        resp = self.post(client, {"game_id": "g", "placings": self.PLACINGS}, secret="nope")
+
+        connect.assert_not_called()
+        assert resp.status_code == 401
+
+    @pytest.mark.parametrize("body", [
+        {"placings": [{"player_id": "user:7", "rank": 1}]},
+        {"game_id": "", "placings": [{"player_id": "user:7", "rank": 1}]},
+        {"game_id": "g"},
+        {"game_id": "g", "placings": []},
+        {"game_id": "g", "placings": [{"player_id": "user:7", "rank": 1}, {"player_id": "user:8", "rank": 1}]},
+        {"game_id": "g", "placings": [{"player_id": "user:7", "rank": 2}]},
+        {"game_id": "g", "placings": [{"player_id": "user:7", "rank": True}]},
+        {"game_id": "g", "placings": ["user:7"]},
+        {"game_id": "g", "placings": [{"player_id": "user:7", "rank": 1}, {"player_id": "user:7", "rank": 2}]},
+        {"game_id": "g", "placings": [{"player_id": 7, "rank": 1}]},
+        {"game_id": "g", "placings": [{"rank": 1}]},
+    ])
+    def test_malformed_report_returns_400_without_touching_db(self, client, mocker, body):
+        connect = mocker.patch("app.psycopg2.connect")
+
+        resp = self.post(client, body)
+
+        connect.assert_not_called()
+        assert resp.status_code == 400
+
+    def test_db_error_returns_500_and_commits_nothing(self, client, db):
+        conn, cursor = db
+        cursor.execute.side_effect = Exception("db down")
+
+        resp = self.post(client, {"game_id": "g", "placings": self.PLACINGS})
+
+        assert resp.status_code == 500
+        # The database's own message is logged, not sent back.
+        assert resp.get_json() == {"error": "Could not record the Game result"}
+        conn.commit.assert_not_called()
+        conn.close.assert_called_once()

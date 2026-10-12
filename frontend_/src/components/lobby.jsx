@@ -9,6 +9,7 @@ import Fart from "../sound/fart-5-228245.mp3";
 const playerId = getOrCreatePlayerId();
 
 
+
 const Lobby = ({ playerName, setPlayerName }) => {
   const [players, setPlayers] = useState([]);
   const navigate = useNavigate();
@@ -114,7 +115,7 @@ useEffect(() => {
   });
 
   socket.on("start_game", (data) => {
-    localStorage.setItem("start_game_payload", JSON.stringify(data));
+    sessionStorage.setItem("start_game_payload", JSON.stringify(data));
     localStorage.setItem("playerName", playerName);
     setPlayerName(playerName);
     setTimeout(() => {
@@ -122,15 +123,14 @@ useEffect(() => {
     }, 50);
   });
 
-  socket.on("game_state", (data) => {
-    localStorage.setItem("playerName", playerName);
-    navigate("/game");
+  socket.on("start_game_failed", ({ message }) => {
+    alert(message);
   });
 
   return () => {
     socket.off("player_list");
     socket.off("start_game");
-    socket.off("game_state");
+    socket.off("start_game_failed");
   };
 }, [playerName, room]);
 
@@ -146,7 +146,10 @@ useEffect(() => {
     };
     console.log("Start Game button clicked with deckSettings", deckSettings);
     localStorage.setItem("prevRoomCode", room)
-    socket.emit("start_game", { room: room, deckSettings });
+    socket.emit("start_game", {
+      room: room,
+      deckSettings,
+    });
   };
 
 

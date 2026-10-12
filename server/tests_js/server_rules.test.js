@@ -1,0 +1,523 @@
+const { server, startServer, setResolveSession, setReportResult, stopEngine } = require("../server.js");
+const { DECK_SETTINGS, connectTo, collect, joinAll, moveAndWait, once, startGame, until } = require("./helpers");
+const TEST_PORT = 4004;
+const connectAs = connectTo(TEST_PORT);
+
+// Every Game result Node reports, captured instead of being sent to Flask.
+const reports = [];
+
+
+beforeAll((done) => {
+  setResolveSession(async (cookieHeader) => {
+    const sid = /(?:^|;\s*)sid=([^;]+)/.exec(cookieHeader || "")?.[1];
+    return { zeg: { user_id: 1, username: "zeg" }, bob: { user_id: 2, username: "bob" } }[sid] || null;
+  });
+  setReportResult(async (report) => reports.push(report));
+  startServer(TEST_PORT);
+  done();
+});
+
+afterAll((done) => {
+  stopEngine();
+  server.close(done);
+});
+
+function allCardsIn(node, found = []) {
+  if (Array.isArray(node)) node.forEach((v) => allCardsIn(v, found));
+  else if (node && typeof node === "object") {
+    if ("type" in node && "value" in node && "isSpecial" in node) found.push(node);
+    Object.values(node).forEach((v) => allCardsIn(v, found));
+  }
+  return found;
+}
+
+test("a start gives every Seat a Player View with only its own hand", async () => {
+  const clients = [
+    { socket: connectAs("zeg"), name: "Zeg" },
+    { socket: connectAs("bob"), name: "Bob" },
+    { socket: connectAs(null), name: "Guest" },
+  ];
+  try {
+    await joinAll("server-rules-room", clients);
+
+    const starts = clients.map(({ socket }) => once(socket, "start_game"));
+    clients[0].socket.emit("start_game", { room: "server-rules-room", deckSettings: DECK_SETTINGS });
+    const payloads = await Promise.all(starts);
+
+    payloads.forEach((payload, seat) => {
+      const view = payload.playerView;
+      expect(view.you).toBe(seat);
+      expect(view.phase).toBe("donation");
+      expect(view.seats.map((s) => s.name)).toEqual(["Zeg", "Bob", "Guest"]);
+      expect(view.deck).toBeUndefined();
+      expect(typeof view.deck_size).toBe("number");
+      view.seats.forEach((s) => expect(s.hand).toBeUndefined());
+    });
+
+    // The first Seat donates: only it sees its current card and has legal Moves.
+    const [donor, ...others] = payloads.map((p) => p.playerView);
+    expect(donor.donation.cards_count).toBe(4);
+    expect(donor.donation.card.isSpecial).toBe(false);
+    expect(donor.legal_moves.length).toBeGreaterThan(0);
+    others.forEach((view) => {
+      expect(view.donation.card).toBeUndefined();
+      expect(view.donation.cards_count).toBe(4);
+      expect(view.legal_moves).toEqual([]);
+      expect(view.hand).toEqual([]);
+      view.seats.forEach((s) => expect(s.hand).toBeUndefined());
+      // A special card being played is face up for every Seat (#49); nothing else drawn is.
+      expect(allCardsIn(view)).toEqual(view.donation.special ? [view.donation.special] : []);
+    });
+
+    // Every Seat sees the same server-rolled dice.
+    payloads.forEach((p) => expect(p.playerView.dice).toEqual(donor.dice));
+  } finally {
+    clients.forEach(({ socket }) => socket.disconnect());
+  }
+});
+
+test("every start is a server-rules Game: a start without any flag still gives each Seat its Player View", async () => {
+  const clients = [
+    { socket: connectAs("zeg"), name: "Zeg" },
+    { socket: connectAs("bob"), name: "Bob" },
+  ];
+  try {
+    await joinAll("plain-room", clients);
+
+    const starts = clients.map(({ socket }) => once(socket, "start_game"));
+    clients[0].socket.emit("start_game", { room: "plain-room", deckSettings: DECK_SETTINGS });
+    const payloads = await Promise.all(starts);
+
+    payloads.forEach((payload, seat) => {
+      expect(payload.playerView.you).toBe(seat);
+      expect(payload.playerView.phase).toBe("donation");
+      expect(payload.playerView.seats.map((s) => s.name)).toEqual(["Zeg", "Bob"]);
+    });
+  } finally {
+    clients.forEach(({ socket }) => socket.disconnect());
+  }
+});
+
+test("a full game state sent by a client is neither relayed nor kept", async () => {
+  const clients = [
+    { socket: connectAs("zeg"), name: "Zeg" },
+    { socket: connectAs("bob"), name: "Bob" },
+  ];
+  const extra = [];
+  try {
+    const room = "no-sync-room";
+    await joinAll(room, clients);
+    const heard = clients.map(({ socket }) => collect(socket, "sync_game_state"));
+    // Deliberately the payload the old client sent (before #57): the server
+    // must no longer accept a full game state from anyone.
+    clients[0].socket.emit("sync_game_state", { room, gameState: { phase: "results", players: [] } });
+    (await Promise.all(heard)).forEach((got) => expect(got).toEqual([]));
+
+    // Nor is it handed to anyone who comes back to the Room later.
+    const late = connectAs("bob");
+    extra.push(late);
+    const lateHeard = collect(late, "sync_game_state");
+    late.emit("rejoin_game", { room, signin_username: "bob", playerName: "Bob" });
+    expect(await lateHeard).toEqual([]);
+  } finally {
+    [...clients.map((c) => c.socket), ...extra].forEach((s) => s.disconnect());
+  }
+});
+
+test("a legal Move sends every Seat its new Player View; a rejected one reaches only its sender", async () => {
+  const clients = [
+    { socket: connectAs("zeg"), name: "Zeg" },
+    { socket: connectAs("bob"), name: "Bob" },
+    { socket: connectAs(null), name: "Guest" },
+  ];
+  try {
+    // Specials must be played on the dice first (#49), so restart in a fresh
+    // Room (a fresh shuffle) until the donor draws none.
+    let room, views;
+    for (let tries = 0; !views || ((!views[0].donation || views[0].donation.special) && tries < 20); tries++) {
+      room = `server-rules-moves-${tries}`;
+      views = await startGame(room, clients);
+    }
+    expect(views[0].legal_moves).toContainEqual({ type: "donate" });
+
+    const updates = clients.map(({ socket }) => once(socket, "player_view"));
+    clients[0].socket.emit("move", { room, move: { type: "donate" } });
+    const after = await Promise.all(updates);
+    after.forEach((view, seat) => {
+      expect(view.you).toBe(seat);
+      expect(view.shared_pool).toHaveLength(1);
+      expect(view.donation.cards_count).toBe(3);
+    });
+
+    // Bob is not the donor: only Bob hears about it, and nobody's view changes.
+    const others = [0, 2].map((i) => collect(clients[i].socket, "move_rejected"));
+    const views2 = clients.map(({ socket }) => collect(socket, "player_view"));
+    const bobRej = once(clients[1].socket, "move_rejected");
+    clients[1].socket.emit("move", { room, move: { type: "keep" } });
+    expect((await bobRej).reason).toMatch(/turn/);
+    (await Promise.all(others)).forEach((got) => expect(got).toEqual([]));
+    (await Promise.all(views2)).forEach((got) => expect(got).toEqual([]));
+  } finally {
+    clients.forEach(({ socket }) => socket.disconnect());
+  }
+});
+
+test("playing a special card changes the dice in every Seat's Player View; an illegal one reaches only its sender", async () => {
+  const clients = [
+    { socket: connectAs("zeg"), name: "Zeg" },
+    { socket: connectAs("bob"), name: "Bob" },
+    { socket: connectAs(null), name: "Guest" },
+  ];
+  try {
+    // Restart in a fresh Room (a fresh shuffle) until the donor draws a special card.
+    let room, views;
+    for (let tries = 0; !views || (!views[0].donation?.special && tries < 40); tries++) {
+      room = `server-rules-special-${tries}`;
+      views = await startGame(room, clients);
+    }
+    const special = views[0].donation?.special;
+    expect(special).toBeTruthy();
+    // Every Seat sees the special card being played; only the donor may play it.
+    views.forEach((view) => expect(view.donation.special).toEqual(special));
+    views.slice(1).forEach((view) => expect(view.legal_moves).toEqual([]));
+
+    if (special.type === "Both") {
+      const chosen = clients.map(({ socket }) => once(socket, "player_view"));
+      clients[0].socket.emit("move", { room, move: { type: "choose_direction", direction: "plus" } });
+      (await Promise.all(chosen)).forEach((view) => expect(view.donation.direction).toBe("plus"));
+    }
+
+    // A die that does not exist: only the donor hears, nobody's view changes.
+    const others = [1, 2].map((i) => collect(clients[i].socket, "move_rejected"));
+    const quiet = clients.map(({ socket }) => collect(socket, "player_view"));
+    const zegRej = once(clients[0].socket, "move_rejected");
+    clients[0].socket.emit("move", { room, move: { type: "modify_die", die: 9 } });
+    expect((await zegRej).reason).toMatch(/die/);
+    (await Promise.all(others)).forEach((got) => expect(got).toEqual([]));
+    (await Promise.all(quiet)).forEach((got) => expect(got).toEqual([]));
+
+    const before = views[0].dice[0].value;
+    const step = special.type === "Minus" ? -1 : 1;
+    const updates = clients.map(({ socket }) => once(socket, "player_view"));
+    clients[0].socket.emit("move", { room, move: { type: "modify_die", die: 0 } });
+    (await Promise.all(updates)).forEach((view, seat) => {
+      expect(view.you).toBe(seat);
+      expect(view.dice[0].value).toBe(Math.min(6, Math.max(1, before + step)));
+    });
+  } finally {
+    clients.forEach(({ socket }) => socket.disconnect());
+  }
+});
+
+test("taking from the shared pool reaches every Seat; a take out of turn reaches only its sender", async () => {
+  const clients = [
+    { socket: connectAs("zeg"), name: "Zeg" },
+    { socket: connectAs("bob"), name: "Bob" },
+    { socket: connectAs(null), name: "Guest" },
+  ];
+  try {
+    const room = "server-rules-selection";
+    let view = (await startGame(room, clients))[0];
+    // The donor plays its whole turn, always making its first legal Move.
+    while (view.phase === "donation") {
+      expect(view.legal_moves.length).toBeGreaterThan(0);
+      const next = clients.map(({ socket }) => once(socket, "player_view"));
+      clients[0].socket.emit("move", { room, move: view.legal_moves[0] });
+      view = (await Promise.all(next))[0];
+    }
+    expect(view.phase).toBe("shared_selection");
+    expect(view.current_seat).toBe(1);
+    const pool = view.shared_pool;
+    expect(pool).toHaveLength(2);
+
+    // The Guest's turn has not come: only the Guest hears, nobody's view changes.
+    const others = [0, 1].map((i) => collect(clients[i].socket, "move_rejected"));
+    const quiet = clients.map(({ socket }) => collect(socket, "player_view"));
+    const guestRej = once(clients[2].socket, "move_rejected");
+    clients[2].socket.emit("move", { room, move: { type: "take", card: 0 } });
+    expect((await guestRej).reason).toMatch(/turn/);
+    (await Promise.all(others)).forEach((got) => expect(got).toEqual([]));
+    (await Promise.all(quiet)).forEach((got) => expect(got).toEqual([]));
+
+    const updates = clients.map(({ socket }) => once(socket, "player_view"));
+    clients[1].socket.emit("move", { room, move: { type: "take", card: 0 } });
+    (await Promise.all(updates)).forEach((after, seat) => {
+      expect(after.you).toBe(seat);
+      expect(after.shared_pool).toEqual([pool[1]]);
+      expect(after.current_seat).toBe(2);
+      expect(after.seats[1].hand_size).toBe(1);
+      if (seat === 1) expect(after.hand).toEqual([pool[0]]);
+    });
+  } finally {
+    clients.forEach(({ socket }) => socket.disconnect());
+  }
+});
+
+test("a bid reaches every Seat; a bid out of turn reaches only its sender", async () => {
+  const clients = [
+    { socket: connectAs("zeg"), name: "Zeg" },
+    { socket: connectAs("bob"), name: "Bob" },
+    { socket: connectAs(null), name: "Guest" },
+  ];
+  try {
+    // Five Gold 1s and the specials: one donation turn uses up the ordinary
+    // cards, so the Game goes to the auction with every Seat holding one
+    // Gold card, whatever the shuffle.
+    const goldOnly = { gold: { 1: 5, 2: 0, 3: 0 }, resource: { 1: 0, 2: 0, 3: 0, 4: 0 } };
+    const room = "server-rules-auction";
+    let views = await startGame(room, clients, goldOnly);
+    while (views[0].phase !== "auction") {
+      const seat = views[0].current_seat;
+      views = await moveAndWait(clients, room, seat, views[seat].legal_moves[0]);
+    }
+    const card = views[0].auction.card;
+    expect(card.type).toBe("Gold");
+    views.forEach((view) => {
+      expect(view.auction.card).toEqual(card);
+      expect(view.current_seat).toBe(0);
+    });
+    expect(views[0].legal_moves).toEqual([{ type: "bid", min: 1, max: 1 }, { type: "pass" }]);
+
+    // Bob does not bid first: only Bob hears, nobody's view changes.
+    const others = [0, 2].map((i) => collect(clients[i].socket, "move_rejected"));
+    const quiet = clients.map(({ socket }) => collect(socket, "player_view"));
+    const bobRej = once(clients[1].socket, "move_rejected");
+    clients[1].socket.emit("move", { room, move: { type: "bid", amount: 1 } });
+    expect((await bobRej).reason).toMatch(/turn/);
+    (await Promise.all(others)).forEach((got) => expect(got).toEqual([]));
+    (await Promise.all(quiet)).forEach((got) => expect(got).toEqual([]));
+
+    const after = await moveAndWait(clients, room, 0, { type: "bid", amount: 1 });
+    after.forEach((view, seat) => {
+      expect(view.you).toBe(seat);
+      expect(view.auction.bid).toBe(1);
+      expect(view.auction.highest_bidder).toBe(0);
+      expect(view.current_seat).toBe(1);
+    });
+  } finally {
+    clients.forEach(({ socket }) => socket.disconnect());
+  }
+});
+
+test("a payment reaches every Seat; a payment with the card just won reaches only its sender", async () => {
+  const clients = [
+    { socket: connectAs("zeg"), name: "Zeg" },
+    { socket: connectAs("bob"), name: "Bob" },
+    { socket: connectAs(null), name: "Guest" },
+  ];
+  try {
+    // As in the bid test: one Gold 1 goes up for auction and every Seat
+    // holds one Gold 1, whatever the shuffle.
+    const goldOnly = { gold: { 1: 5, 2: 0, 3: 0 }, resource: { 1: 0, 2: 0, 3: 0, 4: 0 } };
+    const room = "server-rules-payment";
+    let views = await startGame(room, clients, goldOnly);
+    while (views[0].phase !== "auction") {
+      const seat = views[0].current_seat;
+      views = await moveAndWait(clients, room, seat, views[seat].legal_moves[0]);
+    }
+    views = await moveAndWait(clients, room, 0, { type: "bid", amount: 1 });
+    views = await moveAndWait(clients, room, 1, { type: "pass" });
+    views = await moveAndWait(clients, room, 2, { type: "pass" });
+
+    // Zeg won the Gold card: it is in Zeg's hand and gold already.
+    views.forEach((view) => {
+      expect(view.auction.winner).toMatchObject({ seat: 0, bid: 1 });
+      expect(view.seats[0]).toMatchObject({ hand_size: 2, gold: 2 });
+    });
+    expect(views[0].legal_moves).toEqual([{ type: "pay", pay_in: "cards", exactly: 1, excluding: [1] }]);
+    views.slice(1).forEach((view) => expect(view.legal_moves).toEqual([]));
+
+    // Paying with the card just won: only Zeg hears, nobody's view changes.
+    const others = [1, 2].map((i) => collect(clients[i].socket, "move_rejected"));
+    const quiet = clients.map(({ socket }) => collect(socket, "player_view"));
+    const zegRej = once(clients[0].socket, "move_rejected");
+    clients[0].socket.emit("move", { room, move: { type: "pay", cards: [1] } });
+    expect((await zegRej).reason).toMatch(/won/);
+    (await Promise.all(others)).forEach((got) => expect(got).toEqual([]));
+    (await Promise.all(quiet)).forEach((got) => expect(got).toEqual([]));
+
+    // The only card is paid for, so the auction ends.
+    const after = await moveAndWait(clients, room, 0, { type: "pay", cards: [0] });
+    after.forEach((view, seat) => {
+      expect(view.you).toBe(seat);
+      expect(view.phase).toBe("results");
+      expect(view.seats[0]).toMatchObject({ hand_size: 1, gold: 1 });
+    });
+    expect(after[0].hand).toEqual([views[0].hand[1]]);
+  } finally {
+    clients.forEach(({ socket }) => socket.disconnect());
+  }
+});
+
+test("a finished Game is scored for every Seat and reported once with its placings", async () => {
+  const clients = [
+    { socket: connectAs("zeg"), name: "Zeg" },
+    { socket: connectAs("bob"), name: "Bob" },
+    { socket: connectAs(null), name: "Guest" },
+  ];
+  try {
+    // As in the bid test: one Gold 1 goes up for auction, whatever the shuffle.
+    const goldOnly = { gold: { 1: 5, 2: 0, 3: 0 }, resource: { 1: 0, 2: 0, 3: 0, 4: 0 } };
+    const room = "server-rules-end";
+    let views = await startGame(room, clients, goldOnly);
+    while (views[0].phase !== "auction") {
+      const seat = views[0].current_seat;
+      views = await moveAndWait(clients, room, seat, views[seat].legal_moves[0]);
+    }
+    const guestId = `guest:${clients[2].socket.id}`;
+    const ours = () => reports.filter((r) => r.placings.some((p) => p.player_id === guestId));
+    // Everyone passes on the only card, so the Game is over.
+    for (const seat of [0, 1, 2]) views = await moveAndWait(clients, room, seat, { type: "pass" });
+
+    views.forEach((view) => {
+      expect(view.phase).toBe("results");
+      expect(view.legal_moves).toEqual([]);
+      expect(view.results).toEqual(views[0].results);
+    });
+    const { standings } = views[0].results;
+    expect(standings.map((s) => s.rank)).toEqual([1, 2, 3]);
+    // The Guest (Seat 2) takes its place but has no Elo.
+    expect(standings.map((s) => s.elo)).toEqual([10, 0, -10].map((elo, i) => (standings[i].seat === 2 ? null : elo)));
+
+    // The report arrives; a Move after the end is refused and, given time
+    // to settle, reports nothing more.
+    await until(() => ours().length > 0);
+    const rej = once(clients[0].socket, "move_rejected");
+    clients[0].socket.emit("move", { room, move: { type: "pass" } });
+    await rej;
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    const ids = ["user:1", "user:2", guestId];
+    expect(ours()).toHaveLength(1);
+    const [report] = ours();
+    expect(typeof report.gameId).toBe("string");
+    expect(report.placings).toEqual(standings.map((s) => ({ player_id: ids[s.seat], rank: s.rank })));
+  } finally {
+    clients.forEach(({ socket }) => socket.disconnect());
+  }
+});
+
+test("a Game over as soon as it starts (an empty deck) is reported once", async () => {
+  const clients = [
+    { socket: connectAs("zeg"), name: "Zeg" },
+    { socket: connectAs(null), name: "Guest" },
+  ];
+  try {
+    // Only the special cards: the first draw comes up short with nothing discarded.
+    const empty = { gold: { 1: 0, 2: 0, 3: 0 }, resource: { 1: 0, 2: 0, 3: 0, 4: 0 } };
+    const views = await startGame("server-rules-empty", clients, empty);
+    views.forEach((view) => expect(view.phase).toBe("results"));
+    const guestId = `guest:${clients[1].socket.id}`;
+    const ours = () => reports.filter((r) => r.placings.some((p) => p.player_id === guestId));
+    await until(() => ours().length > 0);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(ours()).toHaveLength(1);
+    expect(ours()[0].placings.map((p) => p.player_id).sort()).toEqual([guestId, "user:1"].sort());
+  } finally {
+    clients.forEach(({ socket }) => socket.disconnect());
+  }
+});
+
+// --- Who may start a Game (#57 review) ---------------------------------------
+
+test("a start_game while a Game is in progress is refused: the Seats see nothing and the Game ends with one report", async () => {
+  const clients = [
+    { socket: connectAs("zeg"), name: "Zeg" },
+    { socket: connectAs(null), name: "Guest" },
+  ];
+  try {
+    const goldOnly = { gold: { 1: 5, 2: 0, 3: 0 }, resource: { 1: 0, 2: 0, 3: 0, 4: 0 } };
+    const room = "start-during-game";
+    let views = await startGame(room, clients, goldOnly);
+
+    // Seat 1 (not the host) and then the host try to start again.
+    const quiet = clients.map(({ socket }) => collect(socket, "start_game"));
+    for (const seat of [1, 0]) {
+      const refused = once(clients[seat].socket, "start_game_failed");
+      clients[seat].socket.emit("start_game", { room, deckSettings: DECK_SETTINGS });
+      expect((await refused).message).toEqual(expect.any(String));
+    }
+    (await Promise.all(quiet)).forEach((got) => expect(got).toEqual([]));
+
+    // The Game carries on from where it was and ends once.
+    while (views[0].phase !== "results") {
+      const seat = views[0].current_seat;
+      views = await moveAndWait(clients, room, seat, views[seat].legal_moves.find((m) => m.type === "pass") ?? views[seat].legal_moves[0]);
+    }
+    const guestId = `guest:${clients[1].socket.id}`;
+    const ours = () => reports.filter((r) => r.placings.some((p) => p.player_id === guestId));
+    await until(() => ours().length > 0);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(ours()).toHaveLength(1);
+  } finally {
+    clients.forEach(({ socket }) => socket.disconnect());
+  }
+});
+
+test("two start_games sent at once start one Game; the second is refused", async () => {
+  const clients = [
+    { socket: connectAs("zeg"), name: "Zeg" },
+    { socket: connectAs("bob"), name: "Bob" },
+  ];
+  try {
+    const room = "double-start";
+    await joinAll(room, clients);
+    const starts = clients.map(({ socket }) => collect(socket, "start_game", 1000));
+    const refused = once(clients[0].socket, "start_game_failed");
+    clients[0].socket.emit("start_game", { room, deckSettings: DECK_SETTINGS });
+    clients[0].socket.emit("start_game", { room, deckSettings: DECK_SETTINGS });
+    await refused;
+    (await Promise.all(starts)).forEach((got) => expect(got).toHaveLength(1));
+  } finally {
+    clients.forEach(({ socket }) => socket.disconnect());
+  }
+});
+
+// Expects `sender`'s start_game for `room` to be refused to it alone, with
+// nothing started for `members`.
+async function expectStartRefused(room, sender, members) {
+  const quiet = members.map((socket) => collect(socket, "start_game"));
+  const othersRefused = members.filter((s) => s !== sender).map((socket) => collect(socket, "start_game_failed"));
+  const refused = once(sender, "start_game_failed");
+  sender.emit("start_game", { room, deckSettings: DECK_SETTINGS });
+  expect((await refused).message).toEqual(expect.any(String));
+  (await Promise.all(quiet)).forEach((got) => expect(got).toEqual([]));
+  (await Promise.all(othersRefused)).forEach((got) => expect(got).toEqual([]));
+}
+
+test("a start_game from a socket not listed in the Room is refused", async () => {
+  const clients = [
+    { socket: connectAs("zeg"), name: "Zeg" },
+    { socket: connectAs("bob"), name: "Bob" },
+  ];
+  const outsider = connectAs(null);
+  try {
+    await joinAll("start-outsider", clients);
+    await expectStartRefused("start-outsider", outsider, clients.map((c) => c.socket));
+  } finally {
+    [...clients.map((c) => c.socket), outsider].forEach((s) => s.disconnect());
+  }
+});
+
+test("a start_game from a player who is not the host (the first listed) is refused", async () => {
+  const clients = [
+    { socket: connectAs("zeg"), name: "Zeg" },
+    { socket: connectAs("bob"), name: "Bob" },
+  ];
+  try {
+    await joinAll("start-not-host", clients);
+    await expectStartRefused("start-not-host", clients[1].socket, clients.map((c) => c.socket));
+  } finally {
+    clients.forEach(({ socket }) => socket.disconnect());
+  }
+});
+
+test("a start_game with fewer than two players in the Room is refused", async () => {
+  const host = connectAs("zeg");
+  try {
+    await joinAll("start-alone", [{ socket: host, name: "Zeg" }]);
+    await expectStartRefused("start-alone", host, [host]);
+  } finally {
+    host.disconnect();
+  }
+});

@@ -39,3 +39,10 @@ CREATE TABLE IF NOT EXISTS keybinds (
     increase_dice TEXT,
     decrease_dice TEXT
 );
+
+-- Games whose result Node has reported and whose Elo changes were applied:
+-- a repeat report for the same Game id changes nothing (#53).
+CREATE TABLE IF NOT EXISTS game_results (
+    game_id TEXT PRIMARY KEY,
+    recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
