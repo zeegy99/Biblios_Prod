@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import Card from "./card";
 import "./card.css";
 import socket from "../socket";
+import { DeadlineTimer } from "../timer.jsx";
 
 // The shared selection phase of a server-rules Game, rendered only from this
 // Seat's Player View. It holds no rules: a Take button is enabled exactly
@@ -23,6 +24,7 @@ const ServerSharedSelection = ({ view }) => {
           ? `${selector}'s Turn - Shared Pool Selection`
           : `Shared Pool by ${seats[view.last_donor]?.name} (watching selection)`}
       </h3>
+      <DeadlineTimer deadline={view.deadline} />
       {isSelector ? <p>Select a card:</p> : <p>⏳ Waiting for {selector} to choose a card...</p>}
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", justifyContent: "center", alignItems: "center" }}>

@@ -98,7 +98,16 @@ function startServer(port) {
 const engine = createEngineHost({ onCrash: () => loseAllGames() });
 
 function stopEngine() {
+  for (const room in gamesInRoom) clearDeadline(gamesInRoom[room]);
   engine.stop();
+}
+
+// Turn durations (ms) by step, overriding the engine's (see TURN_DURATIONS
+// in engine/game.py) for Games started from now on; tests use tiny ones.
+let turnDurations;
+
+function setTurnDurations(durations) {
+  turnDurations = durations;
 }
 
 // The engine child's process id (tests kill it to simulate a crash).
@@ -106,7 +115,7 @@ function enginePid() {
   return engine.pid;
 }
 
-module.exports = { app, server, io, startServer, setResolveSession, resolveSessionViaFlask, setReportResult, stopEngine, enginePid };
+module.exports = { app, server, io, startServer, setResolveSession, resolveSessionViaFlask, setReportResult, setTurnDurations, stopEngine, enginePid };
 if (require.main === module) {
   startServer(PORT);
 }
@@ -148,12 +157,15 @@ async function startServerRulesGame(room, players, deckSettings) {
       deckSettings,
       seed: crypto.randomInt(0, 2 ** 47),
       now: Date.now(),
+      durations: turnDurations,
     });
-    gamesInRoom[room] = { gameId, seats, views };
+    const game = { gameId, seats, views };
+    gamesInRoom[room] = game;
     seats.forEach((seat, i) => {
       io.to(seat.socketId).emit("start_game", { players, deckSettings, serverRules: true, playerView: views[i] });
     });
-    if (ended) finishGame(room, gamesInRoom[room], ended);
+    if (ended) finishGame(room, game, ended);
+    else scheduleDeadline(room, game);
   } catch (e) {
     console.error(`Could not start a server-rules Game in ${room}:`, e);
     io.to(room).emit("start_game_failed", { message: "The server could not start the Game." });
@@ -165,6 +177,7 @@ async function startServerRulesGame(room, players, deckSettings) {
 // reported with the Seats' Player Identities. The finished Game is kept for
 // FINISHED_GAME_KEPT_MS so its Seats can still Rejoin the results.
 function finishGame(room, game, { placings }) {
+  clearDeadline(game);
   if (gamesInRoom[room] === game) {
     delete gamesInRoom[room];
     finishedGamesInRoom[room] = game;
@@ -197,6 +210,7 @@ function loseAllGames() {
   for (const room in gamesInRoom) {
     const game = gamesInRoom[room];
     game.lost = true;
+    clearDeadline(game);
     delete gamesInRoom[room];
     lostGamesInRoom[room] = game;
     setTimeout(() => {
@@ -235,7 +249,7 @@ async function handleMove(socket, room, move) {
     return;
   }
   try {
-    const { views, rejected, ended } = await engine.applyMove({ gameId: game.gameId, seat, move });
+    const { views, rejected, ended } = await engine.applyMove({ gameId: game.gameId, seat, move, now: Date.now() });
     if (game.lost) {
       socket.emit("move_rejected", { reason: GAME_LOST_REASON });
       return;
@@ -244,9 +258,7 @@ async function handleMove(socket, room, move) {
       socket.emit("move_rejected", { reason: rejected });
       return;
     }
-    game.views = views;
-    game.seats.forEach((s, i) => io.to(s.socketId).emit("player_view", views[i]));
-    if (ended) finishGame(room, game, ended);
+    showViews(room, game, views, ended);
   } catch (e) {
     // The engine dying mid-Move rejects it; the Room was already told.
     if (game.lost) {
@@ -256,6 +268,52 @@ async function handleMove(socket, room, move) {
     console.error(`Could not apply a Move in ${room}:`, e);
     socket.emit("move_rejected", { reason: "The server could not apply the Move." });
   }
+}
+
+// The engine has changed `game`: every Seat gets its new Player View, and
+// the Game either ends or waits for its next deadline.
+function showViews(room, game, views, ended) {
+  game.views = views;
+  game.seats.forEach((s, i) => io.to(s.socketId).emit("player_view", views[i]));
+  if (ended) finishGame(room, game, ended);
+  else scheduleDeadline(room, game);
+}
+
+// One wake-up per Game, at the deadline in its latest Player Views (every
+// Seat's view carries the same one); it replaces any earlier wake-up. The
+// timer is unref'd so it never keeps the process alive on its own.
+function scheduleDeadline(room, game) {
+  clearDeadline(game);
+  const deadline = game.views[0]?.deadline;
+  if (typeof deadline !== "number") return;
+  game.deadlineTimer = setTimeout(() => {
+    game.deadlineTimer = null;
+    handleDeadline(room, game).catch((e) => console.error(`Deadline handling failed in ${room}:`, e));
+  }, Math.max(0, deadline - Date.now()));
+  game.deadlineTimer.unref();
+}
+
+function clearDeadline(game) {
+  clearTimeout(game.deadlineTimer);
+  game.deadlineTimer = null;
+}
+
+// The wake-up: the engine plays the waiting Seat's default Move if its
+// deadline has passed (no Move in flight beat it to it), and every Seat gets
+// the new view. Either way the next deadline is scheduled.
+async function handleDeadline(room, game) {
+  if (gamesInRoom[room] !== game) return;
+  let result;
+  try {
+    result = await engine.handleDeadline({ gameId: game.gameId, now: Date.now() });
+  } catch (e) {
+    // The Game ended, was lost or was discarded meanwhile: nothing to do.
+    if (gamesInRoom[room] !== game) return;
+    throw e;
+  }
+  if (gamesInRoom[room] !== game) return;
+  if (result.applied) showViews(room, game, result.views, result.ended);
+  else if (!game.deadlineTimer) scheduleDeadline(room, game);
 }
 
 // Rejoin: gives a Signed-in Player back their Seat in `room`'s Game (in

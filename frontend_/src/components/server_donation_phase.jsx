@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import Card from "./card";
 import "./card.css";
 import socket from "../socket";
+import { DeadlineTimer } from "../timer.jsx";
 
 // The donation phase of a server-rules Game, rendered only from this Seat's
 // Player View. It holds no rules: a control is enabled exactly when the
@@ -30,6 +31,7 @@ const ServerDonationPhase = ({ view }) => {
   return (
     <div>
       <h3>{donorName}'s Donation Turn</h3>
+      <DeadlineTimer deadline={view.deadline} />
 
       {/* A special card is played face up: every Seat sees it and the dice
           it changes; only the donor's controls are ever enabled. */}

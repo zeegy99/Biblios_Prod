@@ -9,6 +9,7 @@ module and read it only through player_view.
 """
 
 import copy
+import itertools
 import random
 
 # Both orders are the React ones: RESOURCE_TYPES is the deck build order (it
@@ -29,15 +30,21 @@ AUCTION_MOVES = ["bid", "pass"]
 # How the winner of the card at auction pays for it.
 PAYMENT_MOVES = ["pay"]
 
+# How long (ms) a Seat has for each kind of step before the server plays its
+# default Move (see handle_deadline). Donation, shared selection and auction
+# bids are the React timers' lengths; special cards and payments had none.
+TURN_DURATIONS = {"donation": 30000, "special": 30000, "shared_selection": 10000, "bid": 10000, "payment": 30000}
+
 DEFAULT_RESOURCE = {"1": 5, "2": 4, "3": 2, "4": 2}
 DEFAULT_GOLD = {"1": 5, "2": 5, "3": 5}
 
 
-def create_game(seats, deck_settings, seed, now):
+def create_game(seats, deck_settings, seed, now, durations=None):
     """A new Game for the given Seats ([{player_id, name}] in turn order),
     with the deck shuffled and the dice rolled from the seed. The first Seat
     starts the donation phase with its cards already drawn. `now` (ms) is
-    the start time; the engine never reads the clock."""
+    the start time; the engine never reads the clock. `durations` overrides
+    some of TURN_DURATIONS for this Game (tests use tiny ones)."""
     rng = random.Random(seed)
     game = {
         "phase": "donation",
@@ -54,10 +61,35 @@ def create_game(seats, deck_settings, seed, now):
         "last_donor": None,
         "auction": None,
         "results": None,
-        "turn_started_at": now,
+        "deadline": None,
+        "durations": {**TURN_DURATIONS, **(durations or {})},
+        # The seeded generator carries on through the Game (for the default
+        # Moves that choose at random), so a Game replays from its seed.
+        "rng": _rng_state(rng),
     }
     _start_donation_turn(game)
+    _restart_clock(game, now)
     return game
+
+
+def _restart_clock(game, now):
+    """Every accepted Move starts a fresh deadline for whatever the Game now
+    waits for (one deadline per Move awaited, so each card a donor deals
+    with gets the full time); a finished Game has none."""
+    step = _step(game)
+    game["deadline"] = None if step is None else now + game["durations"][step]
+
+
+def _step(game):
+    """Which kind of step the Game waits for (a TURN_DURATIONS key), or None
+    once it is over."""
+    if game["phase"] == "donation":
+        return "special" if game["donation"]["specials"] else "donation"
+    if game["phase"] == "auction":
+        return "payment" if game["auction"]["winner"] is not None else "bid"
+    if game["phase"] == "shared_selection":
+        return "shared_selection"
+    return None
 
 
 def player_view(game, seat):
@@ -82,6 +114,8 @@ def player_view(game, seat):
         "auction": _auction_view(game),
         # Once the Game is over, the same results for every Seat.
         "results": copy.deepcopy(game["results"]),
+        # When (ms) the server plays the current Seat's default Move, or None.
+        "deadline": game["deadline"],
         "legal_moves": legal_moves(game, seat),
     }
 
@@ -142,30 +176,38 @@ def legal_moves(game, seat):
     return [{"type": t} for t in DONATION_MOVES if _rejection(game, seat, {"type": t}) is None]
 
 
-def apply_move(game, seat, move):
-    """Apply `move` by `seat`. Returns (new Game, None) if it is legal, or
-    (None, reason) if it is not; the given Game is never changed. A donation
-    Move names no card: it always deals with the donor's current card, the
-    only one the donor holds and sees."""
+def apply_move(game, seat, move, now):
+    """Apply `move` by `seat` at time `now` (ms). Returns (new Game, None) if
+    it is legal, or (None, reason) if it is not; the given Game is never
+    changed. A donation Move names no card: it always deals with the donor's
+    current card, the only one the donor holds and sees. The new Game's
+    deadline starts from `now`."""
     reason = _rejection(game, seat, move)
     if reason:
         return None, reason
     game = copy.deepcopy(game)
+    _make_move(game, seat, move)
+    _restart_clock(game, now)
+    return game, None
+
+
+def _make_move(game, seat, move):
+    """Change `game` (a copy) by the legal Move `move` of `seat`."""
     if move["type"] in SELECTION_MOVES:
         _take(game, seat, move)
-        return game, None
+        return
     if move["type"] == "bid":
         _bid(game, seat, move["amount"])
-        return game, None
+        return
     if move["type"] == "pass":
         _pass(game, seat)
-        return game, None
+        return
     if move["type"] in PAYMENT_MOVES:
         _pay(game, seat, move["cards"])
-        return game, None
+        return
     if move["type"] in SPECIAL_MOVES:
         _play_special(game, move)
-        return game, None
+        return
     donation = game["donation"]
     card = donation["cards"].pop(0)
     if move["type"] == "keep":
@@ -177,7 +219,84 @@ def apply_move(game, seat, move):
         game["shared_pool"].append({**card, "pooledBy": game["seats"][seat]["name"]})
     if not donation["cards"]:
         _finish_donation_turn(game)
-    return game, None
+
+
+def handle_deadline(game, now):
+    """If the Game's deadline has passed at `now` (ms), the Seat it waits for
+    has run out of time: its default Move is applied as any Move would be,
+    and a fresh deadline starts from `now`. Returns (new Game, True), or
+    (the same Game, False) when nothing is overdue. Only one default Move is
+    played per call, so a host that wakes late plays the next one at the
+    next deadline rather than all at once."""
+    if game["deadline"] is None or now < game["deadline"]:
+        return game, False
+    game = copy.deepcopy(game)
+    seat = game["current_seat"]
+    new_game, reason = apply_move(game, seat, _default_move(game, seat), now)
+    if reason:
+        raise AssertionError(f"Default Move rejected: {reason}")
+    return new_game, True
+
+
+def _default_move(game, seat):
+    """The Move played for `seat` when its time runs out. In the donation
+    phase it is the first legal Move: a special card gets the first
+    direction (increase) and then the first dice it may change; an ordinary
+    card is kept, else discarded, else donated. In the shared selection it
+    is a random pool card, as the React timer's Bot.shared_selection, drawn
+    from the Game's seeded generator (so `game` is changed: pass a copy).
+    A bidder passes, and a winner makes the cheapest payment."""
+    if _step(game) == "bid":
+        return {"type": "pass"}
+    if _step(game) == "payment":
+        return {"type": "pay", "cards": _cheapest_payment(game, seat)}
+    moves = legal_moves(game, seat)
+    if game["phase"] == "shared_selection":
+        rng = random.Random()
+        rng.setstate(_from_json_state(game["rng"]))
+        move = moves[rng.randrange(len(moves))]
+        game["rng"] = _rng_state(rng)
+        return move
+    return moves[0]
+
+
+def _cheapest_payment(game, seat):
+    """The hand cards (indices) `seat` gives up when its payment is overdue.
+    For a Gold card: the `bid` lowest-value cards other than the one won
+    (the earlier in the hand first among equal values). For any other card:
+    the Gold cards covering the bid with the least total, then the fewest
+    cards (a fixed choice among sets equal on both). A Seat's gold is the total
+    of its Gold cards, so some set always covers a bid it could make."""
+    hand = game["seats"][seat]["hand"]
+    descriptor = _payment_descriptor(game)
+    if descriptor["pay_in"] == "cards":
+        free = [i for i in range(len(hand)) if i not in descriptor["excluding"]]
+        return sorted(sorted(free, key=lambda i: hand[i]["value"])[: descriptor["exactly"]])
+    # Gold cards of equal value are interchangeable, so rather than every set
+    # of cards (exponential in a big custom deck) only how many of each value
+    # are given is searched, and the earliest such cards in the hand go.
+    by_value = {}
+    for i, c in enumerate(hand):
+        if c["type"] == "Gold":
+            by_value.setdefault(c["value"], []).append(i)
+    values = sorted(by_value)
+    best = None
+    for counts in itertools.product(*(range(len(by_value[v]) + 1) for v in values)):
+        total = sum(v * n for v, n in zip(values, counts))
+        if total >= descriptor["at_least"] and (best is None or (total, sum(counts)) < best[0]):
+            best = ((total, sum(counts)), counts)
+    return sorted(i for v, n in zip(values, best[1]) for i in by_value[v][:n])
+
+
+def _rng_state(rng):
+    """The generator's state as JSON (lists rather than tuples)."""
+    version, internal, gauss = rng.getstate()
+    return [version, list(internal), gauss]
+
+
+def _from_json_state(state):
+    version, internal, gauss = state
+    return version, tuple(internal), gauss
 
 
 def _rejection(game, seat, move):

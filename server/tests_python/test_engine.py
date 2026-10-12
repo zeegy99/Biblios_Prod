@@ -4,7 +4,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from engine import apply_move, create_game, game_result, player_view, score
+from engine import apply_move, create_game, game_result, handle_deadline, player_view, score
 
 SEATS = [
     {"player_id": "user:1", "name": "Zeg"},
@@ -171,15 +171,15 @@ def _plain_game():
     return create_game(SEATS, DECK_SETTINGS, seed=_seed_where_first_donor_draws(False), now=NOW)
 
 
-def _apply(game, seat, move):
-    new_game, reason = apply_move(game, seat, move)
+def _apply(game, seat, move, now=NOW):
+    new_game, reason = apply_move(game, seat, move, now)
     assert reason is None, reason
     return new_game
 
 
 def _rejected(game, seat, move):
     before = json.dumps(game, sort_keys=True)
-    new_game, reason = apply_move(game, seat, move)
+    new_game, reason = apply_move(game, seat, move, NOW)
     assert new_game is None
     assert isinstance(reason, str) and reason
     assert json.dumps(game, sort_keys=True) == before, "a rejected Move must change nothing"
@@ -1219,3 +1219,200 @@ def test_a_guest_takes_its_place_but_has_no_elo_change():
     ]
     assert results["log"][-1] == "Final Rankings: Ann: #1, elo: —, Zeg: #2, elo: 0, Bob: #3, elo: -10"
     assert "guest:abc" not in json.dumps(results)
+
+
+# --- Turn deadlines (#55) -----------------------------------------------------
+
+SECOND = 1000
+
+
+def test_every_seat_sees_the_donors_deadline_from_the_start():
+    game = create_game(SEATS, DECK_SETTINGS, seed=_seed_where_first_donor_draws(False), now=NOW)
+    for view in views_for(game):
+        assert view["deadline"] == NOW + 30 * SECOND
+
+
+def test_each_accepted_move_starts_a_fresh_deadline_for_the_step_now_awaited():
+    game = _apply(_plain_game(), 0, {"type": "keep"}, now=NOW + 7 * SECOND)
+    assert player_view(game, 1)["deadline"] == NOW + 37 * SECOND
+    # A rejected Move changes nothing, so the deadline stays.
+    _rejected(game, 1, {"type": "keep"})
+    game = _finish_donation(game)
+    game = _apply(game, 1, {"type": "take", "card": 0}, now=NOW + 50 * SECOND)
+    assert player_view(game, 0)["phase"] == "shared_selection"
+    assert player_view(game, 0)["deadline"] == NOW + 60 * SECOND
+
+
+def test_a_special_card_and_an_auction_bid_and_payment_have_their_own_durations():
+    game = create_game(SEATS, DECK_SETTINGS, seed=_seed_where_first_donor_draws(True), now=NOW)
+    assert player_view(game, 0)["deadline"] == NOW + 30 * SECOND
+    game = _auction_game(lambda views: _can_bid(2)(views))
+    game = _apply(game, 0, {"type": "pass"}, now=NOW + SECOND)
+    assert player_view(game, 0)["deadline"] == NOW + 11 * SECOND
+    game = _apply(game, 1, {"type": "pass"})
+    game = _apply(game, 2, {"type": "bid", "amount": 1}, now=NOW + 2 * SECOND)
+    assert player_view(game, 0)["auction"]["winner"] is not None
+    assert player_view(game, 0)["deadline"] == NOW + 32 * SECOND
+
+
+def test_a_finished_game_has_no_deadline():
+    game = _auction_game()
+    while player_view(game, 0)["phase"] == "auction":
+        game = _apply(game, player_view(game, 0)["current_seat"], {"type": "pass"})
+    assert player_view(game, 0)["phase"] == "results"
+    assert player_view(game, 0)["deadline"] is None
+
+
+def test_durations_can_be_overridden_per_game():
+    game = create_game(SEATS, DECK_SETTINGS, seed=_seed_where_first_donor_draws(False), now=NOW, durations={"donation": 5})
+    assert player_view(game, 0)["deadline"] == NOW + 5
+
+
+def _overdue(game, now=None):
+    """Handle the deadline once it has passed; resolves to the new Game."""
+    deadline = player_view(game, 0)["deadline"]
+    new_game, applied = handle_deadline(game, deadline if now is None else now)
+    assert applied
+    return new_game
+
+
+def test_before_the_deadline_nothing_happens():
+    game = _plain_game()
+    deadline = player_view(game, 0)["deadline"]
+    before = json.dumps(game, sort_keys=True)
+    same, applied = handle_deadline(game, deadline - 1)
+    assert not applied and same is game
+    assert json.dumps(game, sort_keys=True) == before
+
+
+def test_an_overdue_donor_keeps_then_discards_then_donates_its_cards():
+    game = _plain_game()
+    card = player_view(game, 0)["donation"]["card"]
+    deadline = player_view(game, 0)["deadline"]
+    game = _overdue(game, deadline + 5)
+    donor = player_view(game, 0)
+    assert donor["donation"]["kept"] == card
+    # The fresh deadline runs from when the default Move was played.
+    assert donor["deadline"] == deadline + 5 + 30 * SECOND
+    game = _overdue(game)
+    assert player_view(game, 0)["donation"]["discarded"] is not None
+    game = _overdue(game)
+    assert len(player_view(game, 0)["donation"]["donated"]) == 1
+    game = _overdue(game)
+    assert player_view(game, 0)["phase"] == "shared_selection"
+    assert len(player_view(game, 0)["shared_pool"]) == 2
+
+
+def test_an_overdue_both_card_increases_the_first_dice_it_may_change():
+    game = _game_whose_specials_start([("Both", 2)], dice=lambda values: values[0] < 6 and values[1] < 6)
+    before = _dice(game)
+    game = _overdue(game)
+    assert player_view(game, 0)["donation"]["direction"] == "plus"
+    game = _overdue(game)
+    game = _overdue(game)
+    assert _dice(game)[:2] == [before[0] + 1, before[1] + 1]
+    assert _dice(game)[2:] == before[2:]
+
+
+def test_an_overdue_seat_in_shared_selection_takes_a_random_pool_card_reproducibly():
+    taken = set()
+    for seed in range(40):
+        game = create_game(SEATS, DECK_SETTINGS, seed=seed, now=NOW)
+        if player_view(game, 0)["donation"]["special"]:
+            continue
+        game = _finish_donation(game)
+        pool = player_view(game, 1)["shared_pool"]
+        after = _overdue(game)
+        assert player_view(after, 0)["current_seat"] == 2
+        took = player_view(after, 1)["hand"][-1]
+        rest = list(pool)
+        rest.remove(took)
+        assert player_view(after, 0)["shared_pool"] == rest
+        taken.add(pool.index(took))
+        # The same Game handles the same deadline the same way.
+        assert views_for(_overdue(game)) == views_for(after)
+    # Not always the first card: the choice is random.
+    assert taken == {0, 1}
+
+
+def test_an_overdue_bidder_passes():
+    game = _auction_game(lambda views: _can_bid(0)(views))
+    game = _overdue(game)
+    for view in views_for(game):
+        assert view["auction"]["active"] == [False, True, True]
+        assert view["auction"]["bid"] == 0
+        assert view["current_seat"] == 1
+
+
+def test_an_overdue_winner_of_another_card_pays_with_the_cheapest_gold_cards():
+    # Holding a Gold 1 and a bigger Gold card, a bid of 1 is paid with the Gold 1.
+    def ok(g):
+        values = [player_view(g, 2)["hand"][i]["value"] for i in _gold_in_hand(g, 2)]
+        return 1 in values and max(values) > 1
+
+    game = _seat_two_wins_non_gold(ok)
+    gold = player_view(game, 2)["seats"][2]["gold"]
+    game = _overdue(game)
+    assert player_view(game, 0)["auction"]["last_payment"] == {"seat": 2, "gold": 1}
+    assert player_view(game, 2)["seats"][2]["gold"] == gold - 1
+
+
+def test_an_overdue_gold_payment_is_never_more_than_the_cheapest_cover_of_the_bid():
+    from itertools import combinations
+
+    checked = 0
+    for seed in range(200):
+        game = _play_to_auction(create_game(SEATS, AUCTION_DECK, seed=seed, now=NOW))
+        if player_view(game, 0)["phase"] != "auction" or not _non_gold_card(views_for(game)):
+            continue
+        gold = player_view(game, 2)["seats"][2]["gold"]
+        if gold < 2:
+            continue
+        bid = gold - 1
+        game = _seat_two_wins(game, bid)
+        hand = player_view(game, 2)["hand"]
+        golds = [c["value"] for c in hand if c["type"] == "Gold"]
+        paid = gold - player_view(_overdue(game), 2)["seats"][2]["gold"]
+        # No set of Gold cards that covers the bid costs less.
+        best = min(sum(c) for r in range(1, len(golds) + 1) for c in combinations(golds, r) if sum(c) >= bid)
+        assert paid == best
+        checked += 1
+    assert checked
+
+
+def test_an_overdue_winner_of_a_gold_card_gives_up_its_lowest_value_cards():
+    for seed in range(500):
+        game = _play_to_auction(create_game(SEATS, AUCTION_DECK, seed=seed, now=NOW))
+        views = views_for(game)
+        if views[0]["phase"] != "auction" or not _gold_card(views) or views[0]["seats"][2]["hand_size"] < 2:
+            continue
+        game = _seat_two_wins(game, 1)
+        hand = player_view(game, 2)["hand"]
+        if len({c["value"] for c in hand[:-1]}) > 1:
+            break
+    else:
+        raise AssertionError("no such seed")
+    after = _overdue(game)
+    (paid,) = player_view(after, 0)["auction"]["last_payment"]["cards"]
+    assert paid["value"] == min(c["value"] for c in hand[:-1])
+    # The Gold card just won stays in the hand.
+    assert player_view(after, 2)["hand"][-1] == hand[-1]
+    assert views_for(_overdue(game)) == views_for(after)
+
+
+def _played_by_deadlines(seed, deck=DECK_SETTINGS):
+    game, now, defaults = create_game(SEATS, deck, seed=seed, now=NOW), NOW, 0
+    while player_view(game, 0)["deadline"] is not None:
+        now = player_view(game, 0)["deadline"]
+        game = _overdue(game, now)
+        defaults += 1
+    return game, defaults
+
+
+def test_a_game_left_alone_is_played_to_the_end_by_default_moves_the_same_way_every_time():
+    for seed in range(5):
+        game, defaults = _played_by_deadlines(seed)
+        assert player_view(game, 0)["phase"] == "results"
+        assert game_result(game) is not None
+        assert defaults > 20
+        assert views_for(_played_by_deadlines(seed)[0]) == views_for(game)

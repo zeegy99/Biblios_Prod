@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import Card from "./card";
 import "./card.css";
 import socket from "../socket";
+import { DeadlineTimer } from "../timer.jsx";
 
 // The auction of a server-rules Game, rendered only from this Seat's Player
 // View. It holds no rules: Bid is enabled only when the Player View lists a
@@ -32,6 +33,7 @@ const ServerAuctionPhase = ({ view }) => {
     return (
       <div style={{ textAlign: "center" }}>
         <h3>Auction</h3>
+        <DeadlineTimer deadline={view.deadline} />
         <Card card={auction.winner.card} />
         <p>
           {auction.winner.seat === view.you ? "You win" : `${winner} wins`} the card for {auction.winner.bid}
@@ -58,6 +60,7 @@ const ServerAuctionPhase = ({ view }) => {
   return (
     <div style={{ textAlign: "center" }}>
       <h3>Auction</h3>
+      <DeadlineTimer deadline={view.deadline} />
       <p style={{ fontWeight: "bold", fontSize: "1.2rem" }}>👉 {bidder}'s turn to bid</p>
       <p>Bidding order: {auction.bidding_order.map((i) => seats[i]?.name).join(" → ")}</p>
       <div style={{ display: "flex", justifyContent: "center" }}>

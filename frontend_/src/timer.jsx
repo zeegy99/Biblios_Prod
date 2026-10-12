@@ -81,3 +81,35 @@ const Timer = ({duration, onTimeout, small_duration = false}) => {
 }
 
 export default Timer;
+
+// The turn timer of a server-rules Game: it only counts down to the
+// server's deadline (ms since the epoch, from the Player View) and does
+// nothing when it reaches zero, because the server plays the default Move.
+// Remaining time is deadline - Date.now(), so a client clock that is off
+// shows the time off by as much; the server's clock is the one that counts.
+export const DeadlineTimer = ({ deadline }) => {
+    const [now, setNow] = useState(() => Date.now());
+    // The full length of this deadline, as first seen, sizes the bar.
+    const totalRef = useRef({ deadline: null, total: 1 });
+    if (totalRef.current.deadline !== deadline) {
+        totalRef.current = { deadline, total: Math.max(1, deadline - Date.now()) };
+    }
+
+    useEffect(() => {
+        const intervalId = setInterval(() => setNow(Date.now()), 250);
+        return () => clearInterval(intervalId);
+    }, [deadline]);
+
+    if (typeof deadline !== "number") return null;
+    const left = Math.max(0, deadline - now);
+    const fraction = Math.min(1, left / totalRef.current.total);
+    return (
+        <div className="timer-bar-container">
+            <div
+                className="deadline-bar"
+                style={{ width: `${fraction * 100}%`, backgroundColor: left <= 6000 ? "red" : "#4caf50" }}
+            />
+            <p>{Math.ceil(left / 1000)}</p>
+        </div>
+    );
+};

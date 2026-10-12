@@ -108,23 +108,33 @@ function createEngineHost({ onCrash = () => {} } = {}) {
   return {
     // Resolves to { views } (one Player View per Seat, in Seat order), plus
     // `ended` ({ placings: [{ player_id, rank }] }) if the Game is already over.
-    async createGame({ gameId, seats, deckSettings, seed, now }) {
+    // `durations` optionally overrides the engine's turn durations (ms).
+    async createGame({ gameId, seats, deckSettings, seed, now, durations }) {
       const { views, ended } = await request("create_game", {
         game_id: gameId,
         seats,
         deck_settings: deckSettings,
         seed,
         now,
+        durations,
       });
       return withEnded(views, ended);
     },
     // Resolves to { views } (one Player View per Seat) if the Move was applied,
     // plus `ended` if it ended the Game (reported once: the engine then
     // forgets the Game), or { rejected: reason } if the engine refused it.
-    async applyMove({ gameId, seat, move }) {
-      const { views, rejected, ended } = await request("apply_move", { game_id: gameId, seat, move });
+    async applyMove({ gameId, seat, move, now }) {
+      const { views, rejected, ended } = await request("apply_move", { game_id: gameId, seat, move, now });
       if (rejected) return { rejected };
       return withEnded(views, ended);
+    },
+    // If the Game's deadline has passed at `now`, the engine plays the
+    // waiting Seat's default Move: resolves like applyMove's success. If it
+    // has not, resolves to { applied: false } and nothing changed.
+    async handleDeadline({ gameId, now }) {
+      const { applied, views, ended } = await request("handle_deadline", { game_id: gameId, now });
+      if (!applied) return { applied: false };
+      return { applied: true, ...withEnded(views, ended) };
     },
     // The engine child's process id, or undefined while none is running
     // (tests kill it to simulate a crash).
