@@ -19,9 +19,13 @@ beforeAll((done) => {
   done();
 });
 
-afterAll((done) => {
+afterAll(async () => {
+  // The last tests leave Games in progress (every start is a Game, even in a
+  // junk Room); let the server finish pausing them before the engine stops,
+  // or the pause would reach a fresh engine that never held them.
+  await new Promise((resolve) => setTimeout(resolve, 300));
   stopEngine();
-  server.close(done);
+  await new Promise((resolve) => server.close(resolve));
 });
 
 function connectAs(sid) {
@@ -67,11 +71,11 @@ async function joinAll(room, clients) {
   }
 }
 
-// Starts a flagged Game for `clients` in `room` and resolves to each Seat's first Player View.
-async function startFlaggedGame(room, clients, deckSettings = DECK_SETTINGS) {
+// Starts a Game for `clients` in `room` and resolves to each Seat's first Player View.
+async function startGame(room, clients, deckSettings = DECK_SETTINGS) {
   await joinAll(room, clients);
   const starts = clients.map(({ socket }) => once(socket, "start_game"));
-  clients[0].socket.emit("start_game", { room, deckSettings, serverRules: true });
+  clients[0].socket.emit("start_game", { room, deckSettings });
   return (await Promise.all(starts)).map((p) => p.playerView);
 }
 
@@ -112,7 +116,7 @@ test("a Signed-in Player who reconnects with the same Session gets their Seat's 
   const extra = [];
   try {
     const room = "rejoin-same-session";
-    const views = await startFlaggedGame(room, clients);
+    const views = await startGame(room, clients);
     await dropConnection(clients, 1);
 
     const { socket, answer } = await rejoinAs("bob", room);
@@ -130,7 +134,7 @@ test("after a Rejoin the Seat's Player Views reach the new socket and it can sti
   const clients = threeSeats();
   try {
     const room = "rejoin-keeps-playing";
-    let views = await startFlaggedGame(room, clients);
+    let views = await startGame(room, clients);
     await dropConnection(clients, 1);
     const { socket } = await rejoinAs("bob", room);
     clients[1] = { socket, name: "Bob" };
@@ -158,7 +162,7 @@ test("another Player Identity gets no Seat and no Player View, and the Seat stay
   const extra = [];
   try {
     const room = "rejoin-other-identity";
-    const views = await startFlaggedGame(room, clients);
+    const views = await startGame(room, clients);
     await dropConnection(clients, 1);
 
     const eve = await rejoinAs("eve", room);
@@ -182,7 +186,7 @@ test("a Guest cannot Rejoin: a new Guest connection gets no Seat", async () => {
   const extra = [];
   try {
     const room = "rejoin-guest";
-    await startFlaggedGame(room, clients);
+    await startGame(room, clients);
     await dropConnection(clients, 2);
 
     const guest = await rejoinAs(null, room);
@@ -198,7 +202,7 @@ test("a disconnected Seat stays listed in the Room, marked disconnected until it
   const extra = [];
   try {
     const room = "rejoin-listed";
-    await startFlaggedGame(room, clients);
+    await startGame(room, clients);
     const list = await dropConnection(clients, 1);
     expect(list.map((p) => [p.name, !!p.disconnected])).toEqual([["Zeg", false], ["Bob", true], ["Guest", false]]);
 
@@ -218,7 +222,7 @@ test("Rejoining a finished Game returns its results; Seats still disconnected at
     // One Gold 1 goes up for auction whatever the shuffle; everyone passes on it.
     const goldOnly = { gold: { 1: 5, 2: 0, 3: 0 }, resource: { 1: 0, 2: 0, 3: 0, 4: 0 } };
     const room = "rejoin-finished";
-    let views = await startFlaggedGame(room, clients, goldOnly);
+    let views = await startGame(room, clients, goldOnly);
     while (views[0].phase !== "auction") {
       const seat = views[0].current_seat;
       views = await moveAndWait(clients, room, seat, views[seat].legal_moves[0]);
@@ -243,6 +247,48 @@ test("Rejoining a finished Game returns its results; Seats still disconnected at
   }
 });
 
+test("a finished Game answers Rejoin only for its own Seats, and never once a new Game starts", async () => {
+  const clients = [
+    { socket: connectAs("zeg"), name: "Zeg" },
+    { socket: connectAs(null), name: "Guest" },
+  ];
+  const extra = [];
+  try {
+    // Only the special cards: the Game is over as soon as it starts.
+    const empty = { gold: { 1: 0, 2: 0, 3: 0 }, resource: { 1: 0, 2: 0, 3: 0, 4: 0 } };
+    const room = "rejoin-finished-then-new";
+    await startGame(room, clients, empty);
+
+    // Bob held no Seat: he gets no answer.
+    const bob = connectAs("bob");
+    extra.push(bob);
+    const bobAnswers = collect(bob, "rejoin_result");
+    bob.emit("rejoin_game", { room });
+    expect(await bobAnswers).toEqual([]);
+
+    // Zeg leaves and Bob joins; a new Game starts in the same Room: Zeg's
+    // old Seat is gone, and he has none in the new Game.
+    const zegLeft = once(clients[1].socket, "player_list");
+    clients[0].socket.emit("leave_game", { room });
+    await zegLeft;
+    const bobListed = once(bob, "player_list");
+    bob.emit("join_game", { room, playerName: "Bob" });
+    await bobListed;
+    const newStarts = [once(clients[1].socket, "start_game"), once(bob, "start_game")];
+    clients[1].socket.emit("start_game", { room, deckSettings: DECK_SETTINGS });
+    await Promise.all(newStarts);
+    const zeg = connectAs("zeg");
+    extra.push(zeg);
+    const zegAnswer = once(zeg, "rejoin_result");
+    zeg.emit("rejoin_game", { room });
+    const answer = await zegAnswer;
+    expect(answer.playerView).toBeNull();
+    expect(answer.reason).toMatch(/no Seat/);
+  } finally {
+    [...clients.map((c) => c.socket), ...extra].forEach((s) => s.disconnect());
+  }
+});
+
 test("payloads that are not objects, or name a Room like an Object property, never crash the server", async () => {
   const socket = connectAs("zeg");
   const later = connectAs("bob");
@@ -254,7 +300,7 @@ test("payloads that are not objects, or name a Room like an Object property, nev
   try {
     const events = [
       "rejoin_game", "move", "join_game", "start_game", "update_name", "leave_game",
-      "sync_game_state", "chat_message", "update_deck_settings", "cursor_position", "score_next",
+      "sync_game_state", "chat_message", "update_deck_settings", "cursor_position",
     ];
     const payloads = [
       null, 5, "room", [], {},
@@ -276,61 +322,5 @@ test("payloads that are not objects, or name a Room like an Object property, nev
     process.off("unhandledRejection", onCrash);
     socket.disconnect();
     later.disconnect();
-  }
-});
-
-test("a finished flagged Game answers Rejoin only for its own Seats, and never once a new Game starts", async () => {
-  const clients = [
-    { socket: connectAs("zeg"), name: "Zeg" },
-    { socket: connectAs(null), name: "Guest" },
-  ];
-  const extra = [];
-  try {
-    // Only the special cards: the Game is over as soon as it starts.
-    const empty = { gold: { 1: 0, 2: 0, 3: 0 }, resource: { 1: 0, 2: 0, 3: 0, 4: 0 } };
-    const room = "rejoin-finished-then-plain";
-    await startFlaggedGame(room, clients, empty);
-
-    // Bob held no Seat: his rejoin_game goes to the old (unflagged) handler.
-    const bob = connectAs("bob");
-    extra.push(bob);
-    const bobAnswers = collect(bob, "rejoin_result");
-    const bobOld = once(bob, "add_playerlist");
-    bob.emit("rejoin_game", { room, signin_username: "bob", playerName: "Bob" });
-    await bobOld;
-    expect(await bobAnswers).toEqual([]);
-
-    // An unflagged Game starts in the same Room: Zeg's old Seat is gone.
-    const starts = clients.map(({ socket }) => once(socket, "start_game"));
-    clients[0].socket.emit("start_game", { room, deckSettings: DECK_SETTINGS });
-    await Promise.all(starts);
-    const zeg = connectAs("zeg");
-    extra.push(zeg);
-    const zegAnswers = collect(zeg, "rejoin_result");
-    const zegOld = once(zeg, "add_playerlist");
-    zeg.emit("rejoin_game", { room, signin_username: "zeg", playerName: "Zeg" });
-    await zegOld;
-    expect(await zegAnswers).toEqual([]);
-  } finally {
-    [...clients.map((c) => c.socket), ...extra].forEach((s) => s.disconnect());
-  }
-});
-
-test("in an unflagged Room a rejoin_game without a username does nothing", async () => {
-  const guest = connectAs(null);
-  const other = connectAs(null);
-  try {
-    const room = "rejoin-plain-no-username";
-    await joinAll(room, [{ socket: guest, name: "Guest" }]);
-    const synced = once(guest, "sync_game_state");
-    guest.emit("sync_game_state", { room, gameState: { phase: "donation" } });
-    await synced;
-
-    const heard = [collect(other, "add_playerlist"), collect(other, "sync_game_state")];
-    other.emit("rejoin_game", { room });
-    (await Promise.all(heard)).forEach((got) => expect(got).toEqual([]));
-  } finally {
-    guest.disconnect();
-    other.disconnect();
   }
 });

@@ -133,7 +133,6 @@ if (require.main === module) {
 
 
 const playersInRoom = Object.create(null);
-const currentGameState = Object.create(null);
 // Server-authoritative Games by Room: { gameId, seats, views }. Each Seat is
 // { playerId, name, socketId, disconnectedAt }: socketId is where its Player
 // Views go (moved on Rejoin), disconnectedAt is when its socket dropped (null
@@ -158,8 +157,9 @@ function setAbandonAfter(ms) {
 }
 
 // Starts a Game in the engine and sends each Seat only its own Player View.
-// The server-rules choice is fixed here for the whole Game.
-async function startServerRulesGame(room, players, deckSettings) {
+// Every Room plays server-authoritative Games (#57): clients never send game
+// state, only Moves.
+async function startGame(room, players, deckSettings) {
   const gameId = crypto.randomUUID();
   // Seats are bound to Player Identity; until Guests carry one, a Guest's Seat
   // is bound to the socket it joined with.
@@ -181,7 +181,7 @@ async function startServerRulesGame(room, players, deckSettings) {
     const game = { gameId, seats, views };
     gamesInRoom[room] = game;
     seats.forEach((seat, i) => {
-      io.to(seat.socketId).emit("start_game", { players, deckSettings, serverRules: true, playerView: views[i] });
+      io.to(seat.socketId).emit("start_game", { players, deckSettings, playerView: views[i] });
     });
     if (ended) {
       finishGame(room, game, ended);
@@ -197,7 +197,7 @@ async function startServerRulesGame(room, players, deckSettings) {
     });
     if (dropped.length) whenEveryoneLeft(room, game);
   } catch (e) {
-    console.error(`Could not start a server-rules Game in ${room}:`, e);
+    console.error(`Could not start a Game in ${room}:`, e);
     io.to(room).emit("start_game_failed", { message: "The server could not start the Game." });
   }
 }
@@ -351,7 +351,7 @@ async function handleMove(socket, room, move) {
       socket.emit("move_rejected", { reason: gone.goneReason });
       return;
     }
-    socket.emit("move_rejected", { reason: "You have no Seat in a server-rules Game in this Room." });
+    socket.emit("move_rejected", { reason: "You have no Seat in a Game in this Room." });
     return;
   }
   try {
@@ -525,19 +525,14 @@ io.on("connection", (socket) => {
     }
   });
 
-  onRoomEvent("start_game", ({ room, deckSettings, serverRules }) => {
-  // A new Game replaces any finished or lost one kept for Rejoin.
-  delete finishedGamesInRoom[room];
-  delete goneGamesInRoom[room];
+  onRoomEvent("start_game", ({ room, deckSettings }) => {
+    // A new Game replaces any finished or lost one kept for Rejoin.
+    delete finishedGamesInRoom[room];
+    delete goneGamesInRoom[room];
 
-  deckSettingsInRoom[room] = deckSettings;
+    deckSettingsInRoom[room] = deckSettings;
 
-  const players = playersInRoom[room] || [];
-  if (serverRules === true) {
-    startServerRulesGame(room, players, deckSettings);
-    return;
-  }
-  io.to(room).emit("start_game", { players, deckSettings });
+    return startGame(room, playersInRoom[room] || [], deckSettings);
   });
 
   onRoomEvent("cursor_position", ({ room, playerName, x, y }) => 
@@ -549,11 +544,6 @@ io.on("connection", (socket) => {
 
 
 
-
-  onRoomEvent("sync_game_state", ({ room, gameState }) => {
-    currentGameState[room] = gameState;
-    io.to(room).emit("sync_game_state", gameState);
-});
 
   function removePlayerFromRoom(room, predicate) {
   if (!playersInRoom[room]) return;
@@ -622,52 +612,22 @@ onRoomEvent("leave_game", ({ room, playerId }) => {
 
 
 
-  //Rejoining
-  onRoomEvent("rejoin_game", ({ room, signin_username, playerName }) => {
-  // Flagged Rooms: Rejoin by Player Identity (see rejoinSeat). A finished
-  // Game answers only its own Seats; anyone else falls through below.
-  const live = gamesInRoom[room];
-  if (live) {
-    return rejoinSeat(socket, room, live);
-  }
-  const finished = finishedGamesInRoom[room];
-  if (finished && seatOfPlayer(finished, socket) !== -1) {
-    return rejoinSeat(socket, room, finished);
-  }
-  const gone = goneGamesInRoom[room];
-  if (gone && seatOfPlayer(gone, socket) !== -1) {
-    socket.emit("rejoin_result", { room, playerView: null, reason: gone.goneReason });
-    return;
-  }
-
-  // Unflagged Rooms keep the old behaviour until #57. The game screen sends
-  // rejoin_game { room } on every refresh; without a username there is
-  // nothing to look up (it would match a Guest's undefined playerId).
-  if (!signin_username) return;
-  console.log(`${playerName} attempting to rejoin ${room}`);
-
-  socket.emit("add_playerlist", ({ playerName }))
-  console.log("I did the add_playerlist", playerName)
-
-
-  if (!playersInRoom[room]) return;
-
-  // Find matching player
-  const player = playersInRoom[room].find(p => p.playerId === signin_username);
-
-  if (player) {
-    // Reassign new socket ID to existing player
-    player.socketId = socket.id;
-    socket.join(room);
-
-    // Re-sync full game state
-    const gameState = currentGameState[room];
-    if (gameState) {
-      socket.emit("sync_game_state", gameState);
-      console.log(`${playerName} rejoined and synced`);
+  // Rejoin by Player Identity (see rejoinSeat). A finished Game answers only
+  // its own Seats; anyone else, or a Room with no Game, gets no answer.
+  onRoomEvent("rejoin_game", ({ room }) => {
+    const live = gamesInRoom[room];
+    if (live) {
+      return rejoinSeat(socket, room, live);
     }
-  }
-});
+    const finished = finishedGamesInRoom[room];
+    if (finished && seatOfPlayer(finished, socket) !== -1) {
+      return rejoinSeat(socket, room, finished);
+    }
+    const gone = goneGamesInRoom[room];
+    if (gone && seatOfPlayer(gone, socket) !== -1) {
+      socket.emit("rejoin_result", { room, playerView: null, reason: gone.goneReason });
+    }
+  });
 
 
    //Chat system
@@ -682,10 +642,6 @@ onRoomEvent("leave_game", ({ room, playerId }) => {
   deckSettingsInRoom[room] = deckSettings;
   });
 
-  onRoomEvent("score_next", ({ room }) => {
-    const gs = rooms[room]
-    console.log(gs)
-  })
 
   
 });

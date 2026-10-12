@@ -62,7 +62,7 @@ function allCardsIn(node, found = []) {
   return found;
 }
 
-test("a flagged start gives every Seat a Player View with only its own hand", async () => {
+test("a start gives every Seat a Player View with only its own hand", async () => {
   const clients = [
     { socket: connectAs("zeg"), name: "Zeg" },
     { socket: connectAs("bob"), name: "Bob" },
@@ -72,11 +72,10 @@ test("a flagged start gives every Seat a Player View with only its own hand", as
     await joinAll("server-rules-room", clients);
 
     const starts = clients.map(({ socket }) => once(socket, "start_game"));
-    clients[0].socket.emit("start_game", { room: "server-rules-room", deckSettings: DECK_SETTINGS, serverRules: true });
+    clients[0].socket.emit("start_game", { room: "server-rules-room", deckSettings: DECK_SETTINGS });
     const payloads = await Promise.all(starts);
 
     payloads.forEach((payload, seat) => {
-      expect(payload.serverRules).toBe(true);
       const view = payload.playerView;
       expect(view.you).toBe(seat);
       expect(view.phase).toBe("donation");
@@ -108,7 +107,7 @@ test("a flagged start gives every Seat a Player View with only its own hand", as
   }
 });
 
-test("an unflagged start is unchanged: one start_game for the Room with no Player View", async () => {
+test("every start is a server-rules Game: a start without any flag still gives each Seat its Player View", async () => {
   const clients = [
     { socket: connectAs("zeg"), name: "Zeg" },
     { socket: connectAs("bob"), name: "Bob" },
@@ -120,22 +119,45 @@ test("an unflagged start is unchanged: one start_game for the Room with no Playe
     clients[0].socket.emit("start_game", { room: "plain-room", deckSettings: DECK_SETTINGS });
     const payloads = await Promise.all(starts);
 
-    payloads.forEach((payload) => {
-      expect(payload.playerView).toBeUndefined();
-      expect(payload.serverRules).toBeUndefined();
-      expect(payload.deckSettings).toEqual(DECK_SETTINGS);
-      expect(payload.players.map((p) => p.name)).toEqual(["Zeg", "Bob"]);
+    payloads.forEach((payload, seat) => {
+      expect(payload.playerView.you).toBe(seat);
+      expect(payload.playerView.phase).toBe("donation");
+      expect(payload.playerView.seats.map((s) => s.name)).toEqual(["Zeg", "Bob"]);
     });
   } finally {
     clients.forEach(({ socket }) => socket.disconnect());
   }
 });
 
-// Starts a flagged Game for `clients` in `room` and resolves to each Seat's first Player View.
-async function startFlaggedGame(room, clients, deckSettings = DECK_SETTINGS) {
+test("a full game state sent by a client is neither relayed nor kept", async () => {
+  const clients = [
+    { socket: connectAs("zeg"), name: "Zeg" },
+    { socket: connectAs("bob"), name: "Bob" },
+  ];
+  const extra = [];
+  try {
+    const room = "no-sync-room";
+    await joinAll(room, clients);
+    const heard = clients.map(({ socket }) => collect(socket, "sync_game_state"));
+    clients[0].socket.emit("sync_game_state", { room, gameState: { phase: "results", players: [] } });
+    (await Promise.all(heard)).forEach((got) => expect(got).toEqual([]));
+
+    // Nor is it handed to anyone who comes back to the Room later.
+    const late = connectAs("bob");
+    extra.push(late);
+    const lateHeard = collect(late, "sync_game_state");
+    late.emit("rejoin_game", { room, signin_username: "bob", playerName: "Bob" });
+    expect(await lateHeard).toEqual([]);
+  } finally {
+    [...clients.map((c) => c.socket), ...extra].forEach((s) => s.disconnect());
+  }
+});
+
+// Starts a Game for `clients` in `room` and resolves to each Seat's first Player View.
+async function startGame(room, clients, deckSettings = DECK_SETTINGS) {
   await joinAll(room, clients);
   const starts = clients.map(({ socket }) => once(socket, "start_game"));
-  clients[0].socket.emit("start_game", { room, deckSettings, serverRules: true });
+  clients[0].socket.emit("start_game", { room, deckSettings });
   return (await Promise.all(starts)).map((p) => p.playerView);
 }
 
@@ -169,7 +191,7 @@ test("a legal Move sends every Seat its new Player View; a rejected one reaches 
     let room, views;
     for (let tries = 0; !views || ((!views[0].donation || views[0].donation.special) && tries < 20); tries++) {
       room = `server-rules-moves-${tries}`;
-      views = await startFlaggedGame(room, clients);
+      views = await startGame(room, clients);
     }
     expect(views[0].legal_moves).toContainEqual({ type: "donate" });
 
@@ -206,7 +228,7 @@ test("playing a special card changes the dice in every Seat's Player View; an il
     let room, views;
     for (let tries = 0; !views || (!views[0].donation?.special && tries < 40); tries++) {
       room = `server-rules-special-${tries}`;
-      views = await startFlaggedGame(room, clients);
+      views = await startGame(room, clients);
     }
     const special = views[0].donation?.special;
     expect(special).toBeTruthy();
@@ -250,7 +272,7 @@ test("taking from the shared pool reaches every Seat; a take out of turn reaches
   ];
   try {
     const room = "server-rules-selection";
-    let view = (await startFlaggedGame(room, clients))[0];
+    let view = (await startGame(room, clients))[0];
     // The donor plays its whole turn, always making its first legal Move.
     while (view.phase === "donation") {
       expect(view.legal_moves.length).toBeGreaterThan(0);
@@ -305,7 +327,7 @@ test("a bid reaches every Seat; a bid out of turn reaches only its sender", asyn
     // Gold card, whatever the shuffle.
     const goldOnly = { gold: { 1: 5, 2: 0, 3: 0 }, resource: { 1: 0, 2: 0, 3: 0, 4: 0 } };
     const room = "server-rules-auction";
-    let views = await startFlaggedGame(room, clients, goldOnly);
+    let views = await startGame(room, clients, goldOnly);
     while (views[0].phase !== "auction") {
       const seat = views[0].current_seat;
       views = await moveAndWait(clients, room, seat, views[seat].legal_moves[0]);
@@ -350,7 +372,7 @@ test("a payment reaches every Seat; a payment with the card just won reaches onl
     // holds one Gold 1, whatever the shuffle.
     const goldOnly = { gold: { 1: 5, 2: 0, 3: 0 }, resource: { 1: 0, 2: 0, 3: 0, 4: 0 } };
     const room = "server-rules-payment";
-    let views = await startFlaggedGame(room, clients, goldOnly);
+    let views = await startGame(room, clients, goldOnly);
     while (views[0].phase !== "auction") {
       const seat = views[0].current_seat;
       views = await moveAndWait(clients, room, seat, views[seat].legal_moves[0]);
@@ -399,7 +421,7 @@ test("a finished Game is scored for every Seat and reported once with its placin
     // As in the bid test: one Gold 1 goes up for auction, whatever the shuffle.
     const goldOnly = { gold: { 1: 5, 2: 0, 3: 0 }, resource: { 1: 0, 2: 0, 3: 0, 4: 0 } };
     const room = "server-rules-end";
-    let views = await startFlaggedGame(room, clients, goldOnly);
+    let views = await startGame(room, clients, goldOnly);
     while (views[0].phase !== "auction") {
       const seat = views[0].current_seat;
       views = await moveAndWait(clients, room, seat, views[seat].legal_moves[0]);
@@ -445,7 +467,7 @@ test("a Game over as soon as it starts (an empty deck) is reported once", async 
   try {
     // Only the special cards: the first draw comes up short with nothing discarded.
     const empty = { gold: { 1: 0, 2: 0, 3: 0 }, resource: { 1: 0, 2: 0, 3: 0, 4: 0 } };
-    const views = await startFlaggedGame("server-rules-empty", clients, empty);
+    const views = await startGame("server-rules-empty", clients, empty);
     views.forEach((view) => expect(view.phase).toBe("results"));
     const guestId = `guest:${clients[1].socket.id}`;
     const ours = () => reports.filter((r) => r.placings.some((p) => p.player_id === guestId));

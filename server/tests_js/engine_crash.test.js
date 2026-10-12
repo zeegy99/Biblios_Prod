@@ -86,11 +86,11 @@ async function joinAll(room, clients) {
   }
 }
 
-// Starts a flagged Game for `clients` in `room` and resolves to each Seat's first Player View.
-async function startFlaggedGame(room, clients) {
+// Starts a Game for `clients` in `room` and resolves to each Seat's first Player View.
+async function startGame(room, clients) {
   await joinAll(room, clients);
   const starts = clients.map(({ socket }) => once(socket, "start_game"));
-  clients[0].socket.emit("start_game", { room, deckSettings: DECK_SETTINGS, serverRules: true });
+  clients[0].socket.emit("start_game", { room, deckSettings: DECK_SETTINGS });
   return (await Promise.all(starts)).map((p) => p.playerView);
 }
 
@@ -113,7 +113,7 @@ test("when the engine dies every Seat is told its Game was lost, with no result 
   const clients = threeSeats();
   try {
     const room = "crash-told";
-    await startFlaggedGame(room, clients);
+    await startGame(room, clients);
 
     const told = await killEngine(clients);
     told.forEach((payload) => expect(payload).toEqual({ room, reason: expect.any(String) }));
@@ -124,16 +124,16 @@ test("when the engine dies every Seat is told its Game was lost, with no result 
   }
 });
 
-test("the engine is restarted by itself, and a new flagged Game starts in a fresh Room", async () => {
+test("the engine is restarted by itself, and a new Game starts in a fresh Room", async () => {
   const clients = threeSeats();
   const next = threeSeats();
   try {
-    await startFlaggedGame("crash-before", clients);
+    await startGame("crash-before", clients);
     const crashed = enginePid();
     await killEngine(clients);
     await until(() => enginePid() !== undefined && enginePid() !== crashed);
 
-    const views = await startFlaggedGame("crash-after", next);
+    const views = await startGame("crash-after", next);
     expect(views.map((v) => v.you)).toEqual([0, 1, 2]);
     // The restarted engine holds the new Game: its Moves are played.
     const after = await moveAndWait(next, "crash-after", 0, views[0].legal_moves[0]);
@@ -149,7 +149,7 @@ test("a Move into a lost Game is rejected, saying the Game was lost", async () =
   const clients = threeSeats();
   try {
     const room = "crash-move";
-    const views = await startFlaggedGame(room, clients);
+    const views = await startGame(room, clients);
     await killEngine(clients);
 
     const rejected = once(clients[0].socket, "move_rejected");
@@ -165,7 +165,7 @@ test("a Rejoin into a lost Game gets no Player View, saying the Game was lost", 
   const extra = [];
   try {
     const room = "crash-rejoin";
-    await startFlaggedGame(room, clients);
+    await startGame(room, clients);
     await killEngine(clients);
 
     const bob = connectAs("bob");
@@ -182,7 +182,7 @@ test("a Move in flight when the engine dies is rejected because the Game was los
   const clients = threeSeats();
   try {
     const room = "crash-in-flight";
-    const views = await startFlaggedGame(room, clients);
+    const views = await startGame(room, clients);
 
     const lost = clients.map(({ socket }) => once(socket, "game_lost"));
     const rejected = once(clients[0].socket, "move_rejected");

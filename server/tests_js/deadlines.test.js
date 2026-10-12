@@ -60,11 +60,11 @@ async function joinAll(room, clients) {
   }
 }
 
-// Starts a flagged Game for `clients` in `room` and resolves to each Seat's first Player View.
-async function startFlaggedGame(room, clients, deckSettings = DECK_SETTINGS) {
+// Starts a Game for `clients` in `room` and resolves to each Seat's first Player View.
+async function startGame(room, clients, deckSettings = DECK_SETTINGS) {
   await joinAll(room, clients);
   const starts = clients.map(({ socket }) => once(socket, "start_game"));
-  clients[0].socket.emit("start_game", { room, deckSettings, serverRules: true });
+  clients[0].socket.emit("start_game", { room, deckSettings });
   return (await Promise.all(starts)).map((p) => p.playerView);
 }
 
@@ -81,7 +81,7 @@ test("an absent donor's turn is played by the server when its deadline passes, a
   const clients = threeSeats();
   try {
     const before = Date.now();
-    const views = await startFlaggedGame("deadline-absent-donor", clients);
+    const views = await startGame("deadline-absent-donor", clients);
     const [first] = views;
     views.forEach((view) => {
       expect(view.deadline).toBe(first.deadline);
@@ -114,7 +114,7 @@ test("a Game nobody plays is played to the end by default Moves and reported exa
   try {
     const seen = [];
     clients[1].socket.on("player_view", (view) => seen.push(view));
-    await startFlaggedGame("deadline-nobody-plays", clients, GOLD_ONLY);
+    await startGame("deadline-nobody-plays", clients, GOLD_ONLY);
     const guestId = `guest:${clients[2].socket.id}`;
     const ours = () => reports.filter((r) => r.placings.some((p) => p.player_id === guestId));
 
@@ -190,7 +190,7 @@ test("a Move made from a view whose turn is over is rejected", async () => {
   const clients = threeSeats();
   try {
     const room = "deadline-stale-turn";
-    const views = await startFlaggedGame(room, clients);
+    const views = await startGame(room, clients);
     expect(views[0].turn).toBe(0);
     const next = clients.map(({ socket }) => once(socket, "player_view"));
     clients[0].socket.emit("move", { room, move: views[0].legal_moves[0] });
@@ -211,7 +211,7 @@ test("a Game whose Seats have all been disconnected for the abandon period is di
   const extra = [];
   try {
     const room = "deadline-abandoned";
-    await startFlaggedGame(room, clients);
+    await startGame(room, clients);
     const ours = reportsFor(clients[2].socket);
     const watcher = await watch(room);
     extra.push(watcher.socket);
@@ -235,7 +235,7 @@ test("a Seat Rejoining within the abandon period keeps the Game going", async ()
   const extra = [];
   try {
     const room = "deadline-not-abandoned";
-    const views = await startFlaggedGame(room, clients);
+    const views = await startGame(room, clients);
     const watcher = await watch(room);
     extra.push(watcher.socket);
     // Every Seat is gone and the server knows it: the abandon timer runs.
@@ -262,7 +262,7 @@ test("while every Seat is away no default Moves are played, and a Rejoin restart
   const extra = [];
   try {
     const room = "deadline-paused";
-    await startFlaggedGame(room, clients, GOLD_ONLY);
+    await startGame(room, clients, GOLD_ONLY);
     const ours = reportsFor(clients[2].socket);
     const watcher = await watch(room);
     extra.push(watcher.socket);
@@ -310,7 +310,7 @@ test("a Seat whose connection dropped while its Game was being created counts as
     const room = "deadline-dropped-at-start";
     await joinAll(room, clients);
     const started = once(clients[0].socket, "start_game");
-    clients[0].socket.emit("start_game", { room, deckSettings: DECK_SETTINGS, serverRules: true });
+    clients[0].socket.emit("start_game", { room, deckSettings: DECK_SETTINGS });
     await started;
     restore();
     const watcher = await watch(room);
@@ -341,7 +341,7 @@ test("a Game whose deadline the engine fails to handle is lost, with no report",
   try {
     const room = "deadline-engine-fails";
     const lost = clients.map(({ socket }) => once(socket, "game_lost"));
-    await startFlaggedGame(room, clients);
+    await startGame(room, clients);
     const ours = reportsFor(clients[2].socket);
     (await Promise.all(lost)).forEach((payload) => {
       expect(payload.room).toBe(room);
