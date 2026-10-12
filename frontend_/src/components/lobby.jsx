@@ -8,10 +8,6 @@ import Fart from "../sound/fart-5-228245.mp3";
 
 const playerId = getOrCreatePlayerId();
 
-// Server rules are hidden until every slice ships: the toggle only appears
-// when the lobby is opened with ?authoritative=1.
-const serverRulesAvailable =
-  new URLSearchParams(window.location.search).get("authoritative") === "1";
 
 
 const Lobby = ({ playerName, setPlayerName }) => {
@@ -33,7 +29,6 @@ const [res4, setRes4] = useState(0);
 const [hasManuallyAdjusted, setHasManuallyAdjusted] = useState(false);
 const [showCardSettings, setShowCardSettings] = useState(false);
 const [updateMessage, setUpdateMessage] = useState("");
-const [serverRules, setServerRules] = useState(false);
 
 
 useEffect(() => {
@@ -160,7 +155,6 @@ useEffect(() => {
     socket.emit("start_game", {
       room: room,
       deckSettings,
-      ...(serverRulesAvailable && serverRules ? { serverRules: true } : {}),
     });
   };
 
@@ -230,17 +224,6 @@ useEffect(() => {
       ) : isHost ? (
         <>
           <button onClick={handleStartGame}>Start Game</button>
-
-          {serverRulesAvailable && (
-            <label style={{ display: "block", marginTop: "10px" }}>
-              <input
-                type="checkbox"
-                checked={serverRules}
-                onChange={(e) => setServerRules(e.target.checked)}
-              />
-              {" "}Server rules (beta)
-            </label>
-          )}
 
           <br></br>
 
