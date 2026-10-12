@@ -165,30 +165,19 @@ def elo_of(username):
     return row[0]
 
 class Test_update_elo:
-    def test_changes_only_the_sessions_account_even_when_body_names_another(self, client, signin_user, existing_user):
+    def test_signed_in_request_is_refused_with_410_and_changes_no_elo(self, client, signin_user, existing_user):
         sign_in(client, signin_user)
 
         resp = client.post("/api/update_elo", json={"username": "test_1", "eloChange": 25})
 
-        assert resp.status_code == 200
-        assert elo_of("signin_user") == 1025
+        assert resp.status_code == 410
+        assert elo_of("signin_user") == 1000
         assert elo_of("test_1") == 900
 
-    def test_no_session_returns_401_and_changes_nothing(self, client, signin_user):
+    def test_request_without_session_is_refused_with_410_and_changes_no_elo(self, client, signin_user):
         resp = client.post("/api/update_elo", json={"username": "signin_user", "eloChange": 25})
 
-        assert resp.status_code == 401
-        assert resp.get_json() == {"error": "Not authenticated"}
-        assert elo_of("signin_user") == 1000
-
-    def test_expired_session_returns_401_and_changes_nothing(self, client, signin_user):
-        sid = sign_in(client, signin_user)
-        expire_session(sid)
-
-        resp = client.post("/api/update_elo", json={"username": "signin_user", "eloChange": 25})
-
-        assert resp.status_code == 401
-        assert resp.get_json() == {"error": "Session expired or invalid"}
+        assert resp.status_code == 410
         assert elo_of("signin_user") == 1000
 
 class Test_signin_expired_session_cleanup:

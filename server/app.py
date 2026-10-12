@@ -255,39 +255,14 @@ def signout():
     return resp
 
 
-@app.route("/api/update_elo", methods=["POST", "OPTIONS"])
+@app.route("/api/update_elo", methods=["POST"])
 def update_elo():
-    if request.method == "OPTIONS":
-        return '', 200
+    """Gone since #57: Elo changes only through finished server-rules Games,
+    which Node reports to /api/internal/game_result. Kept so that a client
+    still running an old bundle gets a clear refusal; it touches nothing."""
+    return jsonify({"error": "Elo is applied by the game server; this endpoint is gone"}), 410
 
-    # The account always comes from the Session; any username in the body is ignored
-    account, error = require_session_account()
-    if error:
-        return error
 
-    data = request.json
-    username = account.username
-    elo_change = data.get("eloChange")
-
-    try:
-        
-        conn = psycopg2.connect(DATABASE_URL)
-        cursor = conn.cursor()
-
-        cursor.execute(
-            "UPDATE elo SET elo_score = elo_score + %s WHERE username = %s",
-            (elo_change, username)
-        )
-
-        conn.commit()
-        cursor.close()
-        conn.close()
-
-        return jsonify({"message": "Elo updated"}), 200
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-    
 def game_result_secret_error():
     """The gate for Node's internal Game results endpoint: Node proves itself
     with the shared secret GAME_RESULT_SECRET in the X-Game-Result-Secret
