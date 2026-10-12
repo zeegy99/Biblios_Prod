@@ -259,7 +259,9 @@ def signout():
 def update_elo():
     """Gone since #57: Elo changes only through finished server-rules Games,
     which Node reports to /api/internal/game_result. Kept so that a client
-    still running an old bundle gets a clear refusal; it touches nothing."""
+    still running an old bundle gets a clear refusal; it touches nothing.
+    Safe to delete outright (with its tests) once no browser can still hold
+    a bundle from before #57, e.g. a release or two later."""
     return jsonify({"error": "Elo is applied by the game server; this endpoint is gone"}), 410
 
 

@@ -1,12 +1,11 @@
 const { server, startServer, setResolveSession, setReportResult, stopEngine } = require("../server.js");
-const ioClient = require("socket.io-client");
-const { echoTurn } = require("./echo_turn");
+const { DECK_SETTINGS, connectTo, collect, joinAll, moveAndWait, once, startGame, until } = require("./helpers");
 const TEST_PORT = 4004;
+const connectAs = connectTo(TEST_PORT);
 
 // Every Game result Node reports, captured instead of being sent to Flask.
 const reports = [];
 
-const DECK_SETTINGS = { gold: { 1: 5, 2: 5, 3: 5 }, resource: { 1: 5, 2: 4, 3: 2, 4: 2 } };
 
 beforeAll((done) => {
   setResolveSession(async (cookieHeader) => {
@@ -22,36 +21,6 @@ afterAll((done) => {
   stopEngine();
   server.close(done);
 });
-
-function connectAs(sid) {
-  return echoTurn(
-    ioClient(`http://localhost:${TEST_PORT}`, {
-      forceNew: true,
-      extraHeaders: sid ? { cookie: `sid=${sid}` } : {},
-    }),
-  );
-}
-
-function once(socket, event) {
-  return new Promise((resolve) => socket.once(event, resolve));
-}
-
-// Joins every client to `room` in order, waiting until all of them are listed.
-async function joinAll(room, clients) {
-  for (const [i, { socket, name }] of clients.entries()) {
-    const listed = new Promise((resolve) => {
-      const onList = (players) => {
-        if (players.length === i + 1) {
-          socket.off("player_list", onList);
-          resolve();
-        }
-      };
-      socket.on("player_list", onList);
-    });
-    socket.emit("join_game", { room, playerName: name });
-    await listed;
-  }
-}
 
 function allCardsIn(node, found = []) {
   if (Array.isArray(node)) node.forEach((v) => allCardsIn(v, found));
@@ -139,6 +108,8 @@ test("a full game state sent by a client is neither relayed nor kept", async () 
     const room = "no-sync-room";
     await joinAll(room, clients);
     const heard = clients.map(({ socket }) => collect(socket, "sync_game_state"));
+    // Deliberately the payload the old client sent (before #57): the server
+    // must no longer accept a full game state from anyone.
     clients[0].socket.emit("sync_game_state", { room, gameState: { phase: "results", players: [] } });
     (await Promise.all(heard)).forEach((got) => expect(got).toEqual([]));
 
@@ -152,32 +123,6 @@ test("a full game state sent by a client is neither relayed nor kept", async () 
     [...clients.map((c) => c.socket), ...extra].forEach((s) => s.disconnect());
   }
 });
-
-// Starts a Game for `clients` in `room` and resolves to each Seat's first Player View.
-async function startGame(room, clients, deckSettings = DECK_SETTINGS) {
-  await joinAll(room, clients);
-  const starts = clients.map(({ socket }) => once(socket, "start_game"));
-  clients[0].socket.emit("start_game", { room, deckSettings });
-  return (await Promise.all(starts)).map((p) => p.playerView);
-}
-
-// Resolves once `condition()` holds, checking every few milliseconds.
-async function until(condition) {
-  while (!condition()) await new Promise((resolve) => setTimeout(resolve, 10));
-}
-
-// Resolves to the events `socket` received within `ms`.
-function collect(socket, event, ms = 300) {
-  const got = [];
-  const handler = (payload) => got.push(payload);
-  socket.on(event, handler);
-  return new Promise((resolve) =>
-    setTimeout(() => {
-      socket.off(event, handler);
-      resolve(got);
-    }, ms),
-  );
-}
 
 test("a legal Move sends every Seat its new Player View; a rejected one reaches only its sender", async () => {
   const clients = [
@@ -307,13 +252,6 @@ test("taking from the shared pool reaches every Seat; a take out of turn reaches
     clients.forEach(({ socket }) => socket.disconnect());
   }
 });
-
-// Sends `move` from `clients[seat]` and resolves to every Seat's next Player View.
-async function moveAndWait(clients, room, seat, move) {
-  const next = clients.map(({ socket }) => once(socket, "player_view"));
-  clients[seat].socket.emit("move", { room, move });
-  return Promise.all(next);
-}
 
 test("a bid reaches every Seat; a bid out of turn reaches only its sender", async () => {
   const clients = [
@@ -477,5 +415,109 @@ test("a Game over as soon as it starts (an empty deck) is reported once", async 
     expect(ours()[0].placings.map((p) => p.player_id).sort()).toEqual([guestId, "user:1"].sort());
   } finally {
     clients.forEach(({ socket }) => socket.disconnect());
+  }
+});
+
+// --- Who may start a Game (#57 review) ---------------------------------------
+
+test("a start_game while a Game is in progress is refused: the Seats see nothing and the Game ends with one report", async () => {
+  const clients = [
+    { socket: connectAs("zeg"), name: "Zeg" },
+    { socket: connectAs(null), name: "Guest" },
+  ];
+  try {
+    const goldOnly = { gold: { 1: 5, 2: 0, 3: 0 }, resource: { 1: 0, 2: 0, 3: 0, 4: 0 } };
+    const room = "start-during-game";
+    let views = await startGame(room, clients, goldOnly);
+
+    // Seat 1 (not the host) and then the host try to start again.
+    const quiet = clients.map(({ socket }) => collect(socket, "start_game"));
+    for (const seat of [1, 0]) {
+      const refused = once(clients[seat].socket, "start_game_failed");
+      clients[seat].socket.emit("start_game", { room, deckSettings: DECK_SETTINGS });
+      expect((await refused).message).toEqual(expect.any(String));
+    }
+    (await Promise.all(quiet)).forEach((got) => expect(got).toEqual([]));
+
+    // The Game carries on from where it was and ends once.
+    while (views[0].phase !== "results") {
+      const seat = views[0].current_seat;
+      views = await moveAndWait(clients, room, seat, views[seat].legal_moves.find((m) => m.type === "pass") ?? views[seat].legal_moves[0]);
+    }
+    const guestId = `guest:${clients[1].socket.id}`;
+    const ours = () => reports.filter((r) => r.placings.some((p) => p.player_id === guestId));
+    await until(() => ours().length > 0);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(ours()).toHaveLength(1);
+  } finally {
+    clients.forEach(({ socket }) => socket.disconnect());
+  }
+});
+
+test("two start_games sent at once start one Game; the second is refused", async () => {
+  const clients = [
+    { socket: connectAs("zeg"), name: "Zeg" },
+    { socket: connectAs("bob"), name: "Bob" },
+  ];
+  try {
+    const room = "double-start";
+    await joinAll(room, clients);
+    const starts = clients.map(({ socket }) => collect(socket, "start_game", 1000));
+    const refused = once(clients[0].socket, "start_game_failed");
+    clients[0].socket.emit("start_game", { room, deckSettings: DECK_SETTINGS });
+    clients[0].socket.emit("start_game", { room, deckSettings: DECK_SETTINGS });
+    await refused;
+    (await Promise.all(starts)).forEach((got) => expect(got).toHaveLength(1));
+  } finally {
+    clients.forEach(({ socket }) => socket.disconnect());
+  }
+});
+
+// Expects `sender`'s start_game for `room` to be refused to it alone, with
+// nothing started for `members`.
+async function expectStartRefused(room, sender, members) {
+  const quiet = members.map((socket) => collect(socket, "start_game"));
+  const othersRefused = members.filter((s) => s !== sender).map((socket) => collect(socket, "start_game_failed"));
+  const refused = once(sender, "start_game_failed");
+  sender.emit("start_game", { room, deckSettings: DECK_SETTINGS });
+  expect((await refused).message).toEqual(expect.any(String));
+  (await Promise.all(quiet)).forEach((got) => expect(got).toEqual([]));
+  (await Promise.all(othersRefused)).forEach((got) => expect(got).toEqual([]));
+}
+
+test("a start_game from a socket not listed in the Room is refused", async () => {
+  const clients = [
+    { socket: connectAs("zeg"), name: "Zeg" },
+    { socket: connectAs("bob"), name: "Bob" },
+  ];
+  const outsider = connectAs(null);
+  try {
+    await joinAll("start-outsider", clients);
+    await expectStartRefused("start-outsider", outsider, clients.map((c) => c.socket));
+  } finally {
+    [...clients.map((c) => c.socket), outsider].forEach((s) => s.disconnect());
+  }
+});
+
+test("a start_game from a player who is not the host (the first listed) is refused", async () => {
+  const clients = [
+    { socket: connectAs("zeg"), name: "Zeg" },
+    { socket: connectAs("bob"), name: "Bob" },
+  ];
+  try {
+    await joinAll("start-not-host", clients);
+    await expectStartRefused("start-not-host", clients[1].socket, clients.map((c) => c.socket));
+  } finally {
+    clients.forEach(({ socket }) => socket.disconnect());
+  }
+});
+
+test("a start_game with fewer than two players in the Room is refused", async () => {
+  const host = connectAs("zeg");
+  try {
+    await joinAll("start-alone", [{ socket: host, name: "Zeg" }]);
+    await expectStartRefused("start-alone", host, [host]);
+  } finally {
+    host.disconnect();
   }
 });

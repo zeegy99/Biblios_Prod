@@ -1,9 +1,8 @@
 const { server, startServer, setResolveSession, setReportResult, setTurnDurations, setAbandonAfter, wrapEngine, stopEngine } = require("../server.js");
-const ioClient = require("socket.io-client");
-const { echoTurn } = require("./echo_turn");
+const { DECK_SETTINGS, connectTo, joinAll, once, startGame, until } = require("./helpers");
 const TEST_PORT = 4007;
+const connectAs = connectTo(TEST_PORT);
 
-const DECK_SETTINGS = { gold: { 1: 5, 2: 5, 3: 5 }, resource: { 1: 5, 2: 4, 3: 2, 4: 2 } };
 // Five Gold 1s and the specials: one donation turn, then a short auction.
 const GOLD_ONLY = { gold: { 1: 5, 2: 0, 3: 0 }, resource: { 1: 0, 2: 0, 3: 0, 4: 0 } };
 
@@ -24,49 +23,6 @@ afterAll((done) => {
   stopEngine();
   server.close(done);
 });
-
-function connectAs(sid) {
-  return echoTurn(
-    ioClient(`http://localhost:${TEST_PORT}`, {
-      forceNew: true,
-      extraHeaders: sid ? { cookie: `sid=${sid}` } : {},
-    }),
-  );
-}
-
-function once(socket, event) {
-  return new Promise((resolve) => socket.once(event, resolve));
-}
-
-// Resolves once `condition()` holds, checking every few milliseconds.
-async function until(condition) {
-  while (!condition()) await new Promise((resolve) => setTimeout(resolve, 10));
-}
-
-// Joins every client to `room` in order, waiting until all of them are listed.
-async function joinAll(room, clients) {
-  for (const [i, { socket, name }] of clients.entries()) {
-    const listed = new Promise((resolve) => {
-      const onList = (players) => {
-        if (players.length === i + 1) {
-          socket.off("player_list", onList);
-          resolve();
-        }
-      };
-      socket.on("player_list", onList);
-    });
-    socket.emit("join_game", { room, playerName: name });
-    await listed;
-  }
-}
-
-// Starts a Game for `clients` in `room` and resolves to each Seat's first Player View.
-async function startGame(room, clients, deckSettings = DECK_SETTINGS) {
-  await joinAll(room, clients);
-  const starts = clients.map(({ socket }) => once(socket, "start_game"));
-  clients[0].socket.emit("start_game", { room, deckSettings });
-  return (await Promise.all(starts)).map((p) => p.playerView);
-}
 
 function threeSeats() {
   return [

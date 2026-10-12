@@ -1,9 +1,8 @@
 const { server, startServer, setResolveSession, setReportResult, stopEngine } = require("../server.js");
-const ioClient = require("socket.io-client");
-const { echoTurn } = require("./echo_turn");
+const { DECK_SETTINGS, connectTo, collect, joinAll, moveAndWait, once, startGame } = require("./helpers");
 const TEST_PORT = 4005;
+const connectAs = connectTo(TEST_PORT);
 
-const DECK_SETTINGS = { gold: { 1: 5, 2: 5, 3: 5 }, resource: { 1: 5, 2: 4, 3: 2, 4: 2 } };
 
 beforeAll((done) => {
   setResolveSession(async (cookieHeader) => {
@@ -19,65 +18,10 @@ beforeAll((done) => {
   done();
 });
 
-afterAll(async () => {
-  // The last tests leave Games in progress (every start is a Game, even in a
-  // junk Room); let the server finish pausing them before the engine stops,
-  // or the pause would reach a fresh engine that never held them.
-  await new Promise((resolve) => setTimeout(resolve, 300));
+afterAll((done) => {
   stopEngine();
-  await new Promise((resolve) => server.close(resolve));
+  server.close(done);
 });
-
-function connectAs(sid) {
-  return echoTurn(
-    ioClient(`http://localhost:${TEST_PORT}`, {
-      forceNew: true,
-      extraHeaders: sid ? { cookie: `sid=${sid}` } : {},
-    }),
-  );
-}
-
-function once(socket, event) {
-  return new Promise((resolve) => socket.once(event, resolve));
-}
-
-// Resolves to the events `socket` received within `ms`.
-function collect(socket, event, ms = 300) {
-  const got = [];
-  const handler = (payload) => got.push(payload);
-  socket.on(event, handler);
-  return new Promise((resolve) =>
-    setTimeout(() => {
-      socket.off(event, handler);
-      resolve(got);
-    }, ms),
-  );
-}
-
-// Joins every client to `room` in order, waiting until all of them are listed.
-async function joinAll(room, clients) {
-  for (const [i, { socket, name }] of clients.entries()) {
-    const listed = new Promise((resolve) => {
-      const onList = (players) => {
-        if (players.length === i + 1) {
-          socket.off("player_list", onList);
-          resolve();
-        }
-      };
-      socket.on("player_list", onList);
-    });
-    socket.emit("join_game", { room, playerName: name });
-    await listed;
-  }
-}
-
-// Starts a Game for `clients` in `room` and resolves to each Seat's first Player View.
-async function startGame(room, clients, deckSettings = DECK_SETTINGS) {
-  await joinAll(room, clients);
-  const starts = clients.map(({ socket }) => once(socket, "start_game"));
-  clients[0].socket.emit("start_game", { room, deckSettings });
-  return (await Promise.all(starts)).map((p) => p.playerView);
-}
 
 // Disconnects `clients[seat]` and resolves once another Seat has heard about it.
 async function dropConnection(clients, seat) {
@@ -94,13 +38,6 @@ async function rejoinAs(sid, room) {
   const answer = once(socket, "rejoin_result");
   socket.emit("rejoin_game", { room });
   return { socket, answer: await answer };
-}
-
-// Sends `move` from `clients[seat]` and resolves to every Seat's next Player View.
-async function moveAndWait(clients, room, seat, move) {
-  const next = clients.map(({ socket }) => once(socket, "player_view"));
-  clients[seat].socket.emit("move", { room, move });
-  return Promise.all(next);
 }
 
 function threeSeats() {
@@ -247,7 +184,7 @@ test("Rejoining a finished Game returns its results; Seats still disconnected at
   }
 });
 
-test("a finished Game answers Rejoin only for its own Seats, and never once a new Game starts", async () => {
+test("a finished Game gives its results only to its own Seats on Rejoin, and never once a new Game starts", async () => {
   const clients = [
     { socket: connectAs("zeg"), name: "Zeg" },
     { socket: connectAs(null), name: "Guest" },
@@ -259,12 +196,12 @@ test("a finished Game answers Rejoin only for its own Seats, and never once a ne
     const room = "rejoin-finished-then-new";
     await startGame(room, clients, empty);
 
-    // Bob held no Seat: he gets no answer.
+    // Bob held no Seat: he is told he has none, and gets no view.
     const bob = connectAs("bob");
     extra.push(bob);
-    const bobAnswers = collect(bob, "rejoin_result");
+    const bobAnswer = once(bob, "rejoin_result");
     bob.emit("rejoin_game", { room });
-    expect(await bobAnswers).toEqual([]);
+    expect(await bobAnswer).toEqual({ room, playerView: null, reason: expect.stringMatching(/no Seat/) });
 
     // Zeg leaves and Bob joins; a new Game starts in the same Room: Zeg's
     // old Seat is gone, and he has none in the new Game.
@@ -289,6 +226,21 @@ test("a finished Game answers Rejoin only for its own Seats, and never once a ne
   }
 });
 
+test("a rejoin_game in a Room with no Game is answered: no Seat, no view", async () => {
+  const guest = connectAs(null);
+  const zeg = connectAs("zeg");
+  try {
+    for (const socket of [guest, zeg]) {
+      const answer = once(socket, "rejoin_result");
+      socket.emit("rejoin_game", { room: "rejoin-no-game" });
+      expect(await answer).toEqual({ room: "rejoin-no-game", playerView: null, reason: expect.stringMatching(/no Seat/) });
+    }
+  } finally {
+    guest.disconnect();
+    zeg.disconnect();
+  }
+});
+
 test("payloads that are not objects, or name a Room like an Object property, never crash the server", async () => {
   const socket = connectAs("zeg");
   const later = connectAs("bob");
@@ -300,7 +252,7 @@ test("payloads that are not objects, or name a Room like an Object property, nev
   try {
     const events = [
       "rejoin_game", "move", "join_game", "start_game", "update_name", "leave_game",
-      "sync_game_state", "chat_message", "update_deck_settings", "cursor_position",
+      "sync_game_state", "chat_message", "update_deck_settings", "cursor_position", "score_next",
     ];
     const payloads = [
       null, 5, "room", [], {},
@@ -309,7 +261,8 @@ test("payloads that are not objects, or name a Room like an Object property, nev
     ];
     for (const event of events) for (const payload of payloads) socket.emit(event, payload);
     const rejected = once(socket, "move_rejected");
-    socket.emit("move", { room: "constructor", move: { type: "pass" } });
+    // A Room named like an Object property that this socket never joined.
+    socket.emit("move", { room: "valueOf", move: { type: "pass" } });
     expect((await rejected).reason).toMatch(/Seat/);
 
     // The server is still up and Rooms still work.

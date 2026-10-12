@@ -1,9 +1,8 @@
 const { server, io, startServer, setResolveSession, setReportResult, stopEngine, enginePid } = require("../server.js");
-const ioClient = require("socket.io-client");
-const { echoTurn } = require("./echo_turn");
+const { DECK_SETTINGS, connectTo, joinAll, moveAndWait, once, startGame, until } = require("./helpers");
 const TEST_PORT = 4006;
+const connectAs = connectTo(TEST_PORT);
 
-const DECK_SETTINGS = { gold: { 1: 5, 2: 5, 3: 5 }, resource: { 1: 5, 2: 4, 3: 2, 4: 2 } };
 
 const reports = [];
 // When set, the next Move the server receives kills the engine child.
@@ -39,59 +38,9 @@ afterAll((done) => {
   server.close(done);
 });
 
-function connectAs(sid) {
-  return echoTurn(
-    ioClient(`http://localhost:${TEST_PORT}`, {
-      forceNew: true,
-      extraHeaders: sid ? { cookie: `sid=${sid}` } : {},
-    }),
-  );
-}
-
-function once(socket, event) {
-  return new Promise((resolve) => socket.once(event, resolve));
-}
-
-// Resolves once `condition()` holds, checking every few milliseconds.
-async function until(condition) {
-  while (!condition()) await new Promise((resolve) => setTimeout(resolve, 10));
-}
-
 // Lets any report a lost Game might (wrongly) trigger reach the reporter.
 function settle() {
   return new Promise((resolve) => setTimeout(resolve, 200));
-}
-
-// Sends `move` from `clients[seat]` and resolves to every Seat's next Player View.
-async function moveAndWait(clients, room, seat, move) {
-  const next = clients.map(({ socket }) => once(socket, "player_view"));
-  clients[seat].socket.emit("move", { room, move });
-  return Promise.all(next);
-}
-
-// Joins every client to `room` in order, waiting until all of them are listed.
-async function joinAll(room, clients) {
-  for (const [i, { socket, name }] of clients.entries()) {
-    const listed = new Promise((resolve) => {
-      const onList = (players) => {
-        if (players.length === i + 1) {
-          socket.off("player_list", onList);
-          resolve();
-        }
-      };
-      socket.on("player_list", onList);
-    });
-    socket.emit("join_game", { room, playerName: name });
-    await listed;
-  }
-}
-
-// Starts a Game for `clients` in `room` and resolves to each Seat's first Player View.
-async function startGame(room, clients) {
-  await joinAll(room, clients);
-  const starts = clients.map(({ socket }) => once(socket, "start_game"));
-  clients[0].socket.emit("start_game", { room, deckSettings: DECK_SETTINGS });
-  return (await Promise.all(starts)).map((p) => p.playerView);
 }
 
 // Kills the real engine child process and resolves to what every Seat heard.

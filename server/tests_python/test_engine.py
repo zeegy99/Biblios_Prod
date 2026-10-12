@@ -159,6 +159,27 @@ def test_blank_deck_settings_count_as_zero():
     assert view["deck_size"] + view["donation"]["cards_count"] + _specials_drawn(view) == 16
 
 
+def test_deck_setting_counts_are_capped_so_a_client_cannot_flood_the_engine():
+    # 10**9 resource 1s per type would freeze the shared engine; each count
+    # is capped at MAX_CARDS_PER_VALUE (20): 5 types x 20 + 6 specials.
+    huge = {"gold": {"1": 0, "2": 0, "3": 0}, "resource": {"1": 10**9, "2": 0, "3": 0, "4": 0}}
+    view = player_view(create_game(SEATS, huge, seed=7, now=NOW), 0)
+    assert view["deck_size"] + view["donation"]["cards_count"] + _specials_drawn(view) == 106
+
+
+def test_deck_setting_counts_that_are_not_finite_count_as_zero():
+    odd = {"gold": {"1": float("inf"), "2": 0, "3": 0}, "resource": {"1": 2, "2": float("nan"), "3": 0, "4": 0}}
+    view = player_view(create_game(SEATS, odd, seed=7, now=NOW), 0)
+    assert view["deck_size"] + view["donation"]["cards_count"] + _specials_drawn(view) == 16
+
+
+def test_deck_settings_that_are_not_an_object_give_the_default_deck():
+    default = player_view(create_game(SEATS, None, seed=7, now=NOW), 0)
+    for odd in (5, ["gold"], "deck"):
+        view = player_view(create_game(SEATS, odd, seed=7, now=NOW), 0)
+        assert view["deck_size"] == default["deck_size"]
+
+
 def _specials_drawn(donor_view):
     return donor_view["donation"].get("specials_drawn", 0)
 

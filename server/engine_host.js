@@ -31,6 +31,8 @@ function createEngineHost({ onCrash = () => {} } = {}) {
   let nextId = 1;
   let quickExitsInARow = 0;
   let restartTimer = null;
+  // Once stop() is called the host is done: no request starts a new child.
+  let stopped = false;
 
   function start() {
     clearTimeout(restartTimer);
@@ -75,7 +77,7 @@ function createEngineHost({ onCrash = () => {} } = {}) {
         ? 0
         : Math.min(RESTART_MAX_DELAY_MS, RESTART_BASE_DELAY_MS * 2 ** (quickExitsInARow - 2));
       restartTimer = setTimeout(() => {
-        if (!child) start();
+        if (!child && !stopped) start();
       }, delay);
       restartTimer.unref();
       try {
@@ -97,6 +99,7 @@ function createEngineHost({ onCrash = () => {} } = {}) {
   }
 
   function request(op, payload) {
+    if (stopped) return Promise.reject(new Error("The engine was stopped"));
     if (!child) start();
     const id = nextId++;
     return new Promise((resolve, reject) => {
@@ -155,7 +158,9 @@ function createEngineHost({ onCrash = () => {} } = {}) {
     get pid() {
       return child?.pid;
     },
+    // Final: every later request is refused (see request).
     stop() {
+      stopped = true;
       clearTimeout(restartTimer);
       restartTimer = null;
       if (child) {

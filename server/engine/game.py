@@ -52,7 +52,7 @@ def create_game(seats, deck_settings, seed, now, durations=None):
             {"player_id": s["player_id"], "name": s["name"], "hand": [], "gold": 0, "points": 0}
             for s in seats
         ],
-        "deck": _build_deck(deck_settings or {}, rng),
+        "deck": _build_deck(deck_settings if isinstance(deck_settings, dict) else {}, rng),
         "discard": [],
         "shared_pool": [],
         "dice": [{"resource_type": t, "value": rng.randint(2, 4)} for t in DICE_TYPES],
@@ -812,14 +812,21 @@ def _donation_view(game, seat):
     return view
 
 
+# The most cards of one value (per resource type) a Game's deck may hold.
+# Deck settings come from a client, and the engine is shared by every Game,
+# so a huge count must not be able to freeze it or exhaust its memory.
+MAX_CARDS_PER_VALUE = 20
+
+
 def _count(settings, key, defaults, value):
-    """How many cards of `value` the deck settings ask for. The lobby sends
-    string keys and may send "" for a blank field, which counts as zero."""
+    """How many cards of `value` the deck settings ask for, capped at
+    MAX_CARDS_PER_VALUE. The lobby sends string keys and may send "" for a
+    blank field, which counts as zero, as does anything not a finite number."""
     counts = settings.get(key) or defaults
     raw = counts.get(value, counts.get(int(value), 0)) if isinstance(counts, dict) else 0
     try:
-        return max(0, int(raw))
-    except (TypeError, ValueError):
+        return min(MAX_CARDS_PER_VALUE, max(0, int(raw)))
+    except (TypeError, ValueError, OverflowError):
         return 0
 
 

@@ -108,8 +108,14 @@ function wrapEngine(wrap) {
   };
 }
 
+// Stops the engine for good (tests' teardown). The Games it held are
+// forgotten first, so a request still in flight (e.g. pausing a Game whose
+// Seats just disconnected) fails quietly instead of losing a Game.
 function stopEngine() {
-  for (const room in gamesInRoom) clearTimers(gamesInRoom[room]);
+  for (const room in gamesInRoom) {
+    clearTimers(gamesInRoom[room]);
+    delete gamesInRoom[room];
+  }
   engine.stop();
 }
 
@@ -148,6 +154,8 @@ const FINISHED_GAME_KEPT_MS = 10 * 60 * 1000;
 // same shape and kept as long, so their Seats' Moves and Rejoins are told
 // why the Game is gone (`goneReason`).
 const goneGamesInRoom = Object.create(null);
+// Rooms whose Game the engine is creating right now.
+const startingRooms = new Set();
 // A Game in progress whose Seats have all been disconnected this long is
 // discarded with no result reported (see whenEveryoneLeft).
 let abandonAfterMs = 10 * 60 * 1000;
@@ -438,7 +446,7 @@ async function rejoinSeat(socket, room, game) {
   const playerId = socket.data.player?.playerId;
   const seat = seatOfPlayer(game, socket);
   if (seat === -1) {
-    socket.emit("rejoin_result", { room, playerView: null, reason: "You have no Seat in this Room's Game." });
+    socket.emit("rejoin_result", { room, playerView: null, reason: NO_SEAT_REASON });
     return;
   }
   const held = game.seats[seat];
@@ -466,6 +474,8 @@ async function rejoinSeat(socket, room, game) {
   io.to(room).emit("player_list", playersInRoom[room]);
   socket.emit("rejoin_result", { room, playerView: game.views[seat] });
 }
+
+const NO_SEAT_REASON = "You have no Seat in a Game in this Room.";
 
 function isRoomCode(room) {
   return typeof room === "string" && room.length > 0;
@@ -525,25 +535,28 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Only the host (the first player listed in the Room) may start a Game,
+  // with at least two players, and never while one is in progress or being
+  // created: that would let anyone end a Game they are losing. These checks
+  // run before any await, so two starts sent at once give one Game. A
+  // refusal goes to the sender only.
   onRoomEvent("start_game", ({ room, deckSettings }) => {
+    const refuse = (message) => socket.emit("start_game_failed", { message });
+    if (gamesInRoom[room] || startingRooms.has(room)) return refuse("A Game is already in progress in this Room.");
+    const players = playersInRoom[room] || [];
+    if (!players.some((p) => p.id === socket.id)) return refuse("You are not in this Room.");
+    if (players[0].id !== socket.id) return refuse("Only the host can start the Game.");
+    if (players.length < 2) return refuse("A Game needs at least two players.");
+
     // A new Game replaces any finished or lost one kept for Rejoin.
     delete finishedGamesInRoom[room];
     delete goneGamesInRoom[room];
 
     deckSettingsInRoom[room] = deckSettings;
 
-    return startGame(room, playersInRoom[room] || [], deckSettings);
+    startingRooms.add(room);
+    return startGame(room, players, deckSettings).finally(() => startingRooms.delete(room));
   });
-
-  onRoomEvent("cursor_position", ({ room, playerName, x, y }) => 
-    {
-      console.log(`cursor_position received from ${playerName} at (${x}, ${y})`);
-      socket.to(room).emit("cursor_position", { playerName, x, y });
-    });
-
-
-
-
 
   function removePlayerFromRoom(room, predicate) {
   if (!playersInRoom[room]) return;
@@ -613,7 +626,8 @@ onRoomEvent("leave_game", ({ room, playerId }) => {
 
 
   // Rejoin by Player Identity (see rejoinSeat). A finished Game answers only
-  // its own Seats; anyone else, or a Room with no Game, gets no answer.
+  // its own Seats. Every rejoin_game is answered, so a client with no Seat
+  // (a Guest after a refresh, or a Room with no Game) can say so.
   onRoomEvent("rejoin_game", ({ room }) => {
     const live = gamesInRoom[room];
     if (live) {
@@ -626,7 +640,9 @@ onRoomEvent("leave_game", ({ room, playerId }) => {
     const gone = goneGamesInRoom[room];
     if (gone && seatOfPlayer(gone, socket) !== -1) {
       socket.emit("rejoin_result", { room, playerView: null, reason: gone.goneReason });
+      return;
     }
+    socket.emit("rejoin_result", { room, playerView: null, reason: NO_SEAT_REASON });
   });
 
 
