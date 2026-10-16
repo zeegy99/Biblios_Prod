@@ -1,14 +1,14 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/auth_context";
 import SignOutButton from "../auth/sign_out_button";
 import RulesPage from "./rulespage";
+import RejoinButton from "./rejoin_button";
 import "./leaderboard.css";
 
 const ForgotPassword = () => {
   const { username, isSignedIn } = useAuth();
   const savedName = localStorage.getItem("playerName");
-  const [elo, setElo] = useState(null);
   const navigate = useNavigate();
   const [showBox, setShowBox] = useState(false);
   const [rulesPage, setRulesPage] = useState(false);
@@ -34,18 +34,6 @@ const ForgotPassword = () => {
 
   
 
-  useEffect(() => {
-    if (isSignedIn) {
-      fetch("/api/get_elo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: username.trim() })
-      })
-        .then(res => res.json())
-        .then(data => setElo(data.elo ?? "N/A"))
-        .catch(() => setElo("Error"));
-    }
-  }, [isSignedIn, username]);
 
  
 
@@ -54,13 +42,7 @@ const ForgotPassword = () => {
       <header className="home-header">
         <div className="logo">BIBLIOS</div>
         <div className="nav-buttons">
-          <button
-            className="login-header"
-            style={{ backgroundColor: "#e53935", color: "white" }}
-            
-          >
-            Rejoin
-          </button>
+          <RejoinButton />
 
           <button
             className="login-header"

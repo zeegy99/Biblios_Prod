@@ -4,12 +4,12 @@ import "./sign_in.css";
 import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth/auth_context";
-import { useInRoom, IN_ROOM_MESSAGE } from "../use_in_room";
+import { useInRoomGuard } from "../use_in_room";
 
 const SigninPage = () => {
   const { refresh } = useAuth();
   // Sign-in isn't offered while the player holds a seat in a Room.
-  const inRoom = useInRoom();
+  const inRoomGuard = useInRoomGuard();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
@@ -19,7 +19,7 @@ const SigninPage = () => {
 //Handling Login-Information. As of 9/8/26 Looks Good
   const handleSignin = async (e) => {
     e.preventDefault();
-    if (inRoom) return;
+    if (inRoomGuard.disabled) return;
     console.log("1 starting login process")
     try {
       const res = await fetch("/api/signin", {
@@ -75,9 +75,9 @@ const SigninPage = () => {
           required
         />
 
-        {inRoom && <p className="login-label">{IN_ROOM_MESSAGE}</p>}
+        {inRoomGuard.title && <p className="login-label">{inRoomGuard.title}</p>}
 
-        <button type="submit" className="login-button" disabled={inRoom}>
+        <button type="submit" className="login-button" {...inRoomGuard}>
           Log In
         </button>
 

@@ -14,3 +14,11 @@ export function useInRoom() {
 }
 
 export const IN_ROOM_MESSAGE = "Leave your Room before signing in or out.";
+
+// Props for a sign-in or Sign-out button: disabled, with IN_ROOM_MESSAGE as its
+// tooltip, while the player is in a Room. Spread onto the button:
+// <button {...useInRoomGuard()}>.
+export function useInRoomGuard() {
+  const inRoom = useInRoom();
+  return { disabled: inRoom, title: inRoom ? IN_ROOM_MESSAGE : undefined };
+}

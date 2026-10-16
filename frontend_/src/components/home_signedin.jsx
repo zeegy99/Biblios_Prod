@@ -4,12 +4,14 @@ import "./lobby.css";
 import RulesPage from "./rulespage"; 
 import { useAuth } from "../auth/auth_context";
 import SignOutButton from "../auth/sign_out_button";
+import { useElo } from "../auth/use_elo";
+import RejoinButton from "./rejoin_button";
 
 
 const SignedIn = () => {
   const { username, isSignedIn, loading } = useAuth();
   const savedName = localStorage.getItem("playerName") || username;
-  const [elo, setElo] = useState(null);
+  const elo = useElo();
   const navigate = useNavigate();
   const [showBox, setShowBox] = useState(false);
   const [rulesPage, setRulesPage] = useState(false);
@@ -49,28 +51,6 @@ useEffect(() => {
       window.removeEventListener('keydown', handleEsc);
     };
   }, []);
-useEffect(() => {
-  if (!isSignedIn) return;
-
-  fetch("/api/get_elo", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username: username.trim() })
-  })
-    .then(res => res.json())
-    .then(data => {
-      if (data.elo !== undefined) {
-        setElo(data.elo);
-      } else {
-        console.warn("No elo found:", data);
-        setElo("N/A");
-      }
-    })
-    .catch(err => {
-      console.error("Failed to fetch elo:", err);
-      setElo("Error");
-    });
-}, [isSignedIn, username]);
 
 const handleCreateRoom = () => {
   const newRoom = Math.random().toString(36).substring(2, 7).toUpperCase();
@@ -106,13 +86,7 @@ const handleCreateRoom = () => {
         <div className="logo">BIBLIOS</div>
         <div className="nav-buttons">
 
-          <button
-            className="login-header"
-            style={{ backgroundColor: "#e53935", color: "white" }}
-            onClick={handleRejoin}
-          >
-            Rejoin
-          </button>
+          <RejoinButton onClick={handleRejoin} />
 
             <button
            className="login-header"
