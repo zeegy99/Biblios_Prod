@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 os.environ.setdefault("DATABASE_URL", "postgresql://postgres:test@localhost:5432/biblios_database_dev")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-doesnt-matter-for-this-test")
 
-from app import app  
+from app import app, sha256, MAX_RESET_ATTEMPTS
 
 @pytest.fixture
 def client():
@@ -469,3 +469,238 @@ class Test_game_result:
         # Another Game between the same players counts.
         assert report_result(client, "game-2", placings).get_json() == {"recorded": True}
         assert (elo_of("ann"), elo_of("bob")) == (1020, 980)
+
+
+def password_hash_of(user_id):
+    conn = psycopg2.connect(os.environ["DATABASE_URL"])
+    cur = conn.cursor()
+    cur.execute("SELECT password_hash FROM users WHERE id = %s", (user_id,))
+    (stored,) = cur.fetchone()
+    cur.close()
+    conn.close()
+    return stored
+
+def reset_code_row(code_id):
+    conn = psycopg2.connect(os.environ["DATABASE_URL"])
+    cur = conn.cursor()
+    cur.execute("SELECT attempts, used_at FROM password_reset_codes WHERE id = %s", (code_id,))
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+    return row
+
+@pytest.fixture
+def reset_users(client):
+    """Two accounts with real password hashes, and a helper that seeds a reset
+    code for either one. Rows go away with client's TRUNCATE users CASCADE."""
+    conn = psycopg2.connect(os.environ["DATABASE_URL"])
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS password_reset_codes (
+            id BIGSERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            code_hash TEXT NOT NULL,
+            expires_at TIMESTAMPTZ NOT NULL,
+            used_at TIMESTAMPTZ,
+            attempts INT NOT NULL DEFAULT 0,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+    """)
+    users = {}
+    for name in ("alice", "mallory"):
+        cur.execute(
+            "INSERT INTO users (email, username, password_hash) VALUES (%s, %s, %s) RETURNING id",
+            (f"{name}@gmail.com", name, bcrypt.hashpw(b"old_password", bcrypt.gensalt()).decode())
+        )
+        users[name] = {"user_id": cur.fetchone()[0], "email": f"{name}@gmail.com", "username": name}
+        cur.execute("INSERT INTO elo (username, elo_score) VALUES (%s, %s)", (name, 1000))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    def seed_code(user, code, expires_in=datetime.timedelta(hours=1), used=False, attempts=0):
+        conn = psycopg2.connect(os.environ["DATABASE_URL"])
+        cur = conn.cursor()
+        cur.execute(
+            """INSERT INTO password_reset_codes (user_id, code_hash, expires_at, used_at, attempts)
+               VALUES (%s, %s, NOW() + %s, CASE WHEN %s THEN NOW() END, %s) RETURNING id""",
+            (user["user_id"], sha256(code), expires_in, used, attempts)
+        )
+        code_id = cur.fetchone()[0]
+        conn.commit()
+        cur.close()
+        conn.close()
+        return code_id
+
+    yield users, seed_code
+
+def change_password(client, email, code, password="new_password"):
+    return client.post("/api/change_password", json={"email": email, "code": code, "password": password})
+
+def password_is(user, password):
+    return bcrypt.checkpw(password.encode(), password_hash_of(user["user_id"]).encode())
+
+class Test_change_password:
+    def test_valid_code_changes_password_and_marks_code_used(self, client, reset_users):
+        users, seed_code = reset_users
+        code_id = seed_code(users["alice"], "123456")
+
+        resp = change_password(client, "alice@gmail.com", "123456")
+
+        assert resp.status_code == 204
+        assert password_is(users["alice"], "new_password")
+        _, used_at = reset_code_row(code_id)
+        assert used_at is not None
+
+    def test_email_is_matched_case_insensitively(self, client, reset_users):
+        users, seed_code = reset_users
+        seed_code(users["alice"], "123456")
+
+        resp = change_password(client, "  Alice@Gmail.COM ", "123456")
+
+        assert resp.status_code == 204
+        assert password_is(users["alice"], "new_password")
+
+    def test_reset_ends_every_existing_session(self, client, reset_users):
+        users, seed_code = reset_users
+        sid = sign_in(client, {"username": "alice", "password": "old_password"})
+        seed_code(users["alice"], "123456")
+
+        assert change_password(client, "alice@gmail.com", "123456").status_code == 204
+
+        assert session_ids_of(users["alice"]["user_id"]) == set()
+        client.set_cookie("sid", sid)
+        assert client.get("/api/current-user").status_code == 401
+
+    # Problem 1: a code expires and works only once
+
+    def test_expired_code_is_refused(self, client, reset_users):
+        users, seed_code = reset_users
+        seed_code(users["alice"], "123456", expires_in=datetime.timedelta(minutes=-1))
+
+        resp = change_password(client, "alice@gmail.com", "123456")
+
+        assert resp.status_code == 400
+        assert resp.get_json() == {"error": "Invalid or expired code"}
+        assert password_is(users["alice"], "old_password")
+
+    def test_already_used_code_is_refused(self, client, reset_users):
+        users, seed_code = reset_users
+        seed_code(users["alice"], "123456", used=True)
+
+        resp = change_password(client, "alice@gmail.com", "123456")
+
+        assert resp.status_code == 400
+        assert password_is(users["alice"], "old_password")
+
+    def test_code_cannot_be_reused_after_a_successful_reset(self, client, reset_users):
+        users, seed_code = reset_users
+        seed_code(users["alice"], "123456")
+        assert change_password(client, "alice@gmail.com", "123456", "first_new").status_code == 204
+
+        resp = change_password(client, "alice@gmail.com", "123456", "second_new")
+
+        assert resp.status_code == 400
+        assert password_is(users["alice"], "first_new")
+
+    def test_code_superseded_by_a_resend_is_refused(self, client, reset_users):
+        # check_email marks older codes used when it sends a new one.
+        users, seed_code = reset_users
+        seed_code(users["alice"], "111111", used=True)
+        seed_code(users["alice"], "222222")
+
+        assert change_password(client, "alice@gmail.com", "111111").status_code == 400
+        assert password_is(users["alice"], "old_password")
+        assert change_password(client, "alice@gmail.com", "222222").status_code == 204
+
+    # Problem 2: guesses are limited
+
+    def test_wrong_code_counts_an_attempt_and_changes_nothing(self, client, reset_users):
+        users, seed_code = reset_users
+        code_id = seed_code(users["alice"], "123456")
+
+        resp = change_password(client, "alice@gmail.com", "000000")
+
+        assert resp.status_code == 400
+        assert resp.get_json() == {"error": "Invalid or expired code"}
+        assert password_is(users["alice"], "old_password")
+        assert reset_code_row(code_id) == (1, None)
+
+    def test_correct_code_is_refused_once_attempts_are_used_up(self, client, reset_users):
+        users, seed_code = reset_users
+        code_id = seed_code(users["alice"], "123456")
+
+        for _ in range(MAX_RESET_ATTEMPTS):
+            assert change_password(client, "alice@gmail.com", "000000").status_code == 400
+        assert reset_code_row(code_id)[0] == MAX_RESET_ATTEMPTS
+
+        resp = change_password(client, "alice@gmail.com", "123456")
+
+        assert resp.status_code == 400
+        assert password_is(users["alice"], "old_password")
+
+    def test_correct_code_still_works_on_the_last_allowed_attempt(self, client, reset_users):
+        users, seed_code = reset_users
+        seed_code(users["alice"], "123456", attempts=MAX_RESET_ATTEMPTS - 1)
+
+        assert change_password(client, "alice@gmail.com", "123456").status_code == 204
+
+    # Problem 3: the code is looked up only for the named account
+
+    def test_another_accounts_code_does_not_work_for_this_account(self, client, reset_users):
+        users, seed_code = reset_users
+        seed_code(users["alice"], "123456")
+        mallory_code = seed_code(users["mallory"], "999999")
+
+        resp = change_password(client, "mallory@gmail.com", "123456", "pwned")
+
+        assert resp.status_code == 400
+        assert password_is(users["alice"], "old_password")
+        assert password_is(users["mallory"], "old_password")
+        # The guess counts against mallory's own code.
+        assert reset_code_row(mallory_code)[0] == 1
+
+    def test_another_accounts_code_does_not_reset_its_owner(self, client, reset_users):
+        users, seed_code = reset_users
+        alice_code = seed_code(users["alice"], "123456")
+
+        resp = change_password(client, "mallory@gmail.com", "123456", "pwned")
+
+        assert resp.status_code == 400
+        assert password_is(users["alice"], "old_password")
+        assert reset_code_row(alice_code) == (0, None)
+
+    def test_unknown_email_is_refused(self, client, reset_users):
+        users, seed_code = reset_users
+        seed_code(users["alice"], "123456")
+
+        resp = change_password(client, "nobody@gmail.com", "123456")
+
+        assert resp.status_code == 400
+        assert resp.get_json() == {"error": "Invalid or expired code"}
+        assert password_is(users["alice"], "old_password")
+
+    # Problem 4: missing input is a 400, not a 500
+
+    @pytest.mark.parametrize("body", [
+        {},
+        {"email": "alice@gmail.com", "password": "new_password"},
+        {"email": "alice@gmail.com", "code": None, "password": "new_password"},
+        {"email": "alice@gmail.com", "code": "   ", "password": "new_password"},
+        {"email": "alice@gmail.com", "code": "123456"},
+        {"code": "123456", "password": "new_password"},
+    ])
+    def test_missing_field_returns_400_and_changes_nothing(self, client, reset_users, body):
+        users, seed_code = reset_users
+        code_id = seed_code(users["alice"], "123456")
+
+        resp = client.post("/api/change_password", json=body)
+
+        assert resp.status_code == 400
+        assert password_is(users["alice"], "old_password")
+        assert reset_code_row(code_id) == (0, None)
+
+    def test_non_json_body_returns_400(self, client, reset_users):
+        resp = client.post("/api/change_password", data="code=123456", content_type="text/plain")
+
+        assert resp.status_code == 400

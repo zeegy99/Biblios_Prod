@@ -28,11 +28,14 @@ const ResetPassword = () => {
       const res = await fetch ("/api/change_password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: changedPassword, code: code })
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password: changedPassword, code: code.trim() })
       })
 
       if (res.ok) {
         setdisplay(true)
+      }
+      else {
+        alert("That code is invalid or expired")
       }
     }
     else {
@@ -111,6 +114,15 @@ const ResetPassword = () => {
           )}
         </div>
       </header>
+
+    <label className="login-label">Email</label>
+        <input
+          type="email"
+          placeholder="Email"
+          onChange = {(e) => setEmail(e.target.value)}
+          className="login-input"
+          required
+        />
 
     <label className="login-label">Password</label>
         <input

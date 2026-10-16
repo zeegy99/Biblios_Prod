@@ -509,45 +509,71 @@ def check_email():
         return jsonify({"message": "If that email exists, we sent a reset code."}), 200
 
 
+MAX_RESET_ATTEMPTS = 5
+
 @app.route("/api/change_password", methods=["POST", "OPTIONS"])
 def change_password():
     if request.method == "OPTIONS":
         return "", 200
     conn = None
     cursor = None
-    try:
-        data = request.json
-        raw_hash = data.get("code")
-        code_hash = sha256(raw_hash)
-        sent_password = data.get("password")
-        hashed_password = hash_function(sent_password)
 
-        if not code_hash or not sent_password:
-            return jsonify({"error": "Missing code or password"}), 400
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip().lower()
+    code = (data.get("code") or "").strip()
+    new_password = data.get("password") or ""
+
+    if not email or not code or not new_password:
+        return jsonify({"error": "Missing email, code, or password"}), 400
+
+    conn = psycopg2.connect(os.getenv("DATABASE_URL"))
+    invalid = (jsonify({"error": "Invalid or expired code"}), 400)
+    try:
 
         #First check if there is something in the database to warrant a change.
-        conn = psycopg2.connect(os.getenv("DATABASE_URL"))
+        
         cursor = conn.cursor()
 
-        cursor.execute("""select user_id from password_reset_codes where code_hash like %s""", (code_hash,))
+        cursor.execute("""
+                SELECT c.id, c.user_id, c.code_hash, c.attempts
+                FROM password_reset_codes c
+                JOIN users u ON u.id = c.user_id
+                WHERE LOWER(u.email) = %s
+                  AND c.used_at IS NULL
+                  AND c.expires_at > NOW()
+                ORDER BY c.created_at DESC
+                LIMIT 1
+                FOR UPDATE OF c
+            """, (email,))
 
         row = cursor.fetchone()
 
         if not row:
-            return jsonify({"error": "Invalid or expired code"}), 400
+            return invalid
 
-        print("This is row", row)
+        code_id, user_id, stored_hash, attempts = row
+        if attempts >= MAX_RESET_ATTEMPTS:
+            return invalid
 
-        if row:
-            cursor.execute("""UPDATE users set password_hash = %s where id = %s""", (hashed_password,row[0]))
+        if not hmac.compare_digest(sha256(code), stored_hash):
             cursor.execute(
-            "DELETE FROM password_reset_codes WHERE code_hash = %s",
-            (code_hash,),
-        )
+                "UPDATE password_reset_codes SET attempts = attempts + 1 WHERE id = %s",
+                (code_id,),
+            )
             conn.commit()
-            return '', 200
+            return invalid
+
+        cursor.execute("UPDATE users SET password_hash = %s WHERE id = %s",
+                        (hash_function(new_password), user_id))
+        cursor.execute("UPDATE password_reset_codes SET used_at = NOW() WHERE id = %s",
+                        (code_id,))
+        cursor.execute("DELETE FROM sessions WHERE user_id = %s", (user_id,))
+        conn.commit()
+        return "", 204
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        conn.rollback()
+        app.logger.exception("Password reset failed")
+        return jsonify({"error": "Could not reset password"}), 500
     
     finally:
         if cursor:
