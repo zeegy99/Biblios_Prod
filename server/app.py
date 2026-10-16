@@ -556,6 +556,19 @@ def change_password():
             conn.close()
 
 
+# Columns of the keybinds table (see schema.sql). Only these may be written;
+# request keys are never used as SQL identifiers directly.
+KEYBIND_COLUMNS = (
+    "donate_card", "discard_card", "keep_card", "open_chat",
+    "bid_increase", "bid_decrease", "pass_bid",
+    "take_card_1", "take_card_2", "take_card_3", "take_card_4",
+    "place_bid",
+    "update_dice_1", "update_dice_2", "update_dice_3",
+    "update_dice_4", "update_dice_5", "update_dice_6",
+    "increase_dice", "decrease_dice",
+)
+
+
 @app.route("/api/send_keybinds", methods=["POST", "OPTIONS"])
 def send_keybinds():
     if request.method == "OPTIONS":
@@ -575,6 +588,15 @@ def send_keybinds():
         data = request.json
         print("Received keybinds data:", data)
 
+        # Map each request key to its allow-listed column; reject the whole
+        # request if any key is unknown.
+        settings = {}
+        for key, value_list in data['settings'].items():
+            column = key.lower()
+            if column not in KEYBIND_COLUMNS:
+                return jsonify({"error": "Unknown keybind"}), 400
+            settings[column] = value_list
+
         conn = psycopg2.connect(DATABASE_URL)
         cursor = conn.cursor()
 
@@ -585,10 +607,9 @@ def send_keybinds():
             update_clauses = []
             values_to_update = []
             
-            for key, value_list in data['settings'].items():
+            for column, value_list in settings.items():
                 if len(value_list) > 0:
-                    # FIX: Use the key directly, without quotes, for lowercase column names
-                    update_clauses.append(f'{key.lower()} = %s')
+                    update_clauses.append(f'{column} = %s')
                     values_to_update.append(value_list[0])
             
             values_to_update.append(username)
@@ -602,9 +623,8 @@ def send_keybinds():
             column_names = ['username']
             values_list = [username]
             
-            for key, value_list in data['settings'].items():
-                # FIX: Use the key directly, without quotes
-                column_names.append(key.lower())
+            for column, value_list in settings.items():
+                column_names.append(column)
                 values_list.append(value_list[0])
             
             placeholders = ', '.join(['%s'] * len(values_list))

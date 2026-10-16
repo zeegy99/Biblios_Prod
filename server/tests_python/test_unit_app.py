@@ -264,6 +264,31 @@ class Test_send_keybinds:
         cursor.execute.assert_any_call("SELECT username FROM keybinds WHERE username = %s", ("alice",))
         cursor.execute.assert_any_call("INSERT INTO keybinds (username, keep_card) VALUES (%s, %s)", ["alice", "E"])
 
+    @pytest.mark.parametrize("bad_key", ["NOT_A_KEYBIND", "username", "x = 'y', username"])
+    def test_send_keybinds_unknown_key_returns_400_without_touching_db(self, client, mocker, bad_key):
+        connect = mocker.patch("app.psycopg2.connect")
+        mocker.patch("app.get_session_account", return_value=SessionAccount(user_id=7, username="alice"))
+        client.set_cookie("sid", "good-sid")
+
+        resp = client.post("/api/send_keybinds", json={"settings": {"KEEP_CARD": ["E"], bad_key: ["Q"]}})
+
+        assert resp.status_code == 400
+        assert resp.get_json() == {"error": "Unknown keybind"}
+        connect.assert_not_called()
+
+    def test_send_keybinds_update_uses_known_columns(self, client, mocker, db):
+        _, cursor = db
+        cursor.fetchone.return_value = ("alice",)
+        mocker.patch("app.get_session_account", return_value=SessionAccount(user_id=7, username="alice"))
+        client.set_cookie("sid", "good-sid")
+
+        resp = client.post("/api/send_keybinds", json={"settings": {"DONATE_CARD": ["Z"], "KEEP_CARD": ["X"]}})
+
+        assert resp.status_code == 200
+        cursor.execute.assert_any_call(
+            "UPDATE keybinds SET donate_card = %s, keep_card = %s WHERE username = %s", ["Z", "X", "alice"]
+        )
+
 class Test_signout:
     def test_signout_options_preflight(self, client):
         resp = client.open("/api/signout", method="OPTIONS")
